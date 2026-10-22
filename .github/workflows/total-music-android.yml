@@ -1,0 +1,64 @@
+name: Total Music Android verification
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md', '.github/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: total-music-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      ORG_GRADLE_PROJECT_spaceNdkVersion: '27.0.12077973'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+      - name: Verify identity, public certificate and source history
+        run: |
+          python3 scripts/release/check_release.py
+          git merge-base --is-ancestor 5d354463d8ab7b4b11a486a23ae47c1673f2f61e HEAD
+      - name: Install required Android SDK
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+      - name: Run shared and Android regression tests
+        run: |
+          chmod +x gradlew
+          ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8 -Djava.net.preferIPv4Stack=true' --max-workers=2 :shared:jvmTest :app:testProdDebugUnitTest -PspaceSpatialEdition=true --build-cache --stacktrace
+      - name: Run Android lint
+        run: ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8' --max-workers=2 :app:lintProdDebug :app:lintVitalProdRelease -PspaceSpatialEdition=true --build-cache --stacktrace
+      - name: Build test APK and optimized unsigned release
+        run: ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8' --max-workers=2 :app:assembleProdDebug :app:assembleProdRelease -PspaceSpatialEdition=true --build-cache --stacktrace
+      - name: Verify APK identity and package traceable artifacts
+        run: |
+          set -euo pipefail
+          python3 scripts/release/package_ci.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-verification-${{ github.sha }}
+          path: |
+            release-artifacts/
+            app/build/reports/
+            app/build/test-results/
+            shared/build/reports/tests/
+            shared/build/test-results/
+          if-no-files-found: error
+          retention-days: 14
