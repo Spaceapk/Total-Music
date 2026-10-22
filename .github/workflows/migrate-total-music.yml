@@ -1,0 +1,77 @@
+name: Migrate Total Music
+on:
+  push:
+    paths: ['.github/workflows/migrate-total-music.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Import Total Music with source history
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name Spaceapk
+          git config user.email 345450721+Spaceapk@users.noreply.github.com
+          cp .github/workflows/migrate-total-music.yml /tmp/migration.yml
+          git fetch https://github.com/Spaceapk/My-Music.git refs/heads/design/total-music-1.2.0:refs/remotes/source/total
+          git merge-base --is-ancestor 369a1f68e80dae6780d317e82d226bff06d37b01 refs/remotes/source/total
+          git checkout -b imported refs/remotes/source/total
+          git merge --allow-unrelated-histories -s ours origin/main -m 'Preserve Total Music source and repository initialization'
+          cp /tmp/migration.yml .github/workflows/migrate-total-music.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ['README.md','AGENTS.md','docs/TOTAL_MUSIC_RELEASES.md']:
+              p = Path(name)
+              text = p.read_text().replace('Spaceapk/My-Music','Spaceapk/Total-Music')
+              if name == 'AGENTS.md':
+                  text = text.replace('The maintained GitHub integration is '+chr(96)+'design/total-music-1.2.0'+chr(96), 'The maintained GitHub integration is '+chr(96)+'main'+chr(96))
+              p.write_text(text)
+          for p in Path('.github/workflows').glob('space-*.yml'):
+              p.rename(Path('docs/upstream-workflows') / p.name)
+          Path('README.md').write_text('''# Total Music
+
+          Reproductor de música para Android mantenido por Spaceapk.
+
+          ## Descargar
+
+          [Descargar Total Music 1.2.0](https://github.com/Spaceapk/Total-Music/releases/tag/v1.2.0)
+
+          APK universal con firma permanente y paquete org.nexlibre.totalmusic. Tema Google Expressive, colores personalizables, modo oscuro negro puro y ecualizador de 10 bandas con modo avanzado de 31 bandas.
+
+          ## Desarrollo
+
+          Este es el repositorio principal de Total Music. La rama main contiene la base migrada de la versión 1.2.0 y conserva el historial original.
+
+          - [Versiones y firma](docs/TOTAL_MUSIC_RELEASES.md)
+          - [Mantenimiento](AGENTS.md)
+          - [GitHub Actions](https://github.com/Spaceapk/Total-Music/actions)
+
+          [My-Music](https://github.com/Spaceapk/My-Music) permanece como respaldo y conserva los registros originales de compilación.
+
+          ## Licencia y créditos
+
+          Derivado de Space Music, basado en Star Music/BitChord. Se conservan GPL-3.0 y los créditos originales: [README-UPSTREAM.md](README-UPSTREAM.md) y [LICENSE](LICENSE).
+          ''')
+          PY
+          git add .
+          git commit -m 'Establish Total Music main branch and documentation'
+          git push origin HEAD:main
+      - name: Copy original signed release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/tm-release
+          gh release download v1.2.0 --repo Spaceapk/My-Music --dir /tmp/tm-release
+          cd /tmp/tm-release
+          sha256sum --check SHA256SUMS.txt
+          echo '064e1146bd08f2922b18c0b5f5b5a2b3e7e5807fa850acf01e7f73c2efdb0dae  Total-Music-1.2.0-universal.apk' | sha256sum --check
+          gh api repos/Spaceapk/My-Music/releases/tags/v1.2.0 --jq .body > /tmp/notes.md
+          gh release create v1.2.0 --repo Spaceapk/Total-Music --target main --title 'Total Music 1.2.0' --notes-file /tmp/notes.md ./*
