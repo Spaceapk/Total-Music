@@ -1,6 +1,6 @@
 # Entregas de Total Music
 
-Rama de mantenimiento en GitHub: `design/total-music-1.2.0` en `Spaceapk/Total-Music`.
+Rama de mantenimiento en GitHub: `main` en `Spaceapk/Total-Music`.
 GitLab se conserva como respaldo.
 Identidad Android: `org.nexlibre.totalmusic`. Android mínimo: 8 (API 26).
 La primera entrega con firma permanente es 1.0.2, versionCode 3.
@@ -22,7 +22,7 @@ sin entregar la autoridad de firma al servicio de compilación.
 ## Preparar una actualización
 
 1. Partir de la última versión estable y conservar sus cambios.
-2. Ejecutar `python3 scripts/release/prepare_version.py 1.0.3`, sustituyendo
+2. Ejecutar `python3 scripts/release/prepare_version.py 1.2.1`, sustituyendo
    la versión por la siguiente. Esto aumenta también versionCode.
 3. Confirmar los cambios en GitHub y ejecutar `total-music-android.yml` en GitHub Actions.
    Codemagic `total-music-release` permanece disponible como alternativa.
