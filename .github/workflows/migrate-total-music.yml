@@ -33,8 +33,9 @@ jobs:
               if name == 'AGENTS.md':
                   text = text.replace('The maintained GitHub integration is '+chr(96)+'design/total-music-1.2.0'+chr(96), 'The maintained GitHub integration is '+chr(96)+'main'+chr(96))
               p.write_text(text)
-          for p in Path('.github/workflows').glob('space-*.yml'):
-              p.rename(Path('docs/upstream-workflows') / p.name)
+          for p in Path('.github/workflows').glob('*.yml'):
+              if p.name != 'migrate-total-music.yml':
+                  p.rename(Path('docs/upstream-workflows') / p.name)
           Path('README.md').write_text('''# Total Music
 
           Reproductor de música para Android mantenido por Spaceapk.
