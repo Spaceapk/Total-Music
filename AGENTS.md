@@ -1,7 +1,7 @@
 # Total Music maintenance
 
-The maintained GitHub integration is `design/total-music-1.2.0` in
-`Spaceapk/My-Music`. GitLab `nexlibre-group/total-music` remains a backup.
+The maintained GitHub integration is `main` in
+`Spaceapk/Total-Music`. GitLab `nexlibre-group/total-music` remains a backup.
 Preserve the source history, including ancestor
 `369a1f68e80dae6780d317e82d226bff06d37b01`. Do not rebuild the app from scratch,
 force-push, or overwrite the Space Music branches.

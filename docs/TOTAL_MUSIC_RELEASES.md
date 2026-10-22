@@ -1,6 +1,6 @@
 # Entregas de Total Music
 
-Rama de mantenimiento en GitHub: `design/total-music-1.2.0` en `Spaceapk/My-Music`.
+Rama de mantenimiento en GitHub: `design/total-music-1.2.0` en `Spaceapk/Total-Music`.
 GitLab se conserva como respaldo.
 Identidad Android: `org.nexlibre.totalmusic`. Android mínimo: 8 (API 26).
 La primera entrega con firma permanente es 1.0.2, versionCode 3.
