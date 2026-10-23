@@ -472,6 +472,7 @@ private fun BitChordApp(
     // Recording the backdrop layer costs a draw pass, so it only runs when a
     // liquid-glass surface (the nav bar or artwork-page back button) can sample it.
     val glassActive = LocalLiquidGlassEnabled.current
+    val expressiveNavigation by com.music.bitchord.data.settings.TotalMusicSettings.expressive.collectAsStateWithLifecycle()
     val adaptiveGlass by com.music.bitchord.data.settings.TotalMusicSettings.adaptiveGlass.collectAsStateWithLifecycle()
     // "Reduce dynamic blur" keeps the glass bar's *shape* — the folding
     // now-playing-and-tabs component is a layout, not an effect, and dropping
@@ -703,10 +704,8 @@ private fun BitChordApp(
     var showWhatsNew by rememberSaveable {
         mutableStateOf(updatePreferences.getInt("seen_version", 0) < BuildConfig.VERSION_CODE)
     }
-    val installedNotes = remember {
-        if (updatePreferences.getString("pending_version", null) == BuildConfig.VERSION_NAME)
-            updatePreferences.getString("pending_notes", null)?.takeIf { it.isNotBlank() }
-        else null
+    val installedNotes = remember(context) {
+        com.music.bitchord.data.ReleaseNotes.installed(context)
     }
     var updateDialogShown by rememberSaveable { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -2119,7 +2118,7 @@ private fun BitChordApp(
     val floatingBarsHeight = remember { mutableIntStateOf(0) }
     val bottomContentPadding = with(LocalDensity.current) {
         // Keep list geometry stable while the overlay morphs; it can reveal rows without moving them.
-        if (glassActive && adaptiveGlass) { if (player.song != null) 184.dp else 120.dp }
+        if ((glassActive || expressiveNavigation) && adaptiveGlass) { if (player.song != null) 184.dp else 120.dp }
         else if (floatingBarsHeight.intValue > 0) floatingBarsHeight.intValue.toDp() + 20.dp
         else if (player.song != null) 164.dp else 100.dp
     }
@@ -2575,7 +2574,7 @@ private fun BitChordApp(
                     modifier = Modifier
                         .hazeSource(hazeState)
                         .then(
-                            if (glassActive) {
+                            if (glassActive || (expressiveNavigation && adaptiveGlass)) {
                                 Modifier
                                     // Not under "reduce dynamic blur": nothing
                                     // samples the layer then, and recording a
@@ -3734,8 +3733,9 @@ private fun BitChordApp(
                         .onSizeChanged { floatingBarsHeight.intValue = it.height },
                 ) {
                     QueueActionNoticeHost(queueNotice)
-                    if (glassActive && adaptiveGlass) {
+                    if ((glassActive || expressiveNavigation) && adaptiveGlass) {
                         GlassNavBar(
+                            materialSurface = expressiveNavigation && !glassActive,
                             tabs = listOf(
                                 BottomTab(stringResource(R.string.songs), Icons.Rounded.MusicNote),
                                 BottomTab(stringResource(R.string.albums), Icons.Rounded.Album),
@@ -4111,6 +4111,12 @@ private fun BitChordApp(
             SongActionsSheet(
                 song = song,
                 presentation = presentation,
+                onLocalFileDeleted = {
+                    songActions = null
+                    viewModel.loadLibrarySongs()
+                    viewModel.reloadLocalDetail("local:all")
+                    viewModel.reloadLocalDetail("local:downloads")
+                },
                 signedIn = signedIn,
                 likeStatus = likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
                 onPlayNext = { playNext(song); songActions = null },
@@ -4755,7 +4761,7 @@ private fun BitChordApp(
                 title = { Text(stringResource(R.string.space_whats_new, BuildConfig.VERSION_NAME)) },
                 text = {
                     Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
-                        Text(installedNotes ?: stringResource(R.string.space_whats_new_body))
+                        Text(installedNotes)
                     }
                 },
                 confirmButton = {

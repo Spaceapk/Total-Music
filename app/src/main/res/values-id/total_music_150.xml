@@ -1,0 +1,28 @@
+<resources>
+    <string name="sort_track_number">Nomor trek</string>
+    <string name="release_history">Yang baru · Riwayat versi</string>
+    <string name="playlist_added_count">%1$d lagu ditambahkan</string>
+    <string name="release_notes_unavailable">Tidak ada catatan rilis bawaan untuk build ini.</string>
+    <string name="local_song_information">Informasi lagu</string>
+    <string name="local_delete_file">Hapus file dari perangkat</string>
+    <string name="local_delete_file_confirm">Hapus «%1$s» dari perangkat? Tindakan ini tidak dapat dibatalkan.</string>
+    <string name="local_file_deleted">File dihapus</string>
+    <string name="local_file_delete_failed">Tidak dapat menghapus file</string>
+    <string name="meta_title">Judul</string>
+    <string name="meta_artist">Artis</string>
+    <string name="meta_album">Album</string>
+    <string name="meta_album_artist">Artis album</string>
+    <string name="meta_composer">Komposer</string>
+    <string name="meta_writer">Penulis lirik</string>
+    <string name="meta_author">Penulis</string>
+    <string name="meta_year">Tahun</string>
+    <string name="meta_genre">Genre</string>
+    <string name="meta_track">Nomor trek</string>
+    <string name="meta_disc">Nomor disk</string>
+    <string name="meta_bitrate">Bitrate (bit/dtk)</string>
+    <string name="meta_duration">Durasi (md)</string>
+    <string name="meta_format">Format</string>
+    <string name="meta_location">Lokasi</string>
+    <string name="meta_filename">Nama file</string>
+    <string name="meta_size">Ukuran</string>
+</resources>
