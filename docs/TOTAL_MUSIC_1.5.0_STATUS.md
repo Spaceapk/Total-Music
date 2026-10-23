@@ -2,7 +2,7 @@
 
 Base: `ad8b1775639a4561bd79037217b4c4bd394b841c` de main, 1.4.1 (9).
 Objetivo preparado con `prepare_version.py`: 1.5.0 (10).
-No se ha publicado una Release ni generado un APK en esta sesión.
+No se ha publicado una Release. Los APK locales ya compilan; la entrega firmada sigue pendiente.
 
 ## Cambios de código
 
@@ -34,73 +34,45 @@ No se ha publicado una Release ni generado un APK en esta sesión.
   El historial conserva 1.3.0 y 1.4.0 con código 8: la colisión histórica está
   documentada en el repositorio; las entradas se distinguen por ambos campos.
 
-## Verificaciones ejecutadas
+## Verificaciones al 23 de octubre de 2026
 
-- check_release.py: identidad, certificado público fijado, aislamiento de la
-  firma privada y correspondencia de notas de versión: correcto.
-- git diff --check: correcto.
-- Parseo XML de recursos modificados y nuevos: correcto.
-- Ancestro histórico 369a1f68 preservado: comprobado.
+- Java 21 y SDK/NDK oficiales recuperados; bloqueo inicial de descargas resuelto.
+- 50 pruebas shared + 1017 app: 0 fallos, 0 errores, 1 omitida.
+- lintProdDebug y lintVitalProdRelease correctos, baseline existente intacto.
+- assembleProdRelease, assembleProdDebug y assembleProdDebugAndroidTest correctos.
+- Identidad, certificado público, notas de versión, XML e historia comprobados.
+- Fuente conservada en work/total-music-1.5.0-recovery y PR #1 como borrador.
+- CI de rama: https://github.com/Spaceapk/Total-Music/actions/runs/40026245060
+- 7 pruebas Android 13 (álbum/selección/playlists): correctas.
+- UI Android 13: https://github.com/Spaceapk/Total-Music/actions/runs/40026218805
+- PR: https://github.com/Spaceapk/Total-Music/pull/1
 
-## Pruebas preparadas, todavía NO ejecutadas
+## Regresiones recuperadas
 
-- AlbumOrderingTest (shared): etiquetas 1/01/1/12, inválidas y desbordamientos,
-  álbum desordenado, multidisco, pistas sin etiquetas y estabilidad de empates.
-- AlbumTrackOrderUiTest (Android Compose): abre el álbum real de prueba,
-  utiliza el menú Número de pista, verifica la cola reproducida y recarga las
-  preferencias. Prueba adicional de Seleccionar todas con búsqueda y cambio
-  de búsqueda para descartar selección oculta.
-- DevicePlaylistStoreTest ampliado: persiste disco y pista al guardar una lista.
-- Se conservan los tests anteriores de playlists, temas y Total EQ.
+Se restauraron los menús de información y eliminación local: etiquetas nativas
+ disponibles, tamaño, formato y ubicación; confirmación explícita y consentimiento
+MediaStore en Android 11+, permiso recuperable en Android 10. Su validación
+funcional aún está pendiente. El lector nativo no expone etiquetas personalizadas
+de productor: no se inventan créditos.
 
-## Bloqueos observados y condiciones para publicar
+## Pendientes obligatorios antes de publicar
 
-La invocación Gradle se detuvo antes de compilar porque la descarga de
-services.gradle.org no tiene acceso de red. El entorno solo tiene Java 17;
-el flujo CI instala Java 21 y el SDK/NDK requeridos. No hay un resultado de
-compilación, lint, JVM ni emulador atribuible a estos cambios.
+- Terminar CI de release y ampliar las regresiones Android; las siete pruebas
+  de álbum, selección y playlists ya pasaron en Android 13.
+- LocalTrackMetadataTest añade cuatro archivos sintéticos de 32 segundos con
+  metadatos disco 2/3 y pista 01/12 en MP3, FLAC, Ogg y M4A. Verifica el escáner
+  real y el lector de metadatos; todavía requiere ejecución Android.
+- Ejecutar las demás pruebas instrumentadas existentes de reproducción local,
+  playlists, preferencias, letras y audio espacial.
+- Revisar eliminación con consentimiento, colores de carátula, AMOLED, EQ y
+  navegación/minirreproductor en Google Expressive y Liquid Glass.
+- Verificar novedades una vez tras actualizar y consulta offline desde Ajustes.
+- Descargar el APK exacto de CI, comprobar commit y SHA256, firmar localmente con
+  la clave permanente y validar instalación/actualización desde 1.4.1 en Android.
+- Publicar solo después de las verificaciones obligatorias y respaldar en Drive.
 
-La lectura Git del repositorio funciona. La comprobación de subida
-`git push --dry-run` falla porque no hay credenciales de escritura. La conexión
-GitHub anunciada devuelve Unknown tool al intentar leer mediante ella. Por eso
-no se ha podido subir la rama ni ejecutar Actions desde aquí.
-
-Antes de publicar:
-
-1. Subir la rama y abrir PR hacia main para ejecutar total-music-android.yml.
-2. Superar JVM, pruebas Android locales, lint y ensamblado release del flujo.
-3. Ejecutar connectedProdDebugAndroidTest en un dispositivo/emulador; estas
-   pruebas de interfaz no se ejecutan en el flujo actual por defecto.
-4. Probar archivos reales MP3/TRCK, FLAC/Ogg TRACKNUMBER y M4A, álbumes
-   multidisco y archivos sin etiquetas. Confirmar persistencia al reiniciar.
-5. Revisar eliminación de archivos y consentimiento Android, metadatos,
-   colores de portada, AMOLED, EQ de 10 bandas, perfiles y navegación con
-   ambos temas. Que su código no se haya modificado no demuestra su ejecución.
-6. Recuperar la clave permanente y el APK anterior por el procedimiento seguro
-   del repositorio. Firmar con sign_apk.py y comprobar actualización desde 1.4.1.
-7. Solo después publicar APK firmado y verificaciones, y respaldar el ZIP en
-   Google Drive. No se cambió ni se generó ninguna clave privada.
-
-## Avance de continuación
-
-Se recuperó el paquete guardado sin perder cambios. La compilación Android y
-las pruebas JVM pasaron localmente con Java 21, SDK oficial y el proxy del entorno:
-50 pruebas shared + 1017 app; 0 fallos, 0 errores, 1 omitida.
-
-Se restauraron también los menús de información de canción y eliminación
-local: lectura de etiquetas nativas disponibles, tamaño, formato y ubicación;
-confirmación explícita, consentimiento MediaStore en Android 11+ y recuperación
-de permiso en Android 10. Falta validación funcional de esas rutas en un emulador.
-Las etiquetas personalizadas de productor no se inventan ni están cubiertas
-por el lector nativo.
-
-Lint detectó 26 recursos nuevos sin traducción. Se incorporaron traducciones
-en los 14 idiomas adicionales soportados; el baseline se mantiene intacto.
-Se está repitiendo la verificación tras esta corrección.
-
-La API de GitHub lee el repositorio con Spaceapk, pero deniega crear ramas y
-árboles con 403 Resource not accessible by integration. Se está probando la vía
-web autorizada del propietario para conservar el código y disparar Actions.
-La nueva workflow de regresión usa KVM en GitHub después de que el emulador
-local sin aceleración no lograra responder mediante ADB. No contar ese intento
-local como una prueba de instalación o de interfaz superada.
+El emulador local carece de KVM y no respondió a ADB; ese intento no cuenta como
+instalación ni prueba de interfaz superada. Se usa KVM en GitHub para continuar.
+La API de escritura de GitHub devuelve 403; la vía web del propietario permitió
+conservar los cambios en rama sin alterar main. No se han publicado APK estables
+ni sustituido claves. La recuperación solo puede escribir en su rama dedicada.
