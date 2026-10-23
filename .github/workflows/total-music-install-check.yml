@@ -1,4 +1,4 @@
-name: Verify published APK installation
+name: Verify signed APK installation and upgrade
 on:
   push:
     branches: [main]
@@ -17,35 +17,36 @@ jobs:
       - name: Download and verify exact published APK
         run: |
           mkdir -p results
-          curl --fail --location --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.4.0/Total-Music-1.4.0-universal.apk -o published.apk
-          echo '63c55c8c7944ecff0c3fab54337abc40d56862b2e6cd65c541b0640018a08af0  published.apk' | sha256sum -c - | tee results/checksum.txt
+          curl --fail --location --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.4.1/Total-Music-1.4.1-universal.apk -o published.apk
+          echo '71363fb313d58685b3632a6889bb82712ad68d16e1d0fbbef9ad155dd0f78607  published.apk' | sha256sum -c - | tee results/checksum.txt
       - name: Boot Android 13 and install
         run: |
           set -euo pipefail
+          adb start-server
           sudo chmod a+rw /dev/kvm
           export ANDROID_AVD_HOME="$RUNNER_TEMP/total-music-avd"
           mkdir -p "$ANDROID_AVD_HOME"
           echo no | avdmanager create avd -n installcheck -k 'system-images;android-33;google_apis;x86_64' --force
-          "$ANDROID_HOME/emulator/emulator" -avd installcheck -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > results/emulator.log 2>&1 &
+          "$ANDROID_HOME/emulator/emulator" -avd installcheck -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -gpu swiftshader_indirect -feature -Vulkan -cores 2 -memory 2048 > results/emulator.log 2>&1 &
           "$ANDROID_HOME/emulator/emulator" -list-avds | tee results/avds.txt
           timeout 120 adb wait-for-device
           timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
-          adb shell getprop > results/device-properties.txt
-          set +e
-          adb install --no-streaming published.apk 2>&1 | tee results/install.txt
-          status=${PIPESTATUS[0]}
-          adb logcat -d > results/logcat.txt
-          if [ "$status" -eq 0 ]; then
-            adb shell monkey -p org.nexlibre.totalmusic -c android.intent.category.LAUNCHER 1 > results/launch.txt 2>&1
-            sleep 10
-            adb shell pidof org.nexlibre.totalmusic > results/process.txt
-            adb exec-out screencap -p > results/installed.png
-            adb logcat -d > results/logcat.txt
-          fi
-          exit "$status"
+          timeout 20 adb shell getprop > results/device-properties.txt
+          curl --fail --location --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.4.0/Total-Music-1.4.0-universal.apk -o previous.apk
+          echo '63c55c8c7944ecff0c3fab54337abc40d56862b2e6cd65c541b0640018a08af0  previous.apk' | sha256sum -c -
+          timeout 120 adb install --no-streaming previous.apk 2>&1 | tee results/install-previous.txt
+          timeout 20 adb shell pm grant org.nexlibre.totalmusic android.permission.READ_MEDIA_AUDIO
+          timeout 120 adb install --no-streaming -r published.apk 2>&1 | tee results/install-upgrade.txt
+          timeout 20 adb shell dumpsys package org.nexlibre.totalmusic > results/package.txt
+          grep 'versionCode=9' results/package.txt
+          adb logcat -v threadtime > results/logcat.txt 2>&1 &
+          timeout 40 adb shell monkey -p org.nexlibre.totalmusic -c android.intent.category.LAUNCHER 1 > results/launch.txt 2>&1
+          sleep 10
+          timeout 20 adb shell pidof org.nexlibre.totalmusic > results/process.txt
+          timeout 20 adb exec-out screencap -p > results/installed.png
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: published-apk-install-android13
+          name: signed-141-install-upgrade-android13
           path: results/
           retention-days: 7
