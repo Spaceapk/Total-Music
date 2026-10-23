@@ -4,7 +4,7 @@ Reproductor de música para Android mantenido por Spaceapk.
 
 ## Descargar
 
-[Descargar Total Music 1.4.0](https://github.com/Spaceapk/Total-Music/releases/tag/v1.4.0)
+[Descargar Total Music 1.4.1](https://github.com/Spaceapk/Total-Music/releases/tag/v1.4.1)
 
 APK universal con firma permanente y paquete org.nexlibre.totalmusic. Tema Google Expressive, colores de carátula opcionales, navegación Liquid Glass adaptable, modo oscuro negro puro y ecualizador de 10 bandas con modo avanzado de 31 bandas.
 

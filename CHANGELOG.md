@@ -1,3 +1,10 @@
+## 1.4.1 — Corrección de numeración y prueba de instalación
+
+- Aumenta versionCode a 9. Los APK 1.3.0 y 1.4.0 usaban el código 8.
+- Conserva la firma permanente y verifica la continuidad frente al APK 1.3.0 real.
+- Añade una prueba reproducible del APK firmado: instalación y actualización en Android 13.
+- Conserva las mejoras de apariencia de 1.4.0. No se atribuye el error del teléfono a la numeración sin un registro del instalador.
+
 ## Total Music 1.4.0
 
 - Navegación Liquid Glass adaptable opcional con minirreproductor y dos accesos laterales.
