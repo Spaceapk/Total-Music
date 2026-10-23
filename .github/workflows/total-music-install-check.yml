@@ -1,0 +1,48 @@
+name: Verify published APK installation
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/total-music-install-check.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools emulator system-images;android-33;google_apis;x86_64
+      - name: Download and verify exact published APK
+        run: |
+          mkdir -p results
+          curl --fail --location --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.4.0/Total-Music-1.4.0-universal.apk -o published.apk
+          echo '63c55c8c7944ecff0c3fab54337abc40d56862b2e6cd65c541b0640018a08af0  published.apk' | sha256sum -c - | tee results/checksum.txt
+      - name: Boot Android 13 and install
+        run: |
+          set -euo pipefail
+          sudo chmod a+rw /dev/kvm
+          echo no | avdmanager create avd -n installcheck -k 'system-images;android-33;google_apis;x86_64' --force
+          "$ANDROID_HOME/emulator/emulator" -avd installcheck -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > results/emulator.log 2>&1 &
+          timeout 300 adb wait-for-device
+          timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
+          adb shell getprop > results/device-properties.txt
+          set +e
+          adb install --no-streaming published.apk 2>&1 | tee results/install.txt
+          status=${PIPESTATUS[0]}
+          adb logcat -d > results/logcat.txt
+          if [ "$status" -eq 0 ]; then
+            adb shell monkey -p org.nexlibre.totalmusic -c android.intent.category.LAUNCHER 1 > results/launch.txt 2>&1
+            sleep 10
+            adb shell pidof org.nexlibre.totalmusic > results/process.txt
+            adb exec-out screencap -p > results/installed.png
+            adb logcat -d > results/logcat.txt
+          fi
+          exit "$status"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: published-apk-install-android13
+          path: results/
+          retention-days: 7
