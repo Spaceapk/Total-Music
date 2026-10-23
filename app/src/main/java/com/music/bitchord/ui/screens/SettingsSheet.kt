@@ -673,6 +673,27 @@ fun SettingsScreen(
                 )
             }
             if (expressive) row("Color", "Accent", "Acento") { GoogleAccentPicker() }
+            if (expressive) row("Colores de carátula", "Google", "artwork colors") {
+                val enabled by com.music.bitchord.data.settings.TotalMusicSettings.artworkColors.collectAsStateWithLifecycle()
+                SettingsRow(
+                    icon = Icons.Rounded.AutoAwesome,
+                    title = stringResource(R.string.total_artwork_colors),
+                    subtitle = stringResource(R.string.total_artwork_colors_summary),
+                    trailing = { Switch(checked = enabled, onCheckedChange = com.music.bitchord.data.settings.TotalMusicSettings::setArtworkColors) },
+                    onClick = { com.music.bitchord.data.settings.TotalMusicSettings.setArtworkColors(!enabled) },
+                )
+            }
+            row("Navegación adaptable", "Liquid Glass", "adaptive navigation") {
+                val enabled by com.music.bitchord.data.settings.TotalMusicSettings.adaptiveGlass.collectAsStateWithLifecycle()
+                SettingsRow(
+                    icon = Icons.Rounded.AutoAwesome,
+                    title = stringResource(R.string.total_adaptive_glass),
+                    subtitle = stringResource(R.string.total_adaptive_glass_summary),
+                    enabled = liquidGlass,
+                    trailing = { Switch(checked = enabled, enabled = liquidGlass, onCheckedChange = com.music.bitchord.data.settings.TotalMusicSettings::setAdaptiveGlass) },
+                    onClick = { com.music.bitchord.data.settings.TotalMusicSettings.setAdaptiveGlass(!enabled) },
+                )
+            }
             val themeTitle = stringResource(R.string.theme)
             row(themeTitle, "dark mode", "light mode") {
                 SettingsRow(icon = Icons.Rounded.Brightness4, title = themeTitle)
@@ -730,16 +751,14 @@ fun SettingsScreen(
                         if (liquidGlassSupported) {
                             R.string.liquid_glass_subtitle
                         } else {
-                            R.string.liquid_glass_unavailable
+                            R.string.total_glass_fallback
                         },
                     ),
-                    enabled = liquidGlassSupported,
                     trailing = {
                         Switch(
                             checked = liquidGlass,
                             onCheckedChange = AppSettings::setLiquidGlass,
-                            enabled = liquidGlassSupported,
-                            colors = SwitchDefaults.colors(
+                                    colors = SwitchDefaults.colors(
                                 checkedTrackColor = MaterialTheme.colorScheme.primary,
                                 checkedBorderColor = MaterialTheme.colorScheme.primary,
                             ),

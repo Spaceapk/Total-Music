@@ -31,6 +31,20 @@ class TotalMusicSettingsTest {
         } as SharedPreferences
     }
 
+    @Test fun visualOptionsAreOptInAndSurviveReload() {
+        val prefs = preferences(); TotalMusicSettings.init(prefs)
+        assertFalse(TotalMusicSettings.artworkColors.value)
+        assertFalse(TotalMusicSettings.adaptiveGlass.value)
+        TotalMusicSettings.setArtworkColors(true); TotalMusicSettings.setAdaptiveGlass(true)
+        TotalMusicSettings.init(prefs)
+        assertTrue(TotalMusicSettings.artworkColors.value)
+        assertTrue(TotalMusicSettings.adaptiveGlass.value)
+        TotalMusicSettings.setArtworkColors(false); TotalMusicSettings.setAdaptiveGlass(false)
+        TotalMusicSettings.init(prefs)
+        assertFalse(TotalMusicSettings.artworkColors.value)
+        assertFalse(TotalMusicSettings.adaptiveGlass.value)
+    }
+
     @Test fun themeAndAdvancedAudioSurviveReload() {
         val prefs = preferences(); TotalMusicSettings.init(prefs)
         val config = TotalEqConfig(bands = List(31) { it / 3f - 5f }, preamp = -4f, bass = 3f,

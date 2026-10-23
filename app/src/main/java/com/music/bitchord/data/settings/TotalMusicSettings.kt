@@ -11,6 +11,8 @@ import kotlin.math.ln
 object TotalMusicSettings {
     private lateinit var prefs: SharedPreferences
     val expressive = MutableStateFlow(false)
+    val artworkColors = MutableStateFlow(false)
+    val adaptiveGlass = MutableStateFlow(false)
     val accent = MutableStateFlow(0xFF0B57D0.toInt())
     val config = MutableStateFlow(TotalEqConfig())
     val profiles = MutableStateFlow<Map<String, TotalEqConfig>>(emptyMap())
@@ -18,6 +20,8 @@ object TotalMusicSettings {
 
     fun init(preferences: SharedPreferences) {
         prefs = preferences
+        artworkColors.value = prefs.getBoolean("google_artwork_colors", false)
+        adaptiveGlass.value = prefs.getBoolean("adaptive_glass", false)
         expressive.value = prefs.getBoolean("google_expressive", false)
         accent.value = prefs.getInt("google_accent", 0xFF0B57D0.toInt())
         config.value = if (!prefs.contains("total_eq")) TotalEqConfig(graphicMode = TotalGraphicMode.TEN)
@@ -26,6 +30,14 @@ object TotalMusicSettings {
             val json = JSONObject(prefs.getString("total_eq_profiles", "{}")!!)
             json.keys().asSequence().take(64).associateWith { decode(json.getJSONObject(it)) }
         }.getOrDefault(emptyMap())
+    }
+    fun setArtworkColors(value: Boolean) {
+        artworkColors.value = value
+        prefs.edit().putBoolean("google_artwork_colors", value).apply()
+    }
+    fun setAdaptiveGlass(value: Boolean) {
+        adaptiveGlass.value = value
+        prefs.edit().putBoolean("adaptive_glass", value).apply()
     }
     fun setAccent(value: Int) {
         accent.value = value or 0xFF000000.toInt()

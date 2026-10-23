@@ -27,6 +27,8 @@ import coil3.request.SuccessResult
 import com.music.bitchord.data.model.CARD_ART_PX
 import com.music.bitchord.data.model.artworkAt
 import com.music.bitchord.ui.player.PlayerPlatform
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.pow
@@ -101,12 +103,13 @@ fun rememberArtworkPalette(
      */
     artPx: Int = CARD_ART_PX,
     keyColors: ArtworkKeyColors? = null,
+    animateCached: Boolean = false,
 ): ArtworkPalette {
     val scheme = MaterialTheme.colorScheme
     val reduceAnimation by PlayerPlatform.host.settings.reduceAnimation.collectAsStateWithLifecycle()
     // Always asked, so the composable call is unconditional; handed nothing to
     // read when the colours are already in hand.
-    val decoded = rememberArtworkSeed(if (keyColors == null) imageUrl else null, artPx)
+    val decoded = rememberArtworkSeed(if (keyColors == null) imageUrl else null, artPx, retainPrevious = animateCached)
     val seed = keyColors?.toSeed() ?: decoded
     // Whether the colours were there from the first frame. If they were, there
     // is nothing to crossfade *from* and animating would only put a delay in
@@ -123,7 +126,7 @@ fun rememberArtworkPalette(
         divider = scheme.outline,
     )
 
-    val spec: AnimationSpec<Color> = if (reduceAnimation || knownUpFront) {
+    val spec: AnimationSpec<Color> = if (reduceAnimation || (knownUpFront && !animateCached)) {
         snap()
     } else {
         tween(TINT_FADE_MS)
@@ -152,24 +155,27 @@ fun rememberArtworkTopBandLuminance(
 ): Float? = rememberArtworkSeed(imageUrl, artPx)?.topBandLuminance
 
 @Composable
-private fun rememberArtworkSeed(imageUrl: String?, artPx: Int): Seed? {
+private fun rememberArtworkSeed(imageUrl: String?, artPx: Int, retainPrevious: Boolean = false): Seed? {
     val context = LocalPlatformContext.current
-    var seed by remember(imageUrl) { mutableStateOf(imageUrl?.let(seedCache::get)) }
-
+    var seed by remember(if (retainPrevious) Unit else imageUrl) { mutableStateOf(imageUrl?.let(seedCache::get)) }
+    val cached = imageUrl?.let(seedCache::get)
     LaunchedEffect(imageUrl, artPx) {
-        if (imageUrl == null || seed != null) return@LaunchedEffect
+        if (imageUrl == null) { seed = null; return@LaunchedEffect }
+        seedCache[imageUrl]?.let { seed = it; return@LaunchedEffect }
+        if (!retainPrevious) seed = null
         val request = ImageRequest.Builder(context)
             .data(imageUrl.artworkAt(artPx))
             .size(PALETTE_PX)
             .forPixelAccess()
             .build()
         val result = SingletonImageLoader.get(context).execute(request)
-        val bitmap = (result as? SuccessResult)?.image?.toImageBitmap() ?: return@LaunchedEffect
-        val found = withContext(Dispatchers.Default) { seedOf(bitmap) } ?: return@LaunchedEffect
-        seedCache[imageUrl] = found
+        val bitmap = (result as? SuccessResult)?.image?.toImageBitmap()
+        val found = bitmap?.let { withContext(Dispatchers.Default) { seedOf(it) } }
+        coroutineContext.ensureActive()
+        if (found != null) seedCache[imageUrl] = found
         seed = found
     }
-    return seed
+    return if (imageUrl == null) null else cached ?: seed
 }
 
 /**

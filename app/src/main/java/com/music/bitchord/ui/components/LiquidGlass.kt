@@ -169,10 +169,9 @@ fun Modifier.lightweightLiquidGlass(
  */
 @Composable
 fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
-    if (!isGlassSupported()) return this
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    if (reduceDynamicBlur) {
-        return background(MaterialTheme.colorScheme.surface, shape)
+    if (reduceDynamicBlur || !isGlassSupported()) {
+        return background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape)
             .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
     }
     val backdrop = LocalAppBackdrop.current

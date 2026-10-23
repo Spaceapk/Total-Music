@@ -471,7 +471,8 @@ private fun BitChordApp(
     val hazeState = remember { HazeState() }
     // Recording the backdrop layer costs a draw pass, so it only runs when a
     // liquid-glass surface (the nav bar or artwork-page back button) can sample it.
-    val glassActive = LocalLiquidGlassEnabled.current && isGlassSupported()
+    val glassActive = LocalLiquidGlassEnabled.current
+    val adaptiveGlass by com.music.bitchord.data.settings.TotalMusicSettings.adaptiveGlass.collectAsStateWithLifecycle()
     // "Reduce dynamic blur" keeps the glass bar's *shape* — the folding
     // now-playing-and-tabs component is a layout, not an effect, and dropping
     // back to the two stacked bars would be answering a question about material
@@ -479,7 +480,7 @@ private fun BitChordApp(
     // solid (see [Modifier.liquidGlass]) and the whole-page layer recording
     // below goes with them, which is the part that costs a draw pass.
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    val glassSamplesBackdrop = glassActive && !reduceDynamicBlur
+    val glassSamplesBackdrop = glassActive && isGlassSupported() && !reduceDynamicBlur
     // What folds [GlassNavBar] between its expanded and inline shapes. Held here
     // rather than inside the bar because the page's scroll is what drives it,
     // and the page is a sibling of the bar rather than a child.
@@ -2117,7 +2118,9 @@ private fun BitChordApp(
     // See [topBarContentPadding].
     val floatingBarsHeight = remember { mutableIntStateOf(0) }
     val bottomContentPadding = with(LocalDensity.current) {
-        if (floatingBarsHeight.intValue > 0) floatingBarsHeight.intValue.toDp() + 20.dp
+        // Keep list geometry stable while the overlay morphs; it can reveal rows without moving them.
+        if (glassActive && adaptiveGlass) { if (player.song != null) 184.dp else 120.dp }
+        else if (floatingBarsHeight.intValue > 0) floatingBarsHeight.intValue.toDp() + 20.dp
         else if (player.song != null) 164.dp else 100.dp
     }
     val listPadding = PaddingValues(
@@ -3731,6 +3734,34 @@ private fun BitChordApp(
                         .onSizeChanged { floatingBarsHeight.intValue = it.height },
                 ) {
                     QueueActionNoticeHost(queueNotice)
+                    if (glassActive && adaptiveGlass) {
+                        GlassNavBar(
+                            tabs = listOf(
+                                BottomTab(stringResource(R.string.songs), Icons.Rounded.MusicNote),
+                                BottomTab(stringResource(R.string.albums), Icons.Rounded.Album),
+                                BottomTab(stringResource(R.string.artists), Icons.Rounded.Person),
+                                BottomTab(stringResource(R.string.library_nav_playlists), Icons.AutoMirrored.Rounded.QueueMusic),
+                            ),
+                            selectedIndex = when (spaceLibraryTab) { 2 -> 1; 1 -> 2; else -> spaceLibraryTab },
+                            onTabSelected = { index ->
+                                spaceLibraryTab = when (index) { 1 -> 2; 2 -> 1; else -> index }
+                                onTabSelected(TAB_HOME)
+                            },
+                            scrollConnection = navBarScroll,
+                            song = player.song,
+                            isPlaying = player.isPlaying,
+                            isLoading = playPauseBusy,
+                            onPlayPause = { togglePlayPause() },
+                            onNext = { controller?.seekToNextMediaItem() },
+                            onPrevious = { controller?.seekToPrevious() },
+                            onExpand = if (reducePlayerMotion) ({ showNowPlaying = true }) else playerSheetMotion::open,
+                            controlsLocked = controlsLocked,
+                            onBlockedControl = showHostOnlyNotice,
+                            dock = activeDock,
+                            pull = playerSheetMotion.takeIf { !reducePlayerMotion },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    } else {
                     player.song?.let { song ->
                         MiniPlayer(
                             song = song,
@@ -3766,6 +3797,7 @@ private fun BitChordApp(
                         hazeState = hazeState,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    }
                 }
             }
 
@@ -3892,7 +3924,9 @@ private fun BitChordApp(
                         },
                 ) {
                     CompositionLocalProvider(LocalPlayerDock provides activeDock) {
-                        nowPlaying(playerSong)
+                        com.music.bitchord.ui.theme.ArtworkPlayerTheme(playerSong) {
+                            nowPlaying(playerSong)
+                        }
                     }
                 }
             }

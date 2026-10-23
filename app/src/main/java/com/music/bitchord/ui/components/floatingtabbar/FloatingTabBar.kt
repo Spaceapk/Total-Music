@@ -78,6 +78,8 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -283,6 +285,12 @@ class FloatingTabBarScrollConnection(
         accumulatedScroll = 0f
     }
 
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+        // A list reaching its top must reveal all destinations, including after a fling.
+        if (inlineBehavior == FloatingTabBarInlineBehavior.OnScrollDown && available.y > 0f && consumed.y == 0f) expand()
+        return Offset.Zero
+    }
+
     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
         // If behavior is Never, don't change state
         if (inlineBehavior == FloatingTabBarInlineBehavior.Never) {
@@ -297,7 +305,7 @@ class FloatingTabBarScrollConnection(
         }
 
         // Accumulate scroll
-        accumulatedScroll += scrollDelta
+        accumulatedScroll = (accumulatedScroll + scrollDelta).coerceIn(-scrollThresholdPx, scrollThresholdPx)
 
         when (inlineBehavior) {
             FloatingTabBarInlineBehavior.OnScrollDown -> {
@@ -350,7 +358,10 @@ fun rememberFloatingTabBarScrollConnection(
     inlineBehavior: FloatingTabBarInlineBehavior = FloatingTabBarInlineBehavior.OnScrollDown
 ): FloatingTabBarScrollConnection = with(LocalDensity.current) {
     val scrollThresholdPx = scrollThreshold.toPx()
-    remember(scrollThresholdPx, inlineBehavior, initialIsInline) {
+    rememberSaveable(scrollThresholdPx, inlineBehavior, saver = Saver<FloatingTabBarScrollConnection, Boolean>(
+        save = { it.isInline },
+        restore = { FloatingTabBarScrollConnection(it, scrollThresholdPx, inlineBehavior) },
+    )) {
         FloatingTabBarScrollConnection(initialIsInline, scrollThresholdPx, inlineBehavior)
     }
 }

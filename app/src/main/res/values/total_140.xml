@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">Cover colors</string>
+    <string name="total_artwork_colors_summary">Adapt the Google player to the current cover.</string>
+    <string name="total_adaptive_glass">Adaptive navigation</string>
+    <string name="total_adaptive_glass_summary">Collapse Liquid Glass while scrolling.</string>
+    <string name="total_glass_fallback">Lightweight translucent glass on this Android version.</string>
+</resources>
