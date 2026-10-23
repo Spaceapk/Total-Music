@@ -1,10 +1,11 @@
-## 1.4.0 (in verification)
+## Total Music 1.4.0
 
-- Optional adaptive Liquid Glass navigation with compact mini-player and two library shortcuts.
-- Optional Google player colors derived from current artwork, with animated cached palettes.
-- Pure-black AMOLED player background, lightweight glass fallback and preserved motion/blur controls.
-- Both visual options default off and persist with existing preferences.
-- Device validation and signed release are pending; see docs/verification-1.4.0.md.
+- Navegación Liquid Glass adaptable opcional con minirreproductor y dos accesos laterales.
+- Colores de carátula opcionales para el reproductor Google, con caché e interpolación de paletas.
+- Fondo AMOLED negro puro y alternativa de cristal ligera; ambas opciones permanecen desactivadas por defecto.
+- Nuevos textos traducidos a todos los idiomas compatibles y variantes de chino tradicional.
+- 1061 pruebas, 1 omitida, sin fallos; lint, compilación y firma permanente verificados.
+- Pruebas en dispositivo pendientes. Detalles en docs/verification-1.4.0.md.
 
 # Total Music 1.1.0 — candidata, pendiente de validación Android
 
