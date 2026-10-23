@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">Цвета обложки</string>
+    <string name="total_artwork_colors_summary">Настроить цвета проигрывателя Google по текущей обложке.</string>
+    <string name="total_adaptive_glass">Адаптивная навигация</string>
+    <string name="total_adaptive_glass_summary">Сворачивать Liquid Glass при прокрутке.</string>
+    <string name="total_glass_fallback">Лёгкое полупрозрачное стекло в этой версии Android.</string>
+</resources>

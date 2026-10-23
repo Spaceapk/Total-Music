@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">Couleurs de la pochette</string>
+    <string name="total_artwork_colors_summary">Adapter le lecteur Google à la pochette actuelle.</string>
+    <string name="total_adaptive_glass">Navigation adaptative</string>
+    <string name="total_adaptive_glass_summary">Réduire Liquid Glass pendant le défilement.</string>
+    <string name="total_glass_fallback">Verre translucide léger sur cette version Android.</string>
+</resources>

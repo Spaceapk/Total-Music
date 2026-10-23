@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">Kolory okładki</string>
+    <string name="total_artwork_colors_summary">Dostosuj odtwarzacz Google do bieżącej okładki.</string>
+    <string name="total_adaptive_glass">Nawigacja adaptacyjna</string>
+    <string name="total_adaptive_glass_summary">Zwijaj Liquid Glass podczas przewijania.</string>
+    <string name="total_glass_fallback">Lekki, półprzezroczysty efekt szkła w tej wersji Androida.</string>
+</resources>

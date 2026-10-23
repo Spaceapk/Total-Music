@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">Warna sampul</string>
+    <string name="total_artwork_colors_summary">Sesuaikan pemutar Google dengan sampul saat ini.</string>
+    <string name="total_adaptive_glass">Navigasi adaptif</string>
+    <string name="total_adaptive_glass_summary">Ciutkan Liquid Glass saat menggulir.</string>
+    <string name="total_glass_fallback">Kaca tembus cahaya yang ringan pada versi Android ini.</string>
+</resources>

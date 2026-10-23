@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">สีจากปกเพลง</string>
+    <string name="total_artwork_colors_summary">ปรับสีของเครื่องเล่น Google ให้เข้ากับปกเพลงปัจจุบัน</string>
+    <string name="total_adaptive_glass">การนำทางแบบปรับได้</string>
+    <string name="total_adaptive_glass_summary">ย่อ Liquid Glass ขณะเลื่อนหน้าจอ</string>
+    <string name="total_glass_fallback">เอฟเฟกต์กระจกโปร่งแสงแบบเบาบน Android เวอร์ชันนี้</string>
+</resources>

@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">封面顏色</string>
+    <string name="total_artwork_colors_summary">讓 Google 播放器配色隨目前封面變化。</string>
+    <string name="total_adaptive_glass">自適應導覽</string>
+    <string name="total_adaptive_glass_summary">捲動時收合 Liquid Glass。</string>
+    <string name="total_glass_fallback">此 Android 版本使用輕量半透明玻璃效果。</string>
+</resources>

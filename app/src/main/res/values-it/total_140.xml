@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">Colori della copertina</string>
+    <string name="total_artwork_colors_summary">Adatta il lettore Google alla copertina attuale.</string>
+    <string name="total_adaptive_glass">Navigazione adattiva</string>
+    <string name="total_adaptive_glass_summary">Riduci Liquid Glass durante lo scorrimento.</string>
+    <string name="total_glass_fallback">Vetro traslucido leggero su questa versione di Android.</string>
+</resources>

@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">Màu ảnh bìa</string>
+    <string name="total_artwork_colors_summary">Điều chỉnh trình phát Google theo ảnh bìa hiện tại.</string>
+    <string name="total_adaptive_glass">Điều hướng thích ứng</string>
+    <string name="total_adaptive_glass_summary">Thu gọn Liquid Glass khi cuộn.</string>
+    <string name="total_glass_fallback">Hiệu ứng kính mờ nhẹ trên phiên bản Android này.</string>
+</resources>

@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">カバーの色</string>
+    <string name="total_artwork_colors_summary">Googleプレーヤーを現在のカバーの色に合わせます。</string>
+    <string name="total_adaptive_glass">適応型ナビゲーション</string>
+    <string name="total_adaptive_glass_summary">スクロール中にLiquid Glassを折りたたみます。</string>
+    <string name="total_glass_fallback">このAndroidバージョンでは軽量な半透明ガラスを使用します。</string>
+</resources>

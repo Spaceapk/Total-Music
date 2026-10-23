@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">Kapak renkleri</string>
+    <string name="total_artwork_colors_summary">Google oynatıcısını geçerli kapağa uyarla.</string>
+    <string name="total_adaptive_glass">Uyarlanabilir gezinme</string>
+    <string name="total_adaptive_glass_summary">Kaydırırken Liquid Glass çubuğunu daralt.</string>
+    <string name="total_glass_fallback">Bu Android sürümünde hafif yarı saydam cam.</string>
+</resources>

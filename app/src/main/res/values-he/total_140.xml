@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">צבעי העטיפה</string>
+    <string name="total_artwork_colors_summary">התאמת נגן Google לעטיפה הנוכחית.</string>
+    <string name="total_adaptive_glass">ניווט מסתגל</string>
+    <string name="total_adaptive_glass_summary">כיווץ Liquid Glass בזמן גלילה.</string>
+    <string name="total_glass_fallback">זכוכית שקופה למחצה וקלה בגרסת Android זו.</string>
+</resources>

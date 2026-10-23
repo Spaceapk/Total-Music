@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">Cores da capa</string>
+    <string name="total_artwork_colors_summary">Adapte o reprodutor Google à capa atual.</string>
+    <string name="total_adaptive_glass">Navegação adaptável</string>
+    <string name="total_adaptive_glass_summary">Recolha o Liquid Glass ao rolar.</string>
+    <string name="total_glass_fallback">Vidro translúcido leve nesta versão do Android.</string>
+</resources>

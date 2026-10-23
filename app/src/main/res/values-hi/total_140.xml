@@ -1,0 +1,7 @@
+<resources>
+    <string name="total_artwork_colors">कवर के रंग</string>
+    <string name="total_artwork_colors_summary">Google प्लेयर को मौजूदा कवर के रंगों के अनुसार बदलें।</string>
+    <string name="total_adaptive_glass">अनुकूल नेविगेशन</string>
+    <string name="total_adaptive_glass_summary">स्क्रॉल करते समय Liquid Glass को छोटा करें।</string>
+    <string name="total_glass_fallback">Android के इस संस्करण पर हल्का पारदर्शी ग्लास।</string>
+</resources>
