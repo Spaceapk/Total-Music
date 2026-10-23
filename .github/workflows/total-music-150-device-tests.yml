@@ -46,7 +46,7 @@ jobs:
           adb shell input keyevent 82
           adb logcat -v threadtime > device-results/logcat.txt 2>&1 &
           chmod +x gradlew
-          ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8' --max-workers=2 :app:connectedProdDebugAndroidTest -PspaceSpatialEdition=true '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.AlbumTrackOrderUiTest,com.music.bitchord.DevicePlaylistStoreTest' --build-cache --stacktrace
+          ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8' --max-workers=2 :app:connectedProdDebugAndroidTest -PspaceSpatialEdition=true --build-cache --stacktrace
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
