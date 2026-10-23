@@ -1,0 +1,29 @@
+name: Prepare public Android tools for local APK verification
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/total-music-local-tools.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: build-tools;36.0.0
+      - name: Package public verification tools only
+        run: |
+          set -euo pipefail
+          tar -C "$ANDROID_HOME/build-tools/36.0.0" -czf android-public-verification-tools-linux.tar.gz aapt apksigner lib/apksigner.jar lib64
+          sha256sum android-public-verification-tools-linux.tar.gz > tools-SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-public-verification-tools-linux
+          path: |
+            android-public-verification-tools-linux.tar.gz
+            tools-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 3
