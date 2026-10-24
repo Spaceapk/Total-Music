@@ -1,0 +1,28 @@
+<resources>
+    <string name="sort_track_number">Track number</string>
+    <string name="release_history">What is new · Version history</string>
+    <string name="playlist_added_count">%1$d songs added</string>
+    <string name="release_notes_unavailable">No bundled release notes are available for this build.</string>
+    <string name="local_song_information">Song information</string>
+    <string name="local_delete_file">Delete file from device</string>
+    <string name="local_delete_file_confirm">Delete "%1$s" from device storage? This cannot be undone.</string>
+    <string name="local_file_deleted">File deleted</string>
+    <string name="local_file_delete_failed">Could not delete the file</string>
+    <string name="meta_title">Title</string>
+    <string name="meta_artist">Artist</string>
+    <string name="meta_album">Album</string>
+    <string name="meta_album_artist">Album artist</string>
+    <string name="meta_composer">Composer</string>
+    <string name="meta_writer">Writer</string>
+    <string name="meta_author">Author</string>
+    <string name="meta_year">Year</string>
+    <string name="meta_genre">Genre</string>
+    <string name="meta_track">Track number</string>
+    <string name="meta_disc">Disc number</string>
+    <string name="meta_bitrate">Bitrate (bits/s)</string>
+    <string name="meta_duration">Duration (ms)</string>
+    <string name="meta_format">Format</string>
+    <string name="meta_location">Location</string>
+    <string name="meta_filename">File name</string>
+    <string name="meta_size">Size</string>
+</resources>

@@ -1,0 +1,28 @@
+<resources>
+    <string name="sort_track_number">トラック番号</string>
+    <string name="release_history">新機能 · バージョン履歴</string>
+    <string name="playlist_added_count">%1$d 曲を追加しました</string>
+    <string name="release_notes_unavailable">このビルドにはリリースノートが含まれていません。</string>
+    <string name="local_song_information">曲の情報</string>
+    <string name="local_delete_file">端末からファイルを削除</string>
+    <string name="local_delete_file_confirm">端末から「%1$s」を削除しますか？この操作は取り消せません。</string>
+    <string name="local_file_deleted">ファイルを削除しました</string>
+    <string name="local_file_delete_failed">ファイルを削除できませんでした</string>
+    <string name="meta_title">タイトル</string>
+    <string name="meta_artist">アーティスト</string>
+    <string name="meta_album">アルバム</string>
+    <string name="meta_album_artist">アルバムアーティスト</string>
+    <string name="meta_composer">作曲者</string>
+    <string name="meta_writer">作詞者</string>
+    <string name="meta_author">作者</string>
+    <string name="meta_year">年</string>
+    <string name="meta_genre">ジャンル</string>
+    <string name="meta_track">トラック番号</string>
+    <string name="meta_disc">ディスク番号</string>
+    <string name="meta_bitrate">ビットレート（ビット/秒）</string>
+    <string name="meta_duration">長さ（ミリ秒）</string>
+    <string name="meta_format">形式</string>
+    <string name="meta_location">場所</string>
+    <string name="meta_filename">ファイル名</string>
+    <string name="meta_size">サイズ</string>
+</resources>

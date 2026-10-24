@@ -1,0 +1,28 @@
+<resources>
+    <string name="sort_track_number">หมายเลขแทร็ก</string>
+    <string name="release_history">มีอะไรใหม่ · ประวัติเวอร์ชัน</string>
+    <string name="playlist_added_count">เพิ่มแล้ว %1$d เพลง</string>
+    <string name="release_notes_unavailable">ไม่มีบันทึกการออกรุ่นสำหรับบิลด์นี้</string>
+    <string name="local_song_information">ข้อมูลเพลง</string>
+    <string name="local_delete_file">ลบไฟล์จากอุปกรณ์</string>
+    <string name="local_delete_file_confirm">ลบ «%1$s» จากอุปกรณ์หรือไม่ การดำเนินการนี้ไม่สามารถยกเลิกได้</string>
+    <string name="local_file_deleted">ลบไฟล์แล้ว</string>
+    <string name="local_file_delete_failed">ไม่สามารถลบไฟล์ได้</string>
+    <string name="meta_title">ชื่อเพลง</string>
+    <string name="meta_artist">ศิลปิน</string>
+    <string name="meta_album">อัลบั้ม</string>
+    <string name="meta_album_artist">ศิลปินอัลบั้ม</string>
+    <string name="meta_composer">ผู้แต่งทำนอง</string>
+    <string name="meta_writer">ผู้แต่งเนื้อร้อง</string>
+    <string name="meta_author">ผู้เขียน</string>
+    <string name="meta_year">ปี</string>
+    <string name="meta_genre">แนวเพลง</string>
+    <string name="meta_track">หมายเลขแทร็ก</string>
+    <string name="meta_disc">หมายเลขดิสก์</string>
+    <string name="meta_bitrate">บิตเรต (บิต/วินาที)</string>
+    <string name="meta_duration">ระยะเวลา (มิลลิวินาที)</string>
+    <string name="meta_format">รูปแบบ</string>
+    <string name="meta_location">ตำแหน่ง</string>
+    <string name="meta_filename">ชื่อไฟล์</string>
+    <string name="meta_size">ขนาด</string>
+</resources>

@@ -98,6 +98,7 @@ import com.music.bitchord.R
 import com.music.bitchord.ui.components.ExplicitSongTitle
 import com.music.bitchord.data.model.artworkAt
 import com.music.bitchord.data.model.isSameTrackAs
+import com.music.bitchord.data.model.inAlbumOrder
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.LibraryViewType
 import com.music.bitchord.data.settings.LocalMusicSort
@@ -117,6 +118,7 @@ import com.music.bitchord.ui.components.topBarHeight
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
 import com.music.bitchord.ui.icons.BitChordIcons
+import androidx.compose.material.icons.rounded.MoreVert
 import java.util.Locale
 
 private const val LOCAL_TAB_SONGS = 0
@@ -211,6 +213,7 @@ fun LocalMusicScreen(
     var selectedAlbumKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
     val selectingDownloads = selectedDownloadIds.isNotEmpty()
     var addingSelection by remember { mutableStateOf(false) }
+    var collectionToAdd by remember { mutableStateOf<List<Song>?>(null) }
 
     fun toggleDownloadSelection(song: Song) {
         selectedDownloadIds = selectedDownloadIds.let { selected ->
@@ -236,13 +239,31 @@ fun LocalMusicScreen(
     // album or playlist has one worth showing — a tag-derived grouping's
     // "artwork" is just whichever of its rows happened to be first.
     var drillDownArt by remember { mutableStateOf<String?>(null) }
+    var drillDownPlaylist by remember { mutableStateOf(false) }
 
     val inDrillDown = drillDownLabel != null
+    val visibleSongs = remember(sortedSongs, drillDownSongs, inDrillDown, searchQuery, sortOrder, selectedTab, collections, drillDownPlaylist) {
+        when {
+            inDrillDown -> (if (drillDownPlaylist) drillDownSongs else drillDownSongs.sortedForLibrary(sortOrder)).filter { searchQuery.isBlank() || it.matchesSearch(searchQuery) }
+            selectedTab == LOCAL_TAB_ARTISTS -> sortedSongs.filter { searchQuery.isBlank() || it.artist.contains(searchQuery, true) }
+            selectedTab == LOCAL_TAB_ALBUMS -> albumEntries(sortedSongs, collections).filter {
+                searchQuery.isBlank() || it.title.contains(searchQuery, true) || it.artist.contains(searchQuery, true)
+            }.flatMap { it.songs }.distinctBy { it.videoId }
+            else -> sortedSongs.filter { searchQuery.isBlank() || it.matchesSearch(searchQuery) }
+        }
+    }
+    LaunchedEffect(visibleSongs) {
+        selectedDownloadIds = selectedDownloadIds.intersect(visibleSongs.mapTo(mutableSetOf()) { it.videoId })
+    }
+    LaunchedEffect(searchQuery, drillDownLabel, selectedTab) {
+        selectedAlbumKeys = emptySet()
+    }
 
     val leaveDrillDown = {
         drillDownLabel = null
         drillDownSongs = emptyList()
         drillDownArt = null
+        drillDownPlaylist = false
     }
 
     LaunchedEffect(navigationTab) {
@@ -267,8 +288,11 @@ fun LocalMusicScreen(
     // right below the bar, so it only needs to clear the bar itself.
     val barHeight = topBarHeight()
 
+    collectionToAdd?.let { tracks ->
+        DevicePlaylistPickerDialog(tracks) { collectionToAdd = null }
+    }
     if (addingSelection) {
-        DevicePlaylistPickerDialog(songs.filter { it.videoId in selectedDownloadIds }) {
+        DevicePlaylistPickerDialog(visibleSongs.filter { it.videoId in selectedDownloadIds }) {
             addingSelection = false
         }
     }
@@ -285,7 +309,7 @@ fun LocalMusicScreen(
             if (!isDownloads) {
                 Row(Modifier.fillMaxWidth().padding(top = barHeight + TopBarContentGap, start = PAGE_GUTTER, end = PAGE_GUTTER),
                     verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { selectedDownloadIds = sortedSongs.mapTo(linkedSetOf()) { it.videoId } }) {
+                    IconButton(onClick = { selectedDownloadIds = visibleSongs.mapTo(linkedSetOf()) { it.videoId } }) {
                         Icon(Icons.Rounded.Check, stringResource(R.string.select_all))
                     }
                     Text("${selectedDownloadIds.size}", Modifier.weight(1f))
@@ -298,17 +322,17 @@ fun LocalMusicScreen(
                 }
             } else DownloadSelectionBar(
                 count = selectedDownloadIds.size,
-                allSelected = sortedSongs.isNotEmpty() && selectedDownloadIds.containsAll(sortedSongs.map { it.videoId }),
-                onSelectAll = { selectedDownloadIds = sortedSongs.mapTo(linkedSetOf()) { it.videoId } },
+                allSelected = visibleSongs.isNotEmpty() && selectedDownloadIds.containsAll(visibleSongs.map { it.videoId }),
+                onSelectAll = { selectedDownloadIds = visibleSongs.mapTo(linkedSetOf()) { it.videoId } },
                 onDelete = {
-                    val chosen = songs.filter { it.videoId in selectedDownloadIds }
+                    val chosen = visibleSongs.filter { it.videoId in selectedDownloadIds }
                     selectedDownloadIds = emptySet()
                     selectedAlbumKeys = emptySet()
                     onDeleteDownloads?.invoke(chosen)
                 },
                 onUpload = onUploadToWebDav?.let { upload ->
                     {
-                        val chosen = songs.filter { it.videoId in selectedDownloadIds }
+                        val chosen = visibleSongs.filter { it.videoId in selectedDownloadIds }
                         selectedDownloadIds = emptySet()
                         selectedAlbumKeys = emptySet()
                         upload(chosen)
@@ -435,7 +459,7 @@ fun LocalMusicScreen(
                     DrillDownSongList(
                         label = drillDownLabel ?: "",
                         artworkUrl = drillDownArt,
-                        songs = drillDownSongs,
+                        songs = visibleSongs,
                         viewType = viewType,
                         selectedIds = selectedDownloadIds,
                         currentSong = currentSong,
@@ -499,11 +523,13 @@ fun LocalMusicScreen(
                         artists = artists,
                         viewType = viewType,
                         onArtistClick = { artist, artistSongs ->
+                            drillDownPlaylist = false
                             drillDownLabel = artist
                             drillDownSongs = artistSongs
                             drillDownArt = null
                         },
                         onArtistLongPress = onCollectionLongPress,
+                        onArtistAdd = { tracks -> collectionToAdd = tracks },
                         contentPadding = bodyContentPadding,
                     )
                 }
@@ -521,10 +547,12 @@ fun LocalMusicScreen(
                         albums = albums,
                         viewType = viewType,
                         selectedKeys = selectedAlbumKeys,
+                        onAlbumAdd = { entry -> collectionToAdd = if (entry.playlist) entry.songs else entry.songs.inAlbumOrder() },
                         onAlbumClick = { entry ->
                             if (selectingDownloads) {
                                 toggleAlbumSelection(entry)
                             } else {
+                                drillDownPlaylist = entry.playlist
                                 drillDownLabel = entry.title
                                 drillDownSongs = entry.songs
                                 drillDownArt = entry.thumbnailUrl
@@ -707,6 +735,7 @@ private fun SongGridCard(
 @Composable
 private fun ArtistsTab(
     artists: List<Map.Entry<String, List<Song>>>,
+    onArtistAdd: (List<Song>) -> Unit,
     viewType: LibraryViewType,
     onArtistClick: (String, List<Song>) -> Unit,
     onArtistLongPress: ((String, List<Song>) -> Unit)?,
@@ -736,6 +765,7 @@ private fun ArtistsTab(
             }
             items(artists, key = { it.key }) { (artist, artistSongs) ->
                 ArtistGridCard(
+                    onAdd = { onArtistAdd(artistSongs) },
                     name = artist,
                     songCount = artistSongs.size,
                     thumbnailUrl = artistSongs.firstNotNullOfOrNull { it.thumbnailUrl },
@@ -759,6 +789,7 @@ private fun ArtistsTab(
             }
             items(artists, key = { it.key }) { (artist, artistSongs) ->
                 ArtistRow(
+                    onAdd = { onArtistAdd(artistSongs) },
                     name = artist,
                     songCount = artistSongs.size,
                     thumbnailUrl = artistSongs.firstNotNullOfOrNull { it.thumbnailUrl },
@@ -778,6 +809,7 @@ private fun ArtistsTab(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ArtistRow(
+    onAdd: () -> Unit,
     name: String,
     songCount: Int,
     thumbnailUrl: String? = null,
@@ -791,6 +823,7 @@ private fun ArtistRow(
             .padding(horizontal = PAGE_GUTTER, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        CollectionPlaylistMenu(onAdd)
         // Avatar circle
         Box(
             modifier = Modifier
@@ -844,6 +877,7 @@ private fun ArtistRow(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ArtistGridCard(
+    onAdd: () -> Unit,
     name: String,
     songCount: Int,
     thumbnailUrl: String?,
@@ -858,6 +892,7 @@ private fun ArtistGridCard(
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        CollectionPlaylistMenu(onAdd)
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.88f)
@@ -953,6 +988,8 @@ private fun albumEntries(
     songs: List<Song>,
     collections: List<DownloadedCollection>,
 ): List<AlbumEntry> {
+    val songsById = songs.associateBy { it.videoId }
+    val songsByUri = songs.filter { it.localUri != null }.associateBy { it.localUri }
     val asked = collections.map { collection ->
         AlbumEntry(
             title = collection.title,
@@ -961,7 +998,7 @@ private fun albumEntries(
             },
             thumbnailUrl = collection.thumbnailUrl,
             playlist = collection.playlist,
-            songs = collection.songs,
+            songs = collection.songs.map { song -> songsById[song.videoId] ?: songsByUri[song.localUri] ?: song },
             asked = true,
             key = "asked:${collection.id}",
         )
@@ -992,6 +1029,7 @@ private fun albumEntries(
 @Composable
 private fun AlbumsTab(
     albums: List<AlbumEntry>,
+    onAlbumAdd: (AlbumEntry) -> Unit,
     viewType: LibraryViewType,
     selectedKeys: Set<String> = emptySet(),
     onAlbumClick: (AlbumEntry) -> Unit,
@@ -1029,6 +1067,7 @@ private fun AlbumsTab(
             }
             items(albums, key = { it.key }) { entry ->
                 AlbumGridCard(
+                    onAdd = { onAlbumAdd(entry) },
                     entry = entry,
                     selected = entry.key in selectedKeys,
                     onClick = { onAlbumClick(entry) },
@@ -1058,6 +1097,7 @@ private fun AlbumsTab(
             }
             items(albums, key = { it.key }) { entry ->
                 AlbumRow(
+                    onAdd = { onAlbumAdd(entry) },
                     entry = entry,
                     selected = entry.key in selectedKeys,
                     onClick = { onAlbumClick(entry) },
@@ -1076,6 +1116,7 @@ private fun AlbumsTab(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AlbumGridCard(
+    onAdd: () -> Unit,
     entry: AlbumEntry,
     selected: Boolean = false,
     onClick: () -> Unit,
@@ -1089,6 +1130,7 @@ private fun AlbumGridCard(
             .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
             .padding(4.dp),
     ) {
+        CollectionPlaylistMenu(onAdd)
         val shape = RoundedCornerShape(12.dp)
         Box(
             modifier = Modifier
@@ -1153,6 +1195,7 @@ private fun AlbumGridCard(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AlbumRow(
+    onAdd: () -> Unit,
     entry: AlbumEntry,
     selected: Boolean = false,
     onClick: () -> Unit,
@@ -1169,6 +1212,7 @@ private fun AlbumRow(
             .padding(horizontal = PAGE_GUTTER, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        CollectionPlaylistMenu(onAdd)
         CollectionArtwork(
             url = entry.thumbnailUrl ?: fetchedArt,
             playlist = entry.playlist,
@@ -1521,6 +1565,7 @@ internal fun Song.matchesSearch(query: String): Boolean =
         albumName?.contains(query, ignoreCase = true) == true
 
 private fun List<Song>.sortedForLibrary(order: LocalMusicSort): List<Song> = when (order) {
+    LocalMusicSort.TRACK_NUMBER -> inAlbumOrder()
     LocalMusicSort.TITLE_ASC -> sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
     LocalMusicSort.TITLE_DESC -> sortedWith(compareByDescending<Song> { it.title.lowercase(Locale.ROOT) })
     LocalMusicSort.DATE_ADDED -> sortedWith(
@@ -1669,6 +1714,7 @@ private fun LocalSearchField(
 
 @Composable
 private fun LocalMusicSort.localizedLabel(): String = when (this) {
+    LocalMusicSort.TRACK_NUMBER -> stringResource(R.string.sort_track_number)
     LocalMusicSort.TITLE_ASC -> stringResource(R.string.sort_title_ascending)
     LocalMusicSort.TITLE_DESC -> stringResource(R.string.sort_title_descending)
     LocalMusicSort.DATE_ADDED -> stringResource(R.string.sort_date_added)
@@ -1796,5 +1842,21 @@ private fun SectionHeader(
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun CollectionPlaylistMenu(onAdd: () -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(Icons.Rounded.MoreVert, stringResource(R.string.more))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.add_to_playlist)) }, onClick = {
+                expanded = false
+                onAdd()
+            })
+        }
     }
 }

@@ -1,0 +1,28 @@
+<resources>
+    <string name="sort_track_number">Numero traccia</string>
+    <string name="release_history">Novità · Cronologia versioni</string>
+    <string name="playlist_added_count">%1$d brani aggiunti</string>
+    <string name="release_notes_unavailable">Nessuna nota di versione inclusa in questa build.</string>
+    <string name="local_song_information">Informazioni sul brano</string>
+    <string name="local_delete_file">Elimina file dal dispositivo</string>
+    <string name="local_delete_file_confirm">Eliminare «%1$s» dal dispositivo? L’operazione è irreversibile.</string>
+    <string name="local_file_deleted">File eliminato</string>
+    <string name="local_file_delete_failed">Impossibile eliminare il file</string>
+    <string name="meta_title">Titolo</string>
+    <string name="meta_artist">Artista</string>
+    <string name="meta_album">Album</string>
+    <string name="meta_album_artist">Artista dell’album</string>
+    <string name="meta_composer">Compositore</string>
+    <string name="meta_writer">Paroliere</string>
+    <string name="meta_author">Autore</string>
+    <string name="meta_year">Anno</string>
+    <string name="meta_genre">Genere</string>
+    <string name="meta_track">Numero traccia</string>
+    <string name="meta_disc">Numero disco</string>
+    <string name="meta_bitrate">Bitrate (bit/s)</string>
+    <string name="meta_duration">Durata (ms)</string>
+    <string name="meta_format">Formato</string>
+    <string name="meta_location">Posizione</string>
+    <string name="meta_filename">Nome file</string>
+    <string name="meta_size">Dimensione</string>
+</resources>

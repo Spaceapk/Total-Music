@@ -1,0 +1,28 @@
+<resources>
+    <string name="sort_track_number">Número de pista</string>
+    <string name="release_history">Novedades · Historial de versiones</string>
+    <string name="playlist_added_count">%1$d canciones añadidas</string>
+    <string name="release_notes_unavailable">Esta compilación no tiene notas de versión integradas.</string>
+    <string name="local_song_information">Información de la canción</string>
+    <string name="local_delete_file">Eliminar archivo del dispositivo</string>
+    <string name="local_delete_file_confirm">¿Eliminar «%1$s» del almacenamiento? No se puede deshacer.</string>
+    <string name="local_file_deleted">Archivo eliminado</string>
+    <string name="local_file_delete_failed">No se pudo eliminar el archivo</string>
+    <string name="meta_title">Título</string>
+    <string name="meta_artist">Artista</string>
+    <string name="meta_album">Álbum</string>
+    <string name="meta_album_artist">Artista del álbum</string>
+    <string name="meta_composer">Compositor</string>
+    <string name="meta_writer">Autor de la letra</string>
+    <string name="meta_author">Autor</string>
+    <string name="meta_year">Año</string>
+    <string name="meta_genre">Género</string>
+    <string name="meta_track">Número de pista</string>
+    <string name="meta_disc">Número de disco</string>
+    <string name="meta_bitrate">Tasa de bits (bits/s)</string>
+    <string name="meta_duration">Duración (ms)</string>
+    <string name="meta_format">Formato</string>
+    <string name="meta_location">Ubicación</string>
+    <string name="meta_filename">Nombre del archivo</string>
+    <string name="meta_size">Tamaño</string>
+</resources>

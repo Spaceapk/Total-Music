@@ -141,6 +141,7 @@ fun SongActionsSheet(
      * re-runs it; the conflict dialog keeps that idempotent.
      */
     onUploadToWebDav: (() -> Unit)? = null,
+    onLocalFileDeleted: () -> Unit = {},
     onToggleLike: () -> Unit,
     onToggleDislike: () -> Unit,
     onAddToPlaylist: () -> Unit,
@@ -238,6 +239,8 @@ fun SongActionsSheet(
     val isOffline = song.localUri != null
 
     val rows: @Composable ColumnScope.() -> Unit = {
+        LocalSongFileActions(song, palette.accent, onLocalFileDeleted)
+        if (isOffline) ActionRow(Icons.AutoMirrored.Rounded.PlaylistAdd, stringResource(R.string.add_to_playlist), accent = palette.accent, onClick = onAddToPlaylist)
         if (isOffline) {
             ActionRow(
                 icon = Icons.Rounded.FileUpload,

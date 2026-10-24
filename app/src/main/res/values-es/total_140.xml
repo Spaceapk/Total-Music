@@ -2,6 +2,6 @@
     <string name="total_artwork_colors">Colores de carátula</string>
     <string name="total_artwork_colors_summary">Adapta el reproductor Google a la portada actual.</string>
     <string name="total_adaptive_glass">Navegación adaptable</string>
-    <string name="total_adaptive_glass_summary">Contrae Liquid Glass al desplazarte.</string>
+    <string name="total_adaptive_glass_summary">Contrae la navegación al desplazarte en Google Expressive y Liquid Glass.</string>
     <string name="total_glass_fallback">Cristal translúcido ligero en esta versión de Android.</string>
 </resources>

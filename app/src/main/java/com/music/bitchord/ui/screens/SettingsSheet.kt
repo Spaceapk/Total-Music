@@ -183,6 +183,17 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
 
+    var showReleaseHistory by remember { mutableStateOf(false) }
+    if (showReleaseHistory) AlertDialog(
+        onDismissRequest = { showReleaseHistory = false },
+        title = { Text(stringResource(R.string.release_history)) },
+        text = { Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
+            Text(com.music.bitchord.data.ReleaseNotes.history(context))
+        } },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { showReleaseHistory = false }) {
+            Text(stringResource(R.string.back))
+        } },
+    )
     val wifiQuality by AppSettings.audioQualityWifi.collectAsStateWithLifecycle()
     val cellularQuality by AppSettings.audioQualityCellular.collectAsStateWithLifecycle()
     val metered by AppSettings.meteredConnection.collectAsStateWithLifecycle()
@@ -683,14 +694,18 @@ fun SettingsScreen(
                     onClick = { com.music.bitchord.data.settings.TotalMusicSettings.setArtworkColors(!enabled) },
                 )
             }
+            row("Novedades", "What's new", "version history") {
+                SettingsRow(icon = Icons.Rounded.History, title = stringResource(R.string.release_history),
+                    onClick = { showReleaseHistory = true })
+            }
             row("Navegación adaptable", "Liquid Glass", "adaptive navigation") {
                 val enabled by com.music.bitchord.data.settings.TotalMusicSettings.adaptiveGlass.collectAsStateWithLifecycle()
                 SettingsRow(
                     icon = Icons.Rounded.AutoAwesome,
                     title = stringResource(R.string.total_adaptive_glass),
                     subtitle = stringResource(R.string.total_adaptive_glass_summary),
-                    enabled = liquidGlass,
-                    trailing = { Switch(checked = enabled, enabled = liquidGlass, onCheckedChange = com.music.bitchord.data.settings.TotalMusicSettings::setAdaptiveGlass) },
+                    enabled = liquidGlass || expressive,
+                    trailing = { Switch(checked = enabled, enabled = liquidGlass || expressive, onCheckedChange = com.music.bitchord.data.settings.TotalMusicSettings::setAdaptiveGlass) },
                     onClick = { com.music.bitchord.data.settings.TotalMusicSettings.setAdaptiveGlass(!enabled) },
                 )
             }

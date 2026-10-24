@@ -117,6 +117,7 @@ enum class EqualizerMode {
 
 /** Stable persisted ordering for each on-device music library. */
 enum class LocalMusicSort {
+    TRACK_NUMBER,
     TITLE_ASC,
     TITLE_DESC,
     DATE_ADDED,
