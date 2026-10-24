@@ -41,6 +41,12 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
 dependencies {
     implementation("androidx.benchmark:benchmark-macro-junit4:1.3.4")
     implementation("androidx.test.ext:junit:1.3.0")
