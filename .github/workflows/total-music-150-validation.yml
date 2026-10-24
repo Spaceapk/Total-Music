@@ -47,7 +47,7 @@ jobs:
       run: ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8' --max-workers=2 :app:lintProdDebug :app:lintVitalProdRelease
         -PspaceSpatialEdition=true --build-cache --stacktrace
     - name: Build test APK and optimized unsigned release
-      run: ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8' --max-workers=2 :app:assembleProdDebug
+      run: ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8' --max-workers=2 :app:assembleProdDebug :app:assembleProdDebugAndroidTest
         :app:assembleProdRelease -PspaceSpatialEdition=true --build-cache --stacktrace
     - name: Prepare isolated Android 13 test device
       run: 'set -euo pipefail
