@@ -252,11 +252,17 @@ fun LocalMusicScreen(
             selectedTab == LOCAL_TAB_ALBUMS -> indexedAlbums.value.filter {
                 searchQuery.isBlank() || it.title.contains(searchQuery, true) || it.artist.contains(searchQuery, true)
             }.flatMap { it.songs }.distinctBy { it.videoId }
-            else -> sortedSongs.filter { searchQuery.isBlank() || it.matchesSearch(searchQuery) }
+            else -> if (searchQuery.isBlank()) sortedSongs
+            else sortedSongs.filter { it.matchesSearch(searchQuery) }
         }
     }
-    LaunchedEffect(visibleSongs) {
-        selectedDownloadIds = selectedDownloadIds.intersect(visibleSongs.mapTo(mutableSetOf()) { it.videoId })
+    // With nothing selected there is no pruning to do. In particular, do not
+    // allocate a library-sized ID set on every search/tab update in the common
+    // case; selection mode still gets the same pruning effect below.
+    if (selectedDownloadIds.isNotEmpty()) {
+        LaunchedEffect(visibleSongs) {
+            selectedDownloadIds = selectedDownloadIds.intersect(visibleSongs.mapTo(mutableSetOf()) { it.videoId })
+        }
     }
     LaunchedEffect(searchQuery, drillDownLabel, selectedTab) {
         selectedAlbumKeys = emptySet()
@@ -488,8 +494,15 @@ fun LocalMusicScreen(
                 }
 
                 key == "tab:$LOCAL_TAB_SONGS" -> {
-                    val filteredSongs = remember(sortedSongs, searchQuery) {
-                        if (searchQuery.isBlank()) sortedSongs
+                    // AnimatedContent can keep the outgoing Songs tab composed
+                    // after selectedTab has already changed. Reuse the hoisted
+                    // result only for the stable Songs state; otherwise retain
+                    // the key's own list so a transition cannot show another
+                    // tab's rows in the outgoing page.
+                    val stableSongsTab = selectedTab == LOCAL_TAB_SONGS && !inDrillDown
+                    val filteredSongs = remember(sortedSongs, visibleSongs, searchQuery, stableSongsTab) {
+                        if (stableSongsTab) visibleSongs
+                        else if (searchQuery.isBlank()) sortedSongs
                         else sortedSongs.filter { it.matchesSearch(searchQuery) }
                     }
                     SongsTab(
