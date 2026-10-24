@@ -43,6 +43,9 @@ keystore.properties
 
 # Local output
 /output/
+/device-results/
+/release-artifacts/
+/.tmp_performance/
 
 # Permanent signing files stay outside the checkout
 *.p12
