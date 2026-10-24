@@ -102,10 +102,10 @@ jobs:
         \ can accidentally read stale UI.\n    deadline=time.monotonic()+35\n    last_error='no hierarchy'\n   \
         \ while time.monotonic()<deadline:\n        try:\n            adb('shell','rm','-f','/sdcard/window.xml')\n\
         \            dumped=subprocess.run(['adb','shell','uiautomator','dump','/sdcard/window.xml'],\n        \
-        \        capture_output=True,text=True,timeout=15)\n            if 'UI hierarch' not in dumped.stdout or\
-        \ 'dumped to' not in dumped.stdout:\n                last_error=dumped.stdout+dumped.stderr\n          \
-        \      time.sleep(0.5)\n                continue\n            root=ET.fromstring(adb('shell','cat','/sdcard/window.xml'))\n\
-        \            if list(root): return root\n            last_error='empty hierarchy'\n        except (subprocess.SubprocessError,\
+        \        capture_output=True,text=True,timeout=15)\n            if dumped.returncode != 0 or 'dumped to:'\
+        \ not in dumped.stdout:\n                last_error=dumped.stdout+dumped.stderr\n                time.sleep(0.5)\n\
+        \                continue\n            root=ET.fromstring(adb('shell','cat','/sdcard/window.xml'))\n   \
+        \         if list(root): return root\n            last_error='empty hierarchy'\n        except (subprocess.SubprocessError,\
         \ ET.ParseError) as error:\n            last_error=str(error)\n        time.sleep(0.5)\n    raise AssertionError('Fresh\
         \ UI hierarchy unavailable: '+last_error)\n\ndef text_present(root, text):\n    return any(text in (n.get('text','')\
         \ + n.get('content-desc','')) for n in root.iter('node'))\ndef dismiss_back(root):\n    for n in root.iter('node'):\n\
