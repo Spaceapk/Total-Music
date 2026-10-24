@@ -24,7 +24,9 @@ android {
 
     buildTypes {
         create("measurement") {
-            initWith(getByName("release"))
+            // com.android.test supplies debug by default, not release. The
+            // target app's release-like variant is selected by the fallback;
+            // no release build type is needed in this test-only module.
             matchingFallbacks += listOf("release")
             // Only the test APK is debug-signed. The target app remains the
             // non-debuggable, release-signed prodMeasurement variant.
