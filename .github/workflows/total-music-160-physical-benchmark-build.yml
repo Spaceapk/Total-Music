@@ -2,6 +2,7 @@ name: Total Music 1.6.0 physical benchmark build
 
 permissions:
   contents: read
+  checks: write
 
 on:
   push:
@@ -11,8 +12,10 @@ on:
       - '.github/workflows/total-music-160-physical-benchmark-build.yml'
       - 'app/build.gradle.kts'
       - 'app/src/measurement/**'
+      - 'app/src/main/java/com/music/bitchord/ui/screens/LocalMusicScreen.kt'
       - 'build.gradle.kts'
       - 'macrobenchmark/**'
+      - 'scripts/performance/publish_build_check.py'
       - 'settings.gradle.kts'
   workflow_dispatch:
 
@@ -48,9 +51,23 @@ jobs:
 
       - name: Compile the release-like physical benchmark target
         run: |
+          mkdir -p physical-benchmark-artifacts
+          set +e
           ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8 -Djava.net.preferIPv4Stack=true' \
             --max-workers=2 :app:assembleProdMeasurement :macrobenchmark:assembleMeasurement \
-            -PspaceSpatialEdition=true --build-cache --stacktrace
+            -PspaceSpatialEdition=true --build-cache --stacktrace \
+            > physical-benchmark-artifacts/gradle.log 2>&1
+          rc=$?
+          echo "$rc" > physical-benchmark-artifacts/exit-code.txt
+          tail -n 100 physical-benchmark-artifacts/gradle.log
+          exit 0
+
+      - name: Publish bounded build diagnostics
+        if: always()
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/performance/publish_build_check.py
 
       - name: Record hashes and signing status
         if: always()
@@ -73,3 +90,9 @@ jobs:
           path: physical-benchmark-artifacts/
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Preserve the compilation result
+        if: always()
+        run: |
+          test -f physical-benchmark-artifacts/exit-code.txt
+          test "$(cat physical-benchmark-artifacts/exit-code.txt)" -eq 0

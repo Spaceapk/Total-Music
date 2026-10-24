@@ -30,8 +30,10 @@ ya se use para Total Music:
 No hay que crear ni cambiar claves para esta prueba. Si el checkout no tiene el
 keystore release existente, Gradle produce un APK **unsigned**: sirve para
 comprobar compilación y hashes, pero **no es una actualización instalable**.
-El workflow manual `Total Music 1.6.0 physical benchmark build` solo compila y
-publica esos artefactos; no ejecuta el benchmark ni afirma que estén firmados.
+El workflow `Total Music 1.6.0 physical benchmark build` (push limitado a sus
+archivos o despacho manual) solo compila y publica esos artefactos; no ejecuta
+el benchmark ni afirma que estén firmados. Su check `total-music-physical-benchmark-build`
+contiene un tail redacted del log para diagnosticar compilación sin el CDN de logs.
 
 ## Preparar el teléfono
 
@@ -57,16 +59,22 @@ Con el dispositivo físico como único dispositivo ADB:
   -Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.macrobenchmark.LibraryBenchmark#scrollLocalLibrary
 ```
 
-Sustituye el nombre final por `libraryTabNavigation` o `coldStart` para las
-otras pruebas. Ejecuta cada clase por separado y conserva el JSON y todas las
-trazas de cada build. No actives la supresión de errores `EMULATOR`: estas
-pruebas están destinadas a hardware físico.
+Sustituye el nombre final por `libraryTabNavigation`, `localSongQueueSubmission`
+o `coldStart` para las otras pruebas. Ejecuta cada prueba por separado y conserva
+el JSON y todas las trazas de cada build. No actives la supresión de errores
+`EMULATOR`: estas pruebas están destinadas a hardware físico.
 
 - **scrollLocalLibrary**: ocho flings (cuatro hacia abajo y cuatro hacia arriba)
   sobre la lista real. Publica `FrameTimingMetric`, incluidos percentiles y
   `frameOverrunMs` cuando la plataforma los expone.
 - **libraryTabNavigation**: recorre Songs → Albums → Artists → Songs usando los
   textos localizados del propio paquete y mide frames durante las transiciones.
+- **localSongQueueSubmission**: pulsa la primera canción real, espera el estado
+  `pause` del controller y lee `TotalMusic.buildQueue` y
+  `TotalMusic.submitQueue` mediante `TraceSectionMetric`. La UI queda pausada
+  para la siguiente iteración. Mide preparación/envío y el callback de la UI;
+  no mide el primer sonido audible. Las dos revisiones comparadas deben contener
+  esas mismas secciones de traza.
 - **coldStart**: mide arranque frío con `StartupTimingMetric`; las notas de
   versión deben haberse cerrado antes para que las iteraciones sean equivalentes.
 

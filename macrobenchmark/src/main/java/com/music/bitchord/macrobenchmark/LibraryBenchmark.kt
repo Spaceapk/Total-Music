@@ -5,6 +5,7 @@ import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
+import androidx.benchmark.macro.TraceSectionMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -89,6 +90,36 @@ class LibraryBenchmark {
     }
 
     @Test
+    fun localSongQueueSubmission() = benchmarkRule.measureRepeated(
+        packageName = TARGET_PACKAGE,
+        metrics = listOf(
+            TraceSectionMetric("TotalMusic.buildQueue"),
+            TraceSectionMetric("TotalMusic.submitQueue"),
+        ),
+        compilationMode = CompilationMode.Partial(),
+        startupMode = StartupMode.WARM,
+        iterations = 6,
+        setupBlock = { pressHome() },
+    ) {
+        startActivityAndWait()
+        dismissReleaseNotes(device)
+        val pause = targetString("pause")
+        // Start from a paused transport without clearing the queue or app data.
+        device.findObject(By.desc(pause))?.click()
+        device.waitForIdle()
+        // Resolve the row after the transport recomposition, not before it.
+        val first = device.wait(Until.findObject(By.res(FIRST_SONG_ROW)), 20_000)
+            ?: error("First local song row not found; open Songs with the real library visible")
+        first.click()
+        check(device.wait(Until.hasObject(By.desc(pause)), 30_000)) {
+            "The controller did not expose playback after tapping the local song"
+        }
+        // Leave the next iteration paused. This is a controller/UI signal,
+        // deliberately not a claim about audible output timing.
+        device.findObject(By.desc(pause))?.click()
+    }
+
+    @Test
     fun coldStart() = benchmarkRule.measureRepeated(
         packageName = TARGET_PACKAGE,
         metrics = listOf(StartupTimingMetric()),
@@ -129,5 +160,6 @@ class LibraryBenchmark {
     private companion object {
         const val TARGET_PACKAGE = "org.nexlibre.totalmusic"
         const val SONGS_LIST = "local_songs_list"
+        const val FIRST_SONG_ROW = "local_song_row_first"
     }
 }

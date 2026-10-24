@@ -14,6 +14,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import statistics
 import sys
 import urllib.error
@@ -29,6 +30,10 @@ def read(path: Path) -> str:
         return path.read_text(errors="replace").strip()
     except OSError:
         return ""
+
+
+def redacted(text: str) -> str:
+    return re.sub(r"(?i)(password|secret|token)(\s*[=:]\s*)\S+", r"\1\2[redacted]", text)
 
 
 def percentile(values: list[float], fraction: float) -> float:
@@ -105,6 +110,18 @@ def main() -> int:
             parts.extend(["### CSV crudo", "```csv", raw, "```", ""])
         else:
             parts.extend([summary, ""])
+
+    if not complete:
+        for variant in ("baseline", "candidate"):
+            build_log = read(RESULTS / f"{variant}-build.log")
+            if build_log:
+                parts.extend([
+                    f"## {variant}: tail del build de Gradle (redacted)",
+                    "```text",
+                    redacted(build_log[-12_000:]).replace("```", "` ` `"),
+                    "```",
+                    "",
+                ])
 
     for name in ("apk-sha256.txt", "environment.txt"):
         content = read(RESULTS / name)

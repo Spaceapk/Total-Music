@@ -38,9 +38,15 @@ build_variant() {
   (
     cd "$dir"
     chmod +x gradlew
+    set +e
     ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8 -Djava.net.preferIPv4Stack=true' \
       --max-workers=2 :app:assembleProdDebug :app:assembleProdDebugAndroidTest :app:assembleProdRelease \
-      -PspaceSpatialEdition=true --build-cache --stacktrace
+      -PspaceSpatialEdition=true --build-cache --stacktrace \
+      > "$RESULTS/$variant-build.log" 2>&1
+    rc=$?
+    set -e
+    tail -n 120 "$RESULTS/$variant-build.log" || true
+    exit "$rc"
   )
   mkdir -p "$WORK/apks/$variant"
   mapfile -t app_apks < <(find "$dir/app/build/outputs/apk/prod/debug" -name '*universal*debug.apk')

@@ -629,6 +629,7 @@ private fun SongsTab(
             }
             itemsIndexed(songs, key = { index, song -> "${song.videoId}_$index" }) { index, song ->
                 SongGridCard(
+                    modifier = if (index == 0) Modifier.testTag("local_song_row_first") else Modifier,
                     song = song,
                     selected = song.videoId in selectedIds,
                     isCurrent = song.isSameTrackAs(currentSong),
@@ -654,6 +655,7 @@ private fun SongsTab(
             }
             itemsIndexed(songs, key = { index, song -> "${song.videoId}_$index" }) { index, song ->
                 SongRow(
+                    modifier = if (index == 0) Modifier.testTag("local_song_row_first") else Modifier,
                     song = song,
                     selected = song.videoId in selectedIds,
                     isCurrent = song.isSameTrackAs(currentSong),
