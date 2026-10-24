@@ -2,6 +2,7 @@ package com.music.bitchord.macrobenchmark
 
 import android.os.Build
 import androidx.benchmark.macro.CompilationMode
+import androidx.benchmark.macro.ExperimentalMetricApi
 import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
@@ -23,6 +24,7 @@ import org.junit.runner.RunWith
  * seed, clear, rename or delete media. Run them on the Infinix with comparable
  * app data and artwork state; an emulator result is not a phone result.
  */
+@OptIn(ExperimentalMetricApi::class)
 @RunWith(AndroidJUnit4::class)
 class LibraryBenchmark {
     @get:Rule
