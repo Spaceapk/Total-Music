@@ -77,7 +77,9 @@ class LibraryBenchmark {
     ) {
         startActivityAndWait()
         dismissReleaseNotes(device)
-        device.wait(Until.hasObject(By.res(SONGS_LIST)), 20_000)
+        check(device.wait(Until.hasObject(By.res(SONGS_LIST)), 20_000)) {
+            "Local Songs list not found; open the local library and grant audio access"
+        }
         clickTab(device, "albums")
         device.waitForIdle()
         clickTab(device, "artists")

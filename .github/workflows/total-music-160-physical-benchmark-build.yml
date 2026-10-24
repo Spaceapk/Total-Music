@@ -4,6 +4,16 @@ permissions:
   contents: read
 
 on:
+  push:
+    branches:
+      - arena/eef105a8-total-music
+    paths:
+      - '.github/workflows/total-music-160-physical-benchmark-build.yml'
+      - 'app/build.gradle.kts'
+      - 'app/src/measurement/**'
+      - 'build.gradle.kts'
+      - 'macrobenchmark/**'
+      - 'settings.gradle.kts'
   workflow_dispatch:
 
 jobs:
