@@ -1,0 +1,199 @@
+name: Total Music 1.6.0 regression and latency comparison
+permissions:
+  contents: read
+concurrency:
+  group: total-music-160-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ORG_GRADLE_PROJECT_spaceNdkVersion: 27.0.12077973
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Use identical timing harness on both versions
+      env:
+        SOURCE: ${{ matrix.source }}
+      run: 'set -euo pipefail
+
+        harness=app/src/androidTest/java/com/music/bitchord/LocalPlaybackPerformanceTest.kt
+
+        cp "$harness" "$RUNNER_TEMP/LocalPlaybackPerformanceTest.kt"
+
+        if [ "$SOURCE" = baseline ]; then git checkout --detach a6019d21492718a0f68f22af846974ea71c1e19c;
+        fi
+
+        cp "$RUNNER_TEMP/LocalPlaybackPerformanceTest.kt" "$harness"
+
+        git rev-parse HEAD
+
+        '
+    - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+      with:
+        java-version: '21'
+        distribution: temurin
+    - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+      with:
+        packages: platform-tools
+    - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+    - name: Verify identity, public certificate and source history
+      run: 'python3 scripts/release/check_release.py
+
+        git merge-base --is-ancestor 5d354463d8ab7b4b11a486a23ae47c1673f2f61e HEAD
+
+        '
+    - name: Install required Android SDK
+      run: 'sdkmanager ''platforms;android-37.0'' ''build-tools;36.0.0'' ''cmake;3.22.1''
+        ''ndk;27.0.12077973''
+
+        if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0
+        "$ANDROID_HOME/platforms/android-37"; fi
+
+        '
+    - name: Run shared and Android regression tests
+      run: 'chmod +x gradlew
+
+        ./gradlew ''-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8 -Djava.net.preferIPv4Stack=true''
+        --max-workers=2 :shared:jvmTest :sharedUi:jvmTest :app:testProdDebugUnitTest
+        -PspaceSpatialEdition=true --build-cache --stacktrace
+
+        '
+    - name: Run Android lint
+      run: ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8' --max-workers=2
+        :app:lintProdDebug :app:lintVitalProdRelease -PspaceSpatialEdition=true --build-cache
+        --stacktrace
+    - name: Build test APK and optimized unsigned release
+      run: ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8' --max-workers=2
+        :app:assembleProdDebug :app:assembleProdDebugAndroidTest :app:assembleProdRelease
+        -PspaceSpatialEdition=true --build-cache --stacktrace
+    - name: Release build memory before emulator
+      run: './gradlew --stop
+
+        free -m
+
+        ps -eo pid,rss,comm --sort=-rss | head -12
+
+        '
+    - name: Prepare isolated Android 13 test device
+      run: 'set -euo pipefail
+
+        sdkmanager ''emulator'' ''system-images;android-33;google_apis;x86_64''
+
+        mkdir -p device-results
+
+        sudo chmod a+rw /dev/kvm
+
+        export ANDROID_AVD_HOME="$RUNNER_TEMP/total-music-150-full-avd"
+
+        echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+
+        mkdir -p "$ANDROID_AVD_HOME"
+
+        echo no | avdmanager create avd -n full150 -k ''system-images;android-33;google_apis;x86_64''
+        --force
+
+        "$ANDROID_HOME/emulator/emulator" -avd full150 -no-window -no-audio -no-boot-anim
+        -no-snapshot -no-metrics -gpu swiftshader -feature -Vulkan -cores 2 -memory
+        3072 > device-results/emulator.log 2>&1 &
+
+        timeout 120 adb wait-for-device
+
+        timeout 300 bash -c ''until [ "$(adb shell getprop sys.boot_completed | tr
+        -d "\r")" = 1 ]; do sleep 2; done''
+
+        adb shell input keyevent 82
+
+        adb shell svc wifi disable
+
+        adb shell svc data disable
+
+        mapfile -t app_apks < <(find app/build/outputs/apk/prod/debug -name ''*universal*debug.apk'')
+
+        mapfile -t test_apks < <(find app/build/outputs/apk/androidTest/prod/debug
+        -name ''*.apk'')
+
+        [ "${#app_apks[@]}" -eq 1 ] && [ "${#test_apks[@]}" -eq 1 ]
+
+        adb install -r "${app_apks[0]}"
+
+        adb install -r "${test_apks[0]}"
+
+        adb logcat -v threadtime > device-results/logcat.txt 2>&1 &
+
+        git rev-parse HEAD > device-results/source-commit.txt
+
+        '
+    - name: Run every Android regression class in separate instrumentation
+      run: "set -euo pipefail\ntrap 'adb emu kill || true' EXIT\nfailed=0\nfor test_class\
+        \ in LocalPlaybackPerformanceTest LocalTrackMetadataTest AlbumTrackOrderUiTest\
+        \ DevicePlaylistStoreTest AndroidAutoMediaLibraryTest ExampleInstrumentedTest\
+        \ LocalLyricsStoreTest SpatialPreferencesTest OfflinePlaylistPlaybackTest\
+        \ LocalPlaybackServiceTest SpatialRuntimeTest; do\n  adb shell am force-stop\
+        \ org.nexlibre.totalmusic\n  log=\"device-results/${test_class}.txt\"\n  timeout\
+        \ 360 adb shell am instrument -w -r -e class \"com.music.bitchord.$test_class\"\
+        \ org.nexlibre.totalmusic.test/androidx.test.runner.AndroidJUnitRunner > \"\
+        $log\" 2>&1 || failed=1\n  cat \"$log\"\n  if ! grep -Eq '^OK \\([0-9]+ tests?\\\
+        )' \"$log\"; then failed=1; fi\n  if ! adb get-state > /dev/null 2>&1; then\
+        \ echo 'Emulator disconnected; remaining tests unverified'; failed=1; break;\
+        \ fi\ndone\nadb shell dumpsys package org.nexlibre.totalmusic > device-results/package.txt\
+        \ || true\nadb pull /sdcard/Android/data/org.nexlibre.totalmusic/files/local-playback-performance.csv\
+        \ device-results/ || failed=1\n[ \"$failed\" -eq 0 ]\n"
+    - name: Verify APK identity and package traceable artifacts
+      run: 'set -euo pipefail
+
+        python3 scripts/release/package_ci.py
+
+
+        ./gradlew ''-Dorg.gradle.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8'' --max-workers=2
+        :app:assembleProdDebugAndroidTest -PspaceSpatialEdition=true --build-cache
+        --stacktrace
+
+        ./gradlew --stop'
+    - name: Capture emulator and host diagnostics
+      if: always()
+      run: 'mkdir -p device-results
+
+        free -m > device-results/host-memory.txt
+
+        ps -eo pid,rss,comm --sort=-rss | head -20 > device-results/host-processes.txt
+
+        adb devices -l > device-results/adb-devices.txt 2>&1 || true
+
+        sudo dmesg | tail -100 > device-results/host-kernel.txt 2>&1 || true
+
+        '
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      if: always()
+      with:
+        name: total-music-160-${{ matrix.source }}-${{ github.sha }}
+        path: 'release-artifacts/
+
+          app/build/reports/
+
+          app/build/test-results/
+
+          shared/build/reports/tests/
+
+          shared/build/test-results/
+
+
+          device-results/
+
+          app/build/outputs/androidTest-results/'
+        if-no-files-found: error
+        retention-days: 14
+    strategy:
+      fail-fast: false
+      matrix:
+        source:
+        - baseline
+        - candidate
+'on':
+  push:
+    branches:
+    - work/total-music-1.6.0-performance
+  workflow_dispatch: null
