@@ -1,0 +1,28 @@
+<resources>
+    <string name="sort_track_number">Número da faixa</string>
+    <string name="release_history">Novidades · Histórico de versões</string>
+    <string name="playlist_added_count">%1$d músicas adicionadas</string>
+    <string name="release_notes_unavailable">Esta compilação não inclui notas de versão.</string>
+    <string name="local_song_information">Informações da música</string>
+    <string name="local_delete_file">Excluir arquivo do dispositivo</string>
+    <string name="local_delete_file_confirm">Excluir «%1$s» do dispositivo? Esta ação não pode ser desfeita.</string>
+    <string name="local_file_deleted">Arquivo excluído</string>
+    <string name="local_file_delete_failed">Não foi possível excluir o arquivo</string>
+    <string name="meta_title">Título</string>
+    <string name="meta_artist">Artista</string>
+    <string name="meta_album">Álbum</string>
+    <string name="meta_album_artist">Artista do álbum</string>
+    <string name="meta_composer">Compositor</string>
+    <string name="meta_writer">Letrista</string>
+    <string name="meta_author">Autor</string>
+    <string name="meta_year">Ano</string>
+    <string name="meta_genre">Gênero</string>
+    <string name="meta_track">Número da faixa</string>
+    <string name="meta_disc">Número do disco</string>
+    <string name="meta_bitrate">Taxa de bits (bits/s)</string>
+    <string name="meta_duration">Duração (ms)</string>
+    <string name="meta_format">Formato</string>
+    <string name="meta_location">Localização</string>
+    <string name="meta_filename">Nome do arquivo</string>
+    <string name="meta_size">Tamanho</string>
+</resources>

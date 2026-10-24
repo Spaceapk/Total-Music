@@ -66,7 +66,9 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
                 fun optional(key: String) = if (s.isNull(key)) null else s.optString(key).takeIf { it.isNotBlank() }
                 Song(videoId = s.getString("id"), title = s.getString("title"), artist = s.getString("artist"),
                     thumbnailUrl = optional("art"), durationText = optional("duration"), albumName = optional("album"),
-                    localUri = s.getString("uri"), localPath = optional("path"), downloadFormat = optional("format"))
+                    localUri = s.getString("uri"), localPath = optional("path"), downloadFormat = optional("format"),
+                    localTrackNumber = s.optInt("track").takeIf { it > 0 },
+                    localDiscNumber = s.optInt("disc").takeIf { it > 0 })
             }, sort = runCatching { PlaylistSort.valueOf(p.optString("sort")) }.getOrDefault(PlaylistSort.MANUAL),
                 addedUris = p.optJSONArray("addedUris")?.let { uris ->
                     (0 until uris.length()).map { uris.getString(it) }
@@ -83,7 +85,8 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
             p.songs.forEach { s ->
                 tracks.put(JSONObject().put("id", s.videoId).put("title", s.title).put("artist", s.artist)
                     .put("art", s.thumbnailUrl).put("duration", s.durationText).put("album", s.albumName)
-                    .put("uri", s.localUri).put("path", s.localPath).put("format", s.downloadFormat))
+                    .put("uri", s.localUri).put("path", s.localPath).put("format", s.downloadFormat)
+                    .put("track", s.localTrackNumber).put("disc", s.localDiscNumber))
             }
             array.put(JSONObject().put("id", p.id).put("name", p.name).put("songs", tracks)
                 .put("sort", p.sort.name).put("addedUris", JSONArray(p.addedUris)))

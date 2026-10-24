@@ -279,9 +279,14 @@ fun DevicePlaylistPickerDialog(songs: List<Song>, onDismiss: () -> Unit) {
                 busy = true
                 scope.launch {
                     try {
-                        withContext(Dispatchers.IO) {
+                        val added = withContext(Dispatchers.IO) {
+                            val before = store.playlists.value.firstOrNull { it.id == id }?.songs?.size ?: 0
                             if (id == null) store.createWithSongs(title, songs) else store.add(id, songs)
+                            if (id == null) songs.distinctBy { it.localUri }.size
+                            else (store.playlists.value.first { it.id == id }.songs.size - before)
                         }
+                        android.widget.Toast.makeText(context,
+                            context.getString(R.string.playlist_added_count, added), android.widget.Toast.LENGTH_SHORT).show()
                         onDismiss()
                     } catch (e: Exception) { error = e.localizedMessage }
                     finally { busy = false }

@@ -102,12 +102,13 @@ fun GlassNavBar(
     /** Dragging the bar's player up into the full player. */
     pull: MiniPlayerPull? = null,
     modifier: Modifier = Modifier,
+    materialSurface: Boolean = false,
 ) {
     // Held for the same reason [tabs] is. The glass factory below closes over
     // this shape, and a fresh RoundedCornerShape each pass means a fresh factory
     // lambda, which the tab bar sees as a changed argument and recomposes on.
     val pillShape = remember { RoundedCornerShape(percent = 50) }
-    val contentColor = glassContentColor()
+    val contentColor = if (materialSurface) MaterialTheme.colorScheme.onSurface else glassContentColor()
     val selectedColor = contentColor
     val unselectedColor = contentColor.copy(alpha = 0.65f)
     val haptics = rememberHaptics()
@@ -126,7 +127,10 @@ fun GlassNavBar(
 
     // A factory, not a value — see the note in FloatingTabBar's header. Each of
     // the three surfaces gets its own glass modifier and so its own shape cache.
-    val glassSurface: @Composable () -> Modifier = { Modifier.liquidGlass(shape = pillShape) }
+    val glassSurface: @Composable () -> Modifier = {
+        if (materialSurface) Modifier.clip(pillShape).background(MaterialTheme.colorScheme.surfaceContainer)
+        else Modifier.liquidGlass(shape = pillShape)
+    }
 
     FloatingTabBar(
         selectedTabKey = selectedIndex,
@@ -182,7 +186,7 @@ fun GlassNavBar(
         colors = FloatingTabBarDefaults.colors(
             backgroundColor = Color.Transparent,
             accessoryBackgroundColor = Color.Transparent,
-            indicatorColor = glassIndicatorColor().copy(alpha = 0.5f),
+            indicatorColor = if (materialSurface) MaterialTheme.colorScheme.secondaryContainer else glassIndicatorColor().copy(alpha = 0.5f),
         ),
         // Flat, because the glass is not. Every surface here already draws its
         // own [Shadow.Default] as part of the backdrop pass, and the library's

@@ -1,0 +1,28 @@
+<resources>
+    <string name="sort_track_number">Номер дорожки</string>
+    <string name="release_history">Что нового · История версий</string>
+    <string name="playlist_added_count">Добавлено песен: %1$d</string>
+    <string name="release_notes_unavailable">Для этой сборки нет встроенных примечаний к версии.</string>
+    <string name="local_song_information">Информация о песне</string>
+    <string name="local_delete_file">Удалить файл с устройства</string>
+    <string name="local_delete_file_confirm">Удалить «%1$s» с устройства? Это действие нельзя отменить.</string>
+    <string name="local_file_deleted">Файл удалён</string>
+    <string name="local_file_delete_failed">Не удалось удалить файл</string>
+    <string name="meta_title">Название</string>
+    <string name="meta_artist">Исполнитель</string>
+    <string name="meta_album">Альбом</string>
+    <string name="meta_album_artist">Исполнитель альбома</string>
+    <string name="meta_composer">Композитор</string>
+    <string name="meta_writer">Автор текста</string>
+    <string name="meta_author">Автор</string>
+    <string name="meta_year">Год</string>
+    <string name="meta_genre">Жанр</string>
+    <string name="meta_track">Номер дорожки</string>
+    <string name="meta_disc">Номер диска</string>
+    <string name="meta_bitrate">Битрейт (бит/с)</string>
+    <string name="meta_duration">Длительность (мс)</string>
+    <string name="meta_format">Формат</string>
+    <string name="meta_location">Расположение</string>
+    <string name="meta_filename">Имя файла</string>
+    <string name="meta_size">Размер</string>
+</resources>

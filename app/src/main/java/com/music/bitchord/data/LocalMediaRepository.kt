@@ -12,6 +12,7 @@ import android.provider.MediaStore
 import com.music.bitchord.data.DebugLog as Log
 import androidx.core.content.ContextCompat
 import com.music.bitchord.data.model.Song
+import com.music.bitchord.data.model.parseTrackTag
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.download.DownloadStore
 import com.music.bitchord.download.Downloads
@@ -89,6 +90,7 @@ object LocalMediaRepository {
                     MediaStore.Audio.Media.RELATIVE_PATH,
                     MediaStore.Audio.Media.ALBUM,
                     MediaStore.Audio.Media.ALBUM_ID,
+                    MediaStore.Audio.Media.TRACK,
                     MediaStore.Audio.Media.DATE_ADDED,
                     MediaStore.Audio.Media.DATE_MODIFIED,
                 )
@@ -106,6 +108,7 @@ object LocalMediaRepository {
                     val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
                     val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
                     val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                    val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
                     val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
                     val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
                     val albumArtBaseUri = Uri.parse("content://media/external/audio/albumart")
@@ -122,6 +125,8 @@ object LocalMediaRepository {
                             } else {
                                 null
                             },
+                            trackNumber = (cursor.getInt(trackCol) % 1000).takeIf { it > 0 },
+                            discNumber = (cursor.getInt(trackCol) / 1000).takeIf { it > 0 },
                             dateAddedSeconds = cursor.getLong(dateAddedCol),
                             dateModifiedSeconds = cursor.getLong(dateModifiedCol),
                         )
@@ -164,6 +169,8 @@ object LocalMediaRepository {
             val tags = scanned[uri] ?: return@map song
             song.copy(
                 albumName = song.albumName ?: tags.albumName,
+                localTrackNumber = tags.trackNumber ?: song.localTrackNumber,
+                localDiscNumber = tags.discNumber ?: song.localDiscNumber,
                 localDateAddedSeconds = tags.dateAddedSeconds,
                 localDateModifiedSeconds = tags.dateModifiedSeconds,
             )
@@ -181,6 +188,8 @@ object LocalMediaRepository {
         val artworkUrl: String?,
         val dateAddedSeconds: Long?,
         val dateModifiedSeconds: Long?,
+        val trackNumber: Int? = null,
+        val discNumber: Int? = null,
     )
 
     /** What MediaStore writes into a column it has nothing for. */
@@ -213,11 +222,14 @@ object LocalMediaRepository {
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.DATE_ADDED,
             MediaStore.Audio.Media.DATE_MODIFIED,
         )
 
         val filterNonMusic = AppSettings.filterNonMusicAudio.value
+        val folderUri = AppSettings.localMusicFolderUri.value
+        val folder = if (folderUri.isBlank()) null else selectedFolder(folderUri)
         val selection = if (filterNonMusic) {
             buildString {
                 append("${MediaStore.Audio.Media.IS_MUSIC} != 0")
@@ -264,6 +276,7 @@ object LocalMediaRepository {
                 val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
                 val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
                 val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
                 val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
 
@@ -280,7 +293,7 @@ object LocalMediaRepository {
                     val path = cursor.getString(dataCol)
 
                     if (filterNonMusic && !isEligibleLocalMusic(durationMs, displayName, path)) continue
-                    if (!isInSelectedFolder(path, AppSettings.localMusicFolderUri.value)) continue
+                    if (!matchesSelectedFolder(path, folderUri.isBlank(), folder)) continue
 
                     val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString()
                     val title = rawTitle.cleanTag()?.removeAudioExtension()
@@ -301,6 +314,8 @@ object LocalMediaRepository {
                             albumName = albumName,
                             localUri = contentUri,
                             localPath = path,
+                            localTrackNumber = (cursor.getInt(trackCol) % 1000).takeIf { it > 0 },
+                            localDiscNumber = (cursor.getInt(trackCol) / 1000).takeIf { it > 0 },
                             localDateAddedSeconds = cursor.getLong(dateAddedCol),
                             localDateModifiedSeconds = cursor.getLong(dateModifiedCol),
                         )
@@ -316,8 +331,12 @@ object LocalMediaRepository {
     fun selectedFolderLabel(treeUri: String): String? = selectedFolder(treeUri)?.label
 
     internal fun isInSelectedFolder(path: String?, treeUri: String): Boolean {
-        if (treeUri.isBlank()) return true
-        val folder = selectedFolder(treeUri) ?: return false
+        return matchesSelectedFolder(path, treeUri.isBlank(), if (treeUri.isBlank()) null else selectedFolder(treeUri))
+    }
+
+    private fun matchesSelectedFolder(path: String?, unrestricted: Boolean, folder: SelectedFolder?): Boolean {
+        if (unrestricted) return true
+        if (folder == null) return false
         val candidate = path?.normalizedPath() ?: return false
         return candidate == folder.absolutePath || candidate.startsWith("${folder.absolutePath}/")
     }
@@ -401,20 +420,25 @@ object LocalMediaRepository {
         var artist = "Unknown Artist"
         var albumName: String? = null
         var durationText: String? = null
+        var trackNumber: Int? = null
+        var discNumber: Int? = null
 
         runCatching {
             val retriever = MediaMetadataRetriever()
+            try {
             retriever.setDataSource(context, Uri.parse(uriStr))
             val metaTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
             val metaArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
             val metaAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+            trackNumber = parseTrackTag(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER))
+            discNumber = parseTrackTag(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER))
             val metaDur = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
 
             if (!metaTitle.isNullOrBlank()) title = metaTitle
             if (!metaArtist.isNullOrBlank()) artist = metaArtist
             albumName = metaAlbum.cleanTag()
             if (metaDur != null && metaDur > 0) durationText = formatDuration(metaDur)
-            retriever.release()
+            } finally { retriever.release() }
         }
 
         return Song(
@@ -425,6 +449,8 @@ object LocalMediaRepository {
             durationText = durationText,
             albumName = albumName ?: scanned?.albumName,
             localUri = uriStr,
+            localTrackNumber = trackNumber ?: scanned?.trackNumber,
+            localDiscNumber = discNumber ?: scanned?.discNumber,
             localDateAddedSeconds = scanned?.dateAddedSeconds,
             localDateModifiedSeconds = scanned?.dateModifiedSeconds,
         )

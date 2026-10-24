@@ -1,0 +1,28 @@
+<resources>
+    <string name="sort_track_number">מספר רצועה</string>
+    <string name="release_history">מה חדש · היסטוריית גרסאות</string>
+    <string name="playlist_added_count">נוספו %1$d שירים</string>
+    <string name="release_notes_unavailable">אין הערות גרסה מובנות עבור גרסת בנייה זו.</string>
+    <string name="local_song_information">פרטי השיר</string>
+    <string name="local_delete_file">מחיקת קובץ מהמכשיר</string>
+    <string name="local_delete_file_confirm">למחוק את ״%1$s״ מהמכשיר? לא ניתן לבטל פעולה זו.</string>
+    <string name="local_file_deleted">הקובץ נמחק</string>
+    <string name="local_file_delete_failed">לא ניתן למחוק את הקובץ</string>
+    <string name="meta_title">כותרת</string>
+    <string name="meta_artist">אמן</string>
+    <string name="meta_album">אלבום</string>
+    <string name="meta_album_artist">אמן האלבום</string>
+    <string name="meta_composer">מלחין</string>
+    <string name="meta_writer">כותב מילים</string>
+    <string name="meta_author">מחבר</string>
+    <string name="meta_year">שנה</string>
+    <string name="meta_genre">ז׳אנר</string>
+    <string name="meta_track">מספר רצועה</string>
+    <string name="meta_disc">מספר דיסק</string>
+    <string name="meta_bitrate">קצב סיביות (סיביות/שנייה)</string>
+    <string name="meta_duration">משך (אלפיות שנייה)</string>
+    <string name="meta_format">פורמט</string>
+    <string name="meta_location">מיקום</string>
+    <string name="meta_filename">שם קובץ</string>
+    <string name="meta_size">גודל</string>
+</resources>

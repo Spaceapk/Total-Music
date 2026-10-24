@@ -14,7 +14,7 @@ class DevicePlaylistStoreTest {
         val filename = "test-${UUID.randomUUID()}.json"
         try {
             val store = DevicePlaylistStore(context, filename)
-            val a = Song("local:1", "First", "Artist", null, localUri = "content://media/external/audio/media/1", localPath = "/storage/emulated/0/Music/a.flac")
+            val a = Song("local:1", "First", "Artist", null, localUri = "content://media/external/audio/media/1", localPath = "/storage/emulated/0/Music/a.flac", localTrackNumber = 3, localDiscNumber = 2)
             val b = Song("local:2", "Second", "Artist", null, localUri = "file:///storage/emulated/0/Music/b.flac")
             store.createWithSongs("  My files  ", listOf(a, b, a))
             val id = store.playlists.value.single().id
@@ -28,6 +28,8 @@ class DevicePlaylistStoreTest {
             assertEquals("Offline", reloaded.playlists.value.single().name)
             assertEquals(listOf(b.localUri, a.localUri), reloaded.playlists.value.single().songs.map { it.localUri })
             assertEquals(a.localPath, reloaded.playlists.value.single().songs[1].localPath)
+            assertEquals(3, reloaded.playlists.value.single().songs[1].localTrackNumber)
+            assertEquals(2, reloaded.playlists.value.single().songs[1].localDiscNumber)
             reloaded.remove(id, 0)
             assertEquals(a.localUri, DevicePlaylistStore(context, filename).playlists.value.single().songs.single().localUri)
             reloaded.move(id, -1, 20)
