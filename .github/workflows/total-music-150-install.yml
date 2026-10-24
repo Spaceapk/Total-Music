@@ -72,7 +72,7 @@ jobs:
         echo no | avdmanager create avd -n signed150 -k ''system-images;android-33;google_apis;x86_64'' --force
 
         "$ANDROID_HOME/emulator/emulator" -avd signed150 -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics
-        -gpu swiftshader -feature -Vulkan -cores 2 -memory 2048 > install-results/emulator.log 2>&1 &
+        -gpu swiftshader_indirect -feature -Vulkan -cores 2 -memory 3072 > install-results/emulator.log 2>&1 &
 
         timeout 120 adb wait-for-device
 
@@ -174,9 +174,28 @@ jobs:
         \ navigation')\nassert text_present(root,'Adaptive navigation')\nsubprocess.run(['adb','exec-out','screencap','-p'],check=True,stdout=(OUT/'glass-adaptive.png').open('wb'))\n\
         print('PASS: Google theme, optional cover colors and universal adaptive setting accessible; Original/Glass\
         \ setting retained')\n\nPYCODE\n"
+    - name: Capture final device and host diagnostics
+      if: always()
+      run: 'mkdir -p install-results
+
+        free -m > install-results/host-memory.txt
+
+        ps -eo pid,rss,comm --sort=-rss | head -20 > install-results/host-processes.txt
+
+        adb devices -l > install-results/adb-devices.txt 2>&1 || true
+
+        adb exec-out screencap -p > install-results/final-screen.png 2> install-results/screenshot-error.txt ||
+        true
+
+        sudo dmesg | tail -120 > install-results/host-kernel.txt 2>&1 || true
+
+        '
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
         name: total-music-150-signed-upgrade
         path: install-results/
         retention-days: 14
+concurrency:
+  group: total-music-150-install-${{ github.ref }}
+  cancel-in-progress: true
