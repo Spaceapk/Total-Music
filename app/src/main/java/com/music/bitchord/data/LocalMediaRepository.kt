@@ -228,6 +228,8 @@ object LocalMediaRepository {
         )
 
         val filterNonMusic = AppSettings.filterNonMusicAudio.value
+        val folderUri = AppSettings.localMusicFolderUri.value
+        val folder = if (folderUri.isBlank()) null else selectedFolder(folderUri)
         val selection = if (filterNonMusic) {
             buildString {
                 append("${MediaStore.Audio.Media.IS_MUSIC} != 0")
@@ -291,7 +293,7 @@ object LocalMediaRepository {
                     val path = cursor.getString(dataCol)
 
                     if (filterNonMusic && !isEligibleLocalMusic(durationMs, displayName, path)) continue
-                    if (!isInSelectedFolder(path, AppSettings.localMusicFolderUri.value)) continue
+                    if (!matchesSelectedFolder(path, folderUri.isBlank(), folder)) continue
 
                     val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString()
                     val title = rawTitle.cleanTag()?.removeAudioExtension()
@@ -329,8 +331,12 @@ object LocalMediaRepository {
     fun selectedFolderLabel(treeUri: String): String? = selectedFolder(treeUri)?.label
 
     internal fun isInSelectedFolder(path: String?, treeUri: String): Boolean {
-        if (treeUri.isBlank()) return true
-        val folder = selectedFolder(treeUri) ?: return false
+        return matchesSelectedFolder(path, treeUri.isBlank(), if (treeUri.isBlank()) null else selectedFolder(treeUri))
+    }
+
+    private fun matchesSelectedFolder(path: String?, unrestricted: Boolean, folder: SelectedFolder?): Boolean {
+        if (unrestricted) return true
+        if (folder == null) return false
         val candidate = path?.normalizedPath() ?: return false
         return candidate == folder.absolutePath || candidate.startsWith("${folder.absolutePath}/")
     }
