@@ -35,6 +35,42 @@ archivos o despacho manual) solo compila y publica esos artefactos; no ejecuta
 el benchmark ni afirma que estén firmados. Su check `total-music-physical-benchmark-build`
 contiene un tail redacted del log para diagnosticar compilación sin el CDN de logs.
 
+Para una prueba instalable sin tocar la firma release, el workflow
+`Total Music 1.6.0 installable measurement test` compila la misma variante con
+`-PtotalMusicMeasurementDebugSigning=true`. Esto usa el `signingConfig` debug
+existente de Android, mantiene R8, `debuggable=false`, `profileable` y el mismo
+paquete, y no accede a la clave privada release. El artifact incluye el hash del
+certificado de prueba y su verificación. **No es una actualización compatible
+con una instalación firmada con otro certificado**: el paquete no puede convivir
+con otra copia en el mismo usuario Android. Exporta `Settings > Your data` antes
+de cualquier desinstalación; no borres archivos musicales.
+
+## Prueba manual de la demora al reproducir (sin ADB)
+
+La app registra una cadena acotada por canción. Las líneas `TIMING` usan un reloj
+monotónico y se pueden copiar desde el teléfono:
+
+1. Instala la APK de prueba solo después de comprobar el certificado y entender
+   la advertencia anterior. Abre Total Music y concede el permiso de audio.
+2. Para **primer inicio**, cierra la app desde Recientes, vuelve a abrirla y pulsa
+   una canción. Espera a que suene y anota el tiempo audible con un cronómetro o
+   una grabación si quieres medir esa parte; el callback no lo demuestra.
+3. En el reproductor abierto, entra al menú de la canción actual y elige
+   **Copy log**. Pega el texto en un archivo o mensaje etiquetado `primer-inicio-1`.
+4. Para **cambio de canción**, deja la primera sonando, pulsa otra y espera el
+   cambio. Abre el menú de la nueva canción y copia su log como `cambio-1`.
+5. Repite cada caso cinco veces, sin cambiar biblioteca, red, carátulas ni
+   ajustes entre repeticiones. Comparte los textos completos, no solo una
+   conclusión. No hace falta logcat, root ni ADB.
+
+En cada log, `queue requested` incluye la canción anterior y el tamaño de cola;
+`queue built` y `queue submitted` separan construcción y entrega al reproductor;
+`track selected` y `isPlaying after track selected` pertenecen al servicio;
+`isPlaying callback ... sinceQueueRequestMs` es el intervalo solicitud→callback.
+`isPlaying` **no prueba el primer sonido audible**, por lo que no debe convertirse
+en una afirmación de mejoría de altavoz. Si una línea no aparece, conserva el
+log igualmente: indica que ese camino no pasó por una nueva solicitud de cola.
+
 ## Preparar el teléfono
 
 1. Conecta el Infinix por ADB y confirma `adb devices` y Android 13.

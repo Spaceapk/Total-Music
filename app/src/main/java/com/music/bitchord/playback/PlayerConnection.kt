@@ -24,6 +24,7 @@ import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
+import com.music.bitchord.data.TrackLog
 import com.music.bitchord.data.model.ArtistRef
 import com.music.bitchord.data.model.NOTIFICATION_ART_PX
 import com.music.bitchord.data.model.PlaybackSourceType
@@ -758,6 +759,12 @@ fun mediaIdIn(uri: Uri): String? = if (uri.authority == "source") {
  */
 suspend fun MediaController.playSongs(songs: List<Song>, startIndex: Int) {
     if (songs.isEmpty()) return
+    val selectedIndex = startIndex.coerceIn(songs.indices)
+    val selectedVideoId = songs[selectedIndex].videoId
+    // Capture the old item before leaving the main thread. Together with the
+    // service's callback line this gives a user-exportable request-to-callback
+    // interval for both a first start and a change to another song.
+    TrackLog.onQueueRequested(selectedVideoId, currentMediaItem?.mediaId, songs.size)
     // A queue started while shuffle is on goes in shuffled rather than being
     // played out of order — see [QueueShuffle]. The track the user picked still
     // leads, so it ends up at the top instead of at [startIndex].
@@ -768,7 +775,7 @@ suspend fun MediaController.playSongs(songs: List<Song>, startIndex: Int) {
         Trace.beginSection("TotalMusic.buildQueue")
         try {
             val queue = if (shuffled) {
-                QueueShuffle.startingOrder(songs, startIndex.coerceIn(songs.indices))
+                QueueShuffle.startingOrder(songs, selectedIndex)
             } else {
                 songs
             }
@@ -780,11 +787,13 @@ suspend fun MediaController.playSongs(songs: List<Song>, startIndex: Int) {
             Trace.endSection()
         }
     }
+    TrackLog.onQueueBuilt(selectedVideoId, items.size)
     Trace.beginSection("TotalMusic.submitQueue")
     try {
         setMediaItems(items, queueStartIndex(startIndex, items.size, shuffled), 0L)
         prepare()
         play()
+        TrackLog.onQueueSubmitted(selectedVideoId)
     } finally {
         Trace.endSection()
     }

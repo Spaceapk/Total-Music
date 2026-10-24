@@ -176,6 +176,65 @@ object TrackLog {
         startedAt[videoId] = System.currentTimeMillis()
     }
 
+    // ── Queue-to-callback timing ────────────────────────────────────────────
+
+    /**
+     * Monotonic starts for explicit queue requests. These are deliberately
+     * separate from [startedAt]: the latter is wall-clock metadata for a log
+     * header, while these timestamps measure a user waiting for playback.
+     * Entries are bounded and consumed by the first matching isPlaying callback.
+     */
+    private val queueRequestedAt = ConcurrentHashMap<String, Long>()
+
+    fun onQueueRequested(videoId: String, previousVideoId: String?, queueSize: Int) {
+        if (queueRequestedAt.size >= MAX_REMEMBERED) queueRequestedAt.clear()
+        val at = MonotonicClock.nowMs()
+        queueRequestedAt[videoId] = at
+        d(
+            "BitChord",
+            "TIMING queue requested: id=$videoId previous=${previousVideoId ?: "none"} " +
+                "songs=$queueSize monotonicMs=$at",
+            about = videoId,
+        )
+    }
+
+    fun onQueueBuilt(videoId: String, itemCount: Int) {
+        val at = MonotonicClock.nowMs()
+        val elapsed = queueRequestedAt[videoId]?.let { (at - it).toString() } ?: "unknown"
+        d(
+            "BitChord",
+            "TIMING queue built: id=$videoId items=$itemCount sinceRequestMs=$elapsed monotonicMs=$at",
+            about = videoId,
+        )
+    }
+
+    fun onQueueSubmitted(videoId: String) {
+        val at = MonotonicClock.nowMs()
+        val elapsed = queueRequestedAt[videoId]?.let { (at - it).toString() } ?: "unknown"
+        d(
+            "BitChord",
+            "TIMING queue submitted: id=$videoId sinceRequestMs=$elapsed monotonicMs=$at",
+            about = videoId,
+        )
+    }
+
+    /**
+     * Records the player callback associated with an explicit queue request.
+     * This is intentionally not called "first audio": isPlaying does not prove
+     * when the speaker produced sound. No matching line is emitted for resume,
+     * auto-advance or notification playback without a new queue request.
+     */
+    fun onIsPlayingCallback(videoId: String) {
+        val requested = queueRequestedAt.remove(videoId) ?: return
+        val at = MonotonicClock.nowMs()
+        d(
+            "BitChord",
+            "TIMING isPlaying callback: id=$videoId sinceQueueRequestMs=${at - requested} " +
+                "monotonicMs=$at (not audible-output proof)",
+            about = videoId,
+        )
+    }
+
     /**
      * The log for [song]: the lines about that track, plus the ones about
      * nothing in particular, from where its own story starts.

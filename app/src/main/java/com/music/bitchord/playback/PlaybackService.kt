@@ -626,7 +626,7 @@ class PlaybackService : MediaLibraryService() {
     /** Last sampled position of the playing track, in seconds. */
     private var lastPositionSeconds = 0L
 
-    /** When the current track was chosen, for the time-to-first-audio log. */
+    /** When the current track was chosen, for the isPlaying-callback timing log. */
     private var trackSelectedAt: Long? = null
 
     /**
@@ -807,25 +807,27 @@ class PlaybackService : MediaLibraryService() {
             // The player this fired on, which is by definition the one the
             // session is currently pointed at.
             val exoPlayer = player ?: return
-            // The only number that describes what a listener actually
-            // waits through. Every other timing in this app measures one
-            // leg of getting a track started — a resolve, a client walk, an
-            // extraction — and a leg being fast has repeatedly turned out
-            // to say nothing about whether sound arrived quickly, because
-            // the legs that were measured were the ones running in the
-            // background for tracks nobody was waiting on.
+            // A request-to-isPlaying interval is the closest player-side
+            // proxy for what a listener waits through. It is not proof of
+            // audible output; the exported timing deliberately says so.
+            // Every other timing in this app measures one leg of getting a
+            // track started — a resolve, a client walk, an extraction — and a
+            // leg being fast does not by itself establish when sound arrived.
             if (isPlaying) {
+                exoPlayer.currentMediaItem?.mediaId?.let(TrackLog::onIsPlayingCallback)
                 trackSelectedAt?.let {
                     TrackLog.d(
                         "BitChord",
-                        "TIMING first audio: ${SystemClock.elapsedRealtime() - it}ms since track selected",
+                        "TIMING isPlaying after track selected: " +
+                            "${SystemClock.elapsedRealtime() - it}ms (not audible-output proof)",
                         about = exoPlayer.currentMediaItem?.mediaId,
                     )
                     trackSelectedAt = null
                 }
-                // Sound is out of the speaker, so whatever happens to this track
-                // from here is a failure mid-song. Also the one thing that can
-                // say the queue is not simply unplayable end to end.
+                // The player reports isPlaying, so whatever happens to this
+                // track from here is treated as a failure mid-song. Also the
+                // one thing that can say the queue is not simply unplayable
+                // end to end. This callback alone is not audible-output proof.
                 audibleMediaId = exoPlayer.currentMediaItem?.mediaId
                 consecutiveErrorSkips = 0
             }
@@ -2929,7 +2931,7 @@ class PlaybackService : MediaLibraryService() {
         if (alreadyAudible) {
             TrackLog.d(
                 "BitChord",
-                "TIMING first audio: 0ms, the crossfade covered it",
+                "TIMING isPlaying after track selected: 0ms (crossfade; not audible-output proof)",
                 about = mediaItem?.mediaId,
             )
             // The other way a track becomes audible. `onIsPlayingChanged` never

@@ -72,6 +72,13 @@ val betaSuffix = ""
 // This integration maintains Total Music by default. Explicit false retains the legacy Space Music build.
 val spaceSpatialEdition = providers.gradleProperty("spaceSpatialEdition").getOrElse("true") == "true"
 
+// Optional CI/test-only signing for the release-like measurement variant. It
+// deliberately defaults to false: normal measurement/release builds keep the
+// existing release signing behavior. The test workflow uses Android's already
+// configured debug signing, never a new permanent key or a different package.
+val measurementDebugSigning = providers.gradleProperty("totalMusicMeasurementDebugSigning")
+    .getOrElse("false") == "true"
+
 val totalMusicRelease = Properties().apply {
     rootProject.file("total-music-release.properties").inputStream().use { load(it) }
 }
@@ -230,6 +237,11 @@ android {
         create("measurement") {
             initWith(getByName("release"))
             matchingFallbacks += listOf("release")
+            if (measurementDebugSigning) {
+                // Test-only CI output: still release-like and non-debuggable,
+                // but installable with the existing Android debug certificate.
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
     compileOptions {
