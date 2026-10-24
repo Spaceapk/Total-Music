@@ -13,6 +13,7 @@ import com.music.bitchord.data.TrackLog
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.PlaybackService
 import com.music.bitchord.playback.playSongs
+import com.music.bitchord.playback.toSong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -98,7 +99,20 @@ class LocalPlaybackPerformanceTest {
                             assertEquals("perf-$size-$trial-${size / 2}", player.currentMediaItem!!.mediaId)
                             assertEquals("perf-$size-$trial-${size - 1}", player.getMediaItemAt(player.mediaItemCount - 1).mediaId)
                         }
-                        val exported = TrackLog.forTrack(trialSongs[size / 2], null)
+                        // Separate post-callback probe for the readback used by
+                        // the Compose queue snapshot. It is intentionally not
+                        // included in either latency column above.
+                        instrumentation.runOnMainSync {
+                            val snapshotStartedAt = SystemClock.elapsedRealtimeNanos()
+                            val snapshot = (0 until player.mediaItemCount)
+                                .map { player.getMediaItemAt(it).toSong() }
+                            phaseRows.add(
+                                "$size,$trial,harness_queue_snapshot," +
+                                    "${(SystemClock.elapsedRealtimeNanos() - snapshotStartedAt) / 1_000L}," +
+                                    "${snapshot.size}",
+                            )
+                        }
+                        val exported = runBlocking { TrackLog.forTrack(trialSongs[size / 2], null) }
                         exported.lineSequence()
                             .mapNotNull { queuePhasePattern.find(it) }
                             .forEach { match ->
