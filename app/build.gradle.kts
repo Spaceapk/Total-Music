@@ -217,6 +217,20 @@ android {
             applicationIdSuffix = ".benchmark"
             matchingFallbacks += listOf("release")
         }
+        /*
+         * Physical Macrobenchmark target. Unlike the historical `benchmark`
+         * type above, this deliberately keeps the shipped applicationId and
+         * the release signing configuration so a measurement can be compared
+         * with the installed Total Music build. The only additions are the
+         * profileable manifest and ProfileInstaller dependency in this source
+         * set; normal debug/release artifacts do not contain either one.
+         * Without the local release keystore this remains unsigned, exactly
+         * like `release`, and is not presented as an installable update.
+         */
+        create("measurement") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -292,6 +306,10 @@ val newPipeExtractorStripped = tasks.register<org.gradle.api.tasks.bundling.Jar>
 dependencies {
     implementation(project(":shared"))
     implementation(project(":sharedUi"))
+    // Macrobenchmark needs ProfileInstaller in the measured target. Keep it
+    // out of the normal release graph; this configuration exists only for the
+    // release-like `measurement` build type declared above.
+    add("measurementImplementation", "androidx.profileinstaller:profileinstaller:1.4.1")
 
     // ---- Compose (Material 3) ----
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")

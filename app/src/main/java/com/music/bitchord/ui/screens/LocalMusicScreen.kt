@@ -87,6 +87,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -609,7 +610,7 @@ private fun SongsTab(
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 140.dp),
             state = gridState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().testTag("local_songs_list"),
             contentPadding = PaddingValues(
                 start = PAGE_GUTTER,
                 end = PAGE_GUTTER,
@@ -642,7 +643,7 @@ private fun SongsTab(
         val listState = rememberLazyListState()
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().testTag("local_songs_list"),
             contentPadding = contentPadding,
         ) {
             item {
