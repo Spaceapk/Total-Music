@@ -3,6 +3,7 @@ package com.music.bitchord.playback
 import android.content.ComponentName
 import android.net.Uri
 import android.os.Bundle
+import android.os.Trace
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -35,6 +36,8 @@ import com.music.bitchord.download.Downloads
 import com.music.bitchord.ui.rememberIsForeground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -759,17 +762,32 @@ suspend fun MediaController.playSongs(songs: List<Song>, startIndex: Int) {
     // played out of order — see [QueueShuffle]. The track the user picked still
     // leads, so it ends up at the top instead of at [startIndex].
     val shuffled = QueueShuffle.enabled.value
-    val items = withContext(Dispatchers.Default) {
-        val queue = if (shuffled) {
-            QueueShuffle.startingOrder(songs, startIndex.coerceIn(songs.indices))
-        } else {
-            songs
+    // File verification belongs on IO: slow storage must not occupy Default's
+    // CPU workers shared by artwork palette extraction and library calculations.
+    val items = withContext(Dispatchers.IO) {
+        Trace.beginSection("TotalMusic.buildQueue")
+        try {
+            val queue = if (shuffled) {
+                QueueShuffle.startingOrder(songs, startIndex.coerceIn(songs.indices))
+            } else {
+                songs
+            }
+            queue.map {
+                coroutineContext.ensureActive()
+                it.toMediaItem()
+            }
+        } finally {
+            Trace.endSection()
         }
-        queue.map { it.toMediaItem() }
     }
-    setMediaItems(items, queueStartIndex(startIndex, items.size, shuffled), 0L)
-    prepare()
-    play()
+    Trace.beginSection("TotalMusic.submitQueue")
+    try {
+        setMediaItems(items, queueStartIndex(startIndex, items.size, shuffled), 0L)
+        prepare()
+        play()
+    } finally {
+        Trace.endSection()
+    }
 }
 
 /**
