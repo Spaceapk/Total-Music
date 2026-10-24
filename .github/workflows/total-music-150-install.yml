@@ -111,10 +111,13 @@ jobs:
         \ in adb('shell','dumpsys','package',PACKAGE)\nlaunch()\ntitle='What is new in Total Music 1.5.0'\nroot=ui()\n\
         (OUT/'first-launch.xml').write_bytes(ET.tostring(root))\nassert text_present(root,title),'Installed release\
         \ notes did not appear offline after update'\nsubprocess.run(['adb','exec-out','screencap','-p'],check=True,stdout=(OUT/'after-update.png').open('wb'))\n\
-        assert dismiss_back(root),'Release popup could not be dismissed'\nadb('shell','am','force-stop',PACKAGE)\n\
-        launch()\nroot=ui()\n(OUT/'second-launch.xml').write_bytes(ET.tostring(root))\nassert not text_present(root,title),'Release\
-        \ notes repeated after acknowledgement'\nassert adb('shell','pidof',PACKAGE).strip(),'App process not running'\n\
-        subprocess.run(['adb','exec-out','screencap','-p'],check=True,stdout=(OUT/'second-launch.png').open('wb'))\n\
+        assert dismiss_back(root),'Release popup could not be dismissed'\n# ADB input returns before Compose handles\
+        \ the click. Confirm the real UI\n# acknowledgement before killing the process; otherwise this tests a race.\n\
+        deadline=time.monotonic()+20\nwhile text_present(ui(),title):\n    assert time.monotonic()<deadline,'Release\
+        \ popup did not dismiss after acknowledgement'\n    time.sleep(0.2)\nadb('shell','input','keyevent','KEYCODE_HOME')\n\
+        time.sleep(1)\nadb('shell','am','force-stop',PACKAGE)\nlaunch()\nroot=ui()\n(OUT/'second-launch.xml').write_bytes(ET.tostring(root))\n\
+        assert not text_present(root,title),'Release notes repeated after acknowledgement'\nassert adb('shell','pidof',PACKAGE).strip(),'App\
+        \ process not running'\nsubprocess.run(['adb','exec-out','screencap','-p'],check=True,stdout=(OUT/'second-launch.png').open('wb'))\n\
         print('PASS: production APK updated in place, audio permission retained, installed notes shown offline once,\
         \ second launch alive')\n\n# Exercise the offline history through the installed production UI.\ndef click_label(root,\
         \ label):\n    for n in root.iter('node'):\n        if n.get('text')==label or n.get('content-desc')==label:\n\
@@ -167,5 +170,3 @@ jobs:
         name: total-music-150-signed-upgrade
         path: install-results/
         retention-days: 14
-    permissions:
-      contents: write
