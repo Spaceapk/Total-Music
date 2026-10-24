@@ -63,7 +63,13 @@ class LocalPlaybackPerformanceTest {
                 // keep the installed queue hot and move to another index, exercising both the old
                 // rebuild path and an unchanged-context selection without clearing the sources.
                 repeat(8) { trial ->
-                    val selectedIndex = if (size == 1) 0 else (size / 2 + trial) % size
+                    val selectedIndex = when {
+                        size == 1 -> 0
+                        // Finish with a backward jump: it must rebuild when the old head was
+                        // discarded, rather than silently losing the restored history.
+                        trial == 7 -> size / 2
+                        else -> size / 2 + trial
+                    }
                     val started = CountDownLatch(1)
                     val error = AtomicReference<PlaybackException?>()
                     var playingNs = 0L
