@@ -1001,6 +1001,14 @@ class PlaybackService : MediaLibraryService() {
             // The player this fired on, which is by definition the one the
             // session is currently pointed at.
             val exoPlayer = player ?: return
+            val timingState = when (state) {
+                Player.STATE_IDLE -> "IDLE"
+                Player.STATE_BUFFERING -> "BUFFERING"
+                Player.STATE_READY -> "READY"
+                Player.STATE_ENDED -> "ENDED"
+                else -> state.toString()
+            }
+            TrackLog.onAudioState(exoPlayer.currentMediaItem?.mediaId, timingState)
             if (state == Player.STATE_ENDED) {
                 SleepTimer.cancel()
                 // The queue ran dry, so no transition will ever close the last
@@ -2954,11 +2962,7 @@ class PlaybackService : MediaLibraryService() {
                 mediaItem.localConfiguration?.uri?.let(QualityUpgrade::cacheTag),
             )
         }
-        TrackLog.d(
-            "BitChord",
-            "TIMING track selected: ${mediaItem?.mediaId} (reason=$reason)",
-            about = mediaItem?.mediaId,
-        )
+        TrackLog.onTrackSelected(mediaItem?.mediaId, reason)
 
         // currentPosition already belongs to the new item by now, so
         // the outgoing track is closed out on the last sampled value.
@@ -6886,7 +6890,27 @@ class PlaybackService : MediaLibraryService() {
          */
         private fun locked(): Boolean = ListenTogether.state.value.controlsLocked
 
+        private fun logNextRequest() {
+            val nextIndex = wrappedPlayer.nextMediaItemIndex
+            val nextId = if (nextIndex in 0 until wrappedPlayer.mediaItemCount) {
+                wrappedPlayer.getMediaItemAt(nextIndex).mediaId
+            } else {
+                null
+            }
+            TrackLog.onNextRequestReceived(
+                nextId,
+                wrappedPlayer.currentMediaItem?.mediaId,
+                wrappedPlayer.mediaItemCount,
+            )
+        }
+
+        override fun prepare() {
+            TrackLog.onAudioPrepare(wrappedPlayer.currentMediaItem?.mediaId)
+            super.prepare()
+        }
+
         override fun play() {
+            TrackLog.onPlayCommand(wrappedPlayer.currentMediaItem?.mediaId)
             // Locked, this plays only here — the party carries on untouched and
             // this device rejoins it wherever it has got to. See
             // [PartySync.onLockedTransport], which owns that catch-up.
@@ -6995,6 +7019,7 @@ class PlaybackService : MediaLibraryService() {
 
         override fun setMediaItems(mediaItems: List<MediaItem>, resetPosition: Boolean) {
             if (locked()) return
+            TrackLog.onPlayerQueueReceived(mediaItems.firstOrNull()?.mediaId, mediaItems.size)
             onUserIntent()
             super.setMediaItems(mediaItems, resetPosition)
         }
@@ -7005,6 +7030,10 @@ class PlaybackService : MediaLibraryService() {
             startPositionMs: Long,
         ) {
             if (locked()) return
+            TrackLog.onPlayerQueueReceived(
+                mediaItems.getOrNull(startIndex)?.mediaId,
+                mediaItems.size,
+            )
             onUserIntent()
             super.setMediaItems(mediaItems, startIndex, startPositionMs)
         }
@@ -7143,6 +7172,7 @@ class PlaybackService : MediaLibraryService() {
 
         override fun seekToNextMediaItem() {
             if (locked()) return
+            logNextRequest()
             onUserIntent()
             crossfade.onSkipRequested()
             wrappedPlayer.seekToNextMediaItem()
@@ -7150,6 +7180,7 @@ class PlaybackService : MediaLibraryService() {
 
         override fun seekToNext() {
             if (locked()) return
+            logNextRequest()
             onUserIntent()
             crossfade.onSkipRequested()
             wrappedPlayer.seekToNext()
@@ -7437,6 +7468,11 @@ class PlaybackService : MediaLibraryService() {
                 ImmutableList.copyOf(resolved),
                 validIndex,
                 startPositionMs.coerceAtLeast(0L),
+            )
+        }.also {
+            TrackLog.onSessionQueueReceived(
+                mediaItems.getOrNull(startIndex)?.mediaId,
+                mediaItems.size,
             )
         }
 

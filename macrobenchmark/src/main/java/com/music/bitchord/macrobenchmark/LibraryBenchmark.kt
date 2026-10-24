@@ -160,7 +160,7 @@ class LibraryBenchmark {
     }
 
     private companion object {
-        const val TARGET_PACKAGE = "org.nexlibre.totalmusic"
+        val TARGET_PACKAGE = BuildConfig.TARGET_PACKAGE
         const val SONGS_LIST = "local_songs_list"
         const val FIRST_SONG_ROW = "local_song_row_first"
     }

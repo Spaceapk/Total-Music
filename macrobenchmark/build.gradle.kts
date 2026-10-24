@@ -5,8 +5,9 @@ plugins {
 
 /*
  * Separate, self-instrumenting Macrobenchmark module. It targets the app's
- * `prodMeasurement` variant through the dimension fallback below; it never
- * targets the historical `.benchmark` package or changes the app signing.
+ * measurement or independent diagnostic variant through the dimension fallback
+ * below; it never targets the historical `.benchmark` package or changes the
+ * main app signing.
  */
 android {
     namespace = "com.music.bitchord.macrobenchmark"
@@ -17,6 +18,7 @@ android {
         targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         missingDimensionStrategy("env", "prod")
+        buildConfigField("String", "TARGET_PACKAGE", "\"org.nexlibre.totalmusic\"")
     }
 
     targetProjectPath = ":app"
@@ -33,6 +35,16 @@ android {
             isDebuggable = true
             signingConfig = signingConfigs.getByName("debug")
         }
+        create("diagnostic") {
+            matchingFallbacks += listOf("release")
+            isDebuggable = true
+            signingConfig = signingConfigs.getByName("debug")
+            buildConfigField("String", "TARGET_PACKAGE", "\"org.nexlibre.totalmusic.debug\"")
+        }
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     compileOptions {

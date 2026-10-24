@@ -1286,6 +1286,15 @@ private fun BitChordApp(
         if (allSongs.getOrNull(allIndex)?.isUnresolvedSpotify == true) return@playFrom
         val songs = allSongs.filterNot { it.isUnresolvedSpotify }
         val index = songs.indexOf(allSongs.getOrNull(allIndex)).coerceAtLeast(0)
+        songs.getOrNull(index)?.let { selected ->
+            TrackLog.onPlaybackRequestReceived(
+                videoId = selected.videoId,
+                previousVideoId = player.song?.videoId,
+                route = "manual_library",
+                requestedAt = requestStartedAtMs,
+                queueSize = songs.size,
+            )
+        }
         playRequestGeneration++
         activeRadioSeed = null
         scope.launch {

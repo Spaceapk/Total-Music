@@ -243,6 +243,18 @@ android {
                 signingConfig = signingConfigs.getByName("debug")
             }
         }
+        /*
+         * Independent on-device diagnosis. The shipped prodRelease variant is
+         * untouched; this release-like copy has its own package, label and
+         * debug certificate so it can be installed beside Total Music.
+         */
+        create("diagnostic") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            applicationIdSuffix = ".debug"
+            signingConfig = signingConfigs.getByName("debug")
+            resValue("string", "app_name", "Total Music Debug")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -320,8 +332,10 @@ dependencies {
     implementation(project(":sharedUi"))
     // Macrobenchmark needs ProfileInstaller in the measured target. Keep it
     // out of the normal release graph; this configuration exists only for the
-    // release-like `measurement` build type declared above.
+    // release-like `measurement` build type declared above. The independent
+    // diagnostic variant carries the same profiling support.
     add("measurementImplementation", "androidx.profileinstaller:profileinstaller:1.4.1")
+    add("diagnosticImplementation", "androidx.profileinstaller:profileinstaller:1.4.1")
 
     // ---- Compose (Material 3) ----
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")

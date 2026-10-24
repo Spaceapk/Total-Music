@@ -9,13 +9,18 @@ usa un emulador como sustituto del teléfono.
 
 - `app` tiene la variante `prodMeasurement`: deriva de `release`, conserva
   `org.nexlibre.totalmusic`, no es depurable y no añade sufijo de paquete.
-- Solo esa variante incluye `<profileable android:shell="true"/>` y
-  ProfileInstaller, necesarios para las trazas de Macrobenchmark. El release
-  normal no recibe esos añadidos.
+- Las variantes `prodMeasurement` y `prodDiagnostic` incluyen
+  `<profileable android:shell="true"/>` y ProfileInstaller, necesarios para las
+  trazas de Macrobenchmark. El release normal no recibe esos añadidos.
 - `macrobenchmark` es un módulo `com.android.test` independiente y
   self-instrumenting. Sus pruebas usan UI Automator contra la interfaz real.
 - `local_songs_list` es un `testTag` del `LazyColumn`/`LazyVerticalGrid` de
   Songs; no cambia el contenido ni el comportamiento de las filas.
+
+Para instalar una copia paralela llamada **Total Music Debug** y comparar los
+recorridos manual/Siguiente sin desinstalar la principal, consulta
+[`total-music-debug.md`](total-music-debug.md). Esa variante `prodDiagnostic`
+usa el sufijo `.debug`; no cambia la variante `prodRelease` descrita aquí.
 
 ## Compilar
 
