@@ -190,6 +190,12 @@ object TrackLog {
         val requestedAt: Long,
         val previousVideoId: String?,
         val serviceReceivedAt: Long? = null,
+        // Aggregated rather than logged per row: an N+1 query is exactly the
+        // thing this probe must be able to reveal without becoming the cost it
+        // is trying to measure.
+        val mediaStoreQueries: Int = 0,
+        val mediaStoreQueryUs: Long = 0L,
+        val mediaStoreSources: Set<String> = emptySet(),
     )
 
     private val playbackRequests = ConcurrentHashMap<String, PlaybackRequest>()
@@ -207,7 +213,12 @@ object TrackLog {
         serviceReceivedAt: Long? = null,
     ): PlaybackRequest {
         if (playbackRequests.size >= MAX_REMEMBERED) playbackRequests.clear()
-        val request = PlaybackRequest(route, origin, requestedAt, previousVideoId, serviceReceivedAt)
+        // playFrom records the tap and playSongs records the same request when
+        // it receives the prepared queue. Keep the first record in that case
+        // so the phase probe is not reset halfway through the same tap.
+        val request = playbackRequests[videoId]
+            ?.takeIf { it.requestedAt == requestedAt && it.route == route }
+            ?: PlaybackRequest(route, origin, requestedAt, previousVideoId, serviceReceivedAt)
         playbackRequests[videoId] = request
         d(
             "BitChord",
@@ -272,6 +283,53 @@ object TrackLog {
                 "sinceRequestMs=${elapsed(at, request?.requestedAt)} monotonicMs=$at",
             about = videoId,
         )
+    }
+
+    /**
+     * One measured phase of a queue request. Durations are microseconds so a
+     * cheap phase does not disappear behind the millisecond request clock.
+     * The current MediaStore totals ride along on every phase, making a zero
+     * explicit instead of leaving "no query line" ambiguous.
+     */
+    fun onQueuePhase(
+        videoId: String?,
+        phase: String,
+        durationUs: Long = -1L,
+        count: Int = -1,
+        detail: String = "",
+    ) {
+        if (videoId == null) return
+        val request = playbackRequests[videoId] ?: return
+        val at = MonotonicClock.nowMs()
+        val duration = if (durationUs >= 0L) " phaseUs=$durationUs" else ""
+        val items = if (count >= 0) " count=$count" else ""
+        val suffix = detail.takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty()
+        d(
+            "BitChord",
+            "TIMING queue phase: phase=$phase route=${request.route} id=$videoId" +
+                "$duration$items mediaStoreQueries=${request.mediaStoreQueries}" +
+                " mediaStoreQueryUs=${request.mediaStoreQueryUs}" +
+                " mediaStoreSources=${request.mediaStoreSources.ifEmpty { setOf("none") }.joinToString(",")}" +
+                " sinceRequestMs=${at - request.requestedAt}" +
+                " sinceServiceMs=${elapsed(at, request.serviceReceivedAt)} monotonicMs=$at$suffix",
+            about = videoId,
+        )
+    }
+
+    /**
+     * Accounts for a MediaStore operation on the request associated with the
+     * current coroutine. No per-row log line is emitted: the aggregate is
+     * printed by the surrounding queue/session phase instead.
+     */
+    fun onMediaStoreQuery(source: String, durationUs: Long) {
+        val videoId = working.get() ?: return
+        playbackRequests.computeIfPresent(videoId) { _, request ->
+            request.copy(
+                mediaStoreQueries = request.mediaStoreQueries + 1,
+                mediaStoreQueryUs = request.mediaStoreQueryUs + durationUs.coerceAtLeast(0L),
+                mediaStoreSources = request.mediaStoreSources + source,
+            )
+        }
     }
 
     fun onQueueSubmitted(videoId: String) {

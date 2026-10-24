@@ -85,6 +85,39 @@ def csv_evidence(path: Path) -> tuple[str, str]:
     return method + "\n" + "\n".join(summary), text
 
 
+def phase_evidence(path: Path) -> tuple[str, str]:
+    text = read(path)
+    if not text:
+        return "(CSV de fases no disponible)", ""
+    rows = list(csv.DictReader(text.splitlines()))
+    grouped: dict[tuple[str, str], list[float]] = {}
+    for row in rows:
+        try:
+            value = float(row["phase_us"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if math.isfinite(value):
+            grouped.setdefault((row.get("queue_size", "?"), row.get("phase", "?")), []).append(value)
+    summary = ["queue_size,phase,n,p50,p90,p95,p99,min,max"]
+    for (queue_size, phase), values in sorted(
+        grouped.items(), key=lambda item: (int(item[0][0]) if item[0][0].isdigit() else item[0][0], item[0][1])
+    ):
+        summary.append(
+            ",".join(
+                [
+                    queue_size,
+                    phase,
+                    str(len(values)),
+                    *(f"{percentile(values, p):.3f}" for p in (0.50, 0.90, 0.95, 0.99)),
+                    f"{min(values):.3f}",
+                    f"{max(values):.3f}",
+                ]
+            )
+        )
+    method = "Fases en microsegundos; una línea por fase y ensayo. El baseline sin esta instrumentación no produce filas."
+    return method + "\n" + "\n".join(summary), text
+
+
 def main() -> int:
     run_url = (
         f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/"
@@ -110,6 +143,11 @@ def main() -> int:
             parts.extend(["### CSV crudo", "```csv", raw, "```", ""])
         else:
             parts.extend([summary, ""])
+        phase_path = RESULTS / f"{variant}-local-playback-performance-phases.csv"
+        phase_summary, phase_raw = phase_evidence(phase_path)
+        parts.extend(["### Desglose de fases", "```csv", phase_summary, "```", ""])
+        if phase_raw:
+            parts.extend(["### CSV crudo de fases", "```csv", phase_raw, "```", ""])
 
     if not complete:
         for variant in ("baseline", "candidate"):

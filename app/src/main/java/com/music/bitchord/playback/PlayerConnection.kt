@@ -3,6 +3,7 @@ package com.music.bitchord.playback
 import android.content.ComponentName
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import android.os.Trace
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -296,8 +297,15 @@ fun rememberPlayerState(controller: MediaController?): PlayerState {
         ) {
             val item = player.currentMediaItem
             if (rebuildQueue) {
+                val startedAt = SystemClock.elapsedRealtimeNanos()
                 queueSnapshot = (0 until player.mediaItemCount)
                     .map { player.getMediaItemAt(it).toSong() }
+                TrackLog.onQueuePhase(
+                    item?.mediaId,
+                    "controller_queue_snapshot",
+                    (SystemClock.elapsedRealtimeNanos() - startedAt) / 1_000L,
+                    queueSnapshot.size,
+                )
             } else if (refreshCurrentQueueItem && item != null) {
                 val index = player.currentMediaItemIndex
                 if (index in queueSnapshot.indices) {
@@ -523,12 +531,36 @@ private val DIRECT_FILE_URI_EXTENSIONS = setOf(
     "dsf", "dff",
 )
 
-private fun resolvePlaybackUri(uriString: String, localPath: String?): String {
+/**
+ * Aggregate counters for one queue conversion. This is deliberately optional:
+ * all the other queue entry points keep the same conversion behavior without
+ * paying for a probe they did not ask for.
+ */
+class MediaItemBuildStats {
+    var sourceKeyParses: Int = 0
+    var sourceKeyParseNanos: Long = 0L
+    var downloadChecks: Int = 0
+    var downloadCheckNanos: Long = 0L
+    var localFileChecks: Int = 0
+    var localFileCheckNanos: Long = 0L
+}
+
+private fun resolvePlaybackUri(
+    uriString: String,
+    localPath: String?,
+    stats: MediaItemBuildStats? = null,
+): String {
     if (localPath.isNullOrBlank() || !uriString.startsWith("content://")) return uriString
     val ext = localPath.substringAfterLast('.', "").lowercase(Locale.ROOT)
     if (ext !in DIRECT_FILE_URI_EXTENSIONS) return uriString
+    val startedAt = stats?.let { SystemClock.elapsedRealtimeNanos() } ?: 0L
     val file = File(localPath)
-    return if (file.exists() && file.canRead()) Uri.fromFile(file).toString() else uriString
+    val resolved = if (file.exists() && file.canRead()) Uri.fromFile(file).toString() else uriString
+    if (stats != null) {
+        stats.localFileChecks++
+        stats.localFileCheckNanos += SystemClock.elapsedRealtimeNanos() - startedAt
+    }
+    return resolved
 }
 
 /**
@@ -552,8 +584,13 @@ private fun Song.matchQuery(): String = buildString {
     if (isVideo) append("&m=1")
 }
 
-fun Song.toMediaItem(): MediaItem {
+fun Song.toMediaItem(stats: MediaItemBuildStats? = null): MediaItem {
+    val sourceStartedAt = stats?.let { SystemClock.elapsedRealtimeNanos() } ?: 0L
     val sourceTrack = SourceRegistry.parseTrackKey(videoId)
+    if (stats != null) {
+        stats.sourceKeyParses++
+        stats.sourceKeyParseNanos += SystemClock.elapsedRealtimeNanos() - sourceStartedAt
+    }
     // A row from search or a playlist carries no file of its own, but the track
     // may still be on disk from a download — see [Downloads.saved].
     //
@@ -570,7 +607,17 @@ fun Song.toMediaItem(): MediaItem {
     // Keep explicit local references even when a file has been deleted.
     // Space Music cannot replace them with online streams: ExoPlayer must
     // report the local file error so the service can show a useful message.
-    val offlineUri = localUri ?: Downloads.verifiedSavedUri(videoId)
+    val offlineUri = if (localUri != null) {
+        localUri
+    } else {
+        val startedAt = stats?.let { SystemClock.elapsedRealtimeNanos() } ?: 0L
+        val recorded = Downloads.verifiedSavedUri(videoId)
+        if (stats != null) {
+            stats.downloadChecks++
+            stats.downloadCheckNanos += SystemClock.elapsedRealtimeNanos() - startedAt
+        }
+        recorded
+    }
     val uriString = offlineUri ?: when {
         videoId.startsWith("content://") || videoId.startsWith("file://") -> videoId
         // Title, artist and runtime ride along in the URI because they are what
@@ -597,7 +644,7 @@ fun Song.toMediaItem(): MediaItem {
     }
     return MediaItem.Builder()
         .setMediaId(videoId)
-        .setUri(resolvePlaybackUri(uriString, localPath))
+        .setUri(resolvePlaybackUri(uriString, localPath, stats))
     .setMediaMetadata(
         MediaMetadata.Builder()
             .setTitle(title)
@@ -780,31 +827,71 @@ suspend fun MediaController.playSongs(
     // played out of order — see [QueueShuffle]. The track the user picked still
     // leads, so it ends up at the top instead of at [startIndex].
     val shuffled = QueueShuffle.enabled.value
+    val stats = MediaItemBuildStats()
+    var shuffleNanos = 0L
+    var conversionNanos = 0L
     // File verification belongs on IO: slow storage must not occupy Default's
     // CPU workers shared by artwork palette extraction and library calculations.
-    val items = withContext(Dispatchers.IO) {
+    // The TrackLog context also lets a MediaStore operation report which tap
+    // caused it, without passing a logger through every converter.
+    val items = withContext(Dispatchers.IO + TrackLog.about(selectedVideoId)) {
         Trace.beginSection("TotalMusic.buildQueue")
         try {
+            val shuffleStartedAt = SystemClock.elapsedRealtimeNanos()
             val queue = if (shuffled) {
                 QueueShuffle.startingOrder(songs, selectedIndex)
             } else {
                 songs
             }
-            queue.map {
+            shuffleNanos = SystemClock.elapsedRealtimeNanos() - shuffleStartedAt
+            val conversionStartedAt = SystemClock.elapsedRealtimeNanos()
+            val converted = queue.map {
                 coroutineContext.ensureActive()
-                it.toMediaItem()
+                it.toMediaItem(stats)
             }
+            conversionNanos = SystemClock.elapsedRealtimeNanos() - conversionStartedAt
+            converted
         } finally {
             Trace.endSection()
         }
     }
     TrackLog.onQueueBuilt(selectedVideoId, items.size)
+    TrackLog.onQueuePhase(
+        selectedVideoId,
+        "media_item_conversion",
+        conversionNanos / 1_000L,
+        items.size,
+        "shuffleUs=${shuffleNanos / 1_000L}" +
+            " sourceKeyParses=${stats.sourceKeyParses}" +
+            " sourceKeyParseUs=${stats.sourceKeyParseNanos / 1_000L}" +
+            " downloadChecks=${stats.downloadChecks}" +
+            " downloadCheckUs=${stats.downloadCheckNanos / 1_000L}" +
+            " localFileChecks=${stats.localFileChecks}" +
+            " localFileCheckUs=${stats.localFileCheckNanos / 1_000L}",
+    )
+    var setMediaItemsNanos = 0L
+    var prepareNanos = 0L
+    var playNanos = 0L
     Trace.beginSection("TotalMusic.submitQueue")
     try {
+        var startedAt = SystemClock.elapsedRealtimeNanos()
         setMediaItems(items, queueStartIndex(startIndex, items.size, shuffled), 0L)
+        setMediaItemsNanos = SystemClock.elapsedRealtimeNanos() - startedAt
+        startedAt = SystemClock.elapsedRealtimeNanos()
         prepare()
+        prepareNanos = SystemClock.elapsedRealtimeNanos() - startedAt
+        startedAt = SystemClock.elapsedRealtimeNanos()
         play()
+        playNanos = SystemClock.elapsedRealtimeNanos() - startedAt
         TrackLog.onQueueSubmitted(selectedVideoId)
+        TrackLog.onQueuePhase(
+            selectedVideoId,
+            "controller_submit",
+            (setMediaItemsNanos + prepareNanos + playNanos) / 1_000L,
+            items.size,
+            "setMediaItemsUs=${setMediaItemsNanos / 1_000L}" +
+                " prepareUs=${prepareNanos / 1_000L} playUs=${playNanos / 1_000L}",
+        )
     } finally {
         Trace.endSection()
     }

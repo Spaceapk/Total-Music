@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import com.music.bitchord.data.DebugLog as Log
@@ -260,6 +261,7 @@ object LocalMediaRepository {
         }
         val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
 
+        val mediaStoreStartedAt = SystemClock.elapsedRealtimeNanos()
         runCatching {
             context.contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -323,6 +325,10 @@ object LocalMediaRepository {
                 }
             }
         }.onFailure { Log.w(TAG, "Failed scanning device local music: ${it.message}") }
+        TrackLog.onMediaStoreQuery(
+            "local_music_scan",
+            (SystemClock.elapsedRealtimeNanos() - mediaStoreStartedAt) / 1_000L,
+        )
 
         songs
     }

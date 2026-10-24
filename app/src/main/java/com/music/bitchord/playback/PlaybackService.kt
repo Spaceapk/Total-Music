@@ -6905,8 +6905,15 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun prepare() {
-            TrackLog.onAudioPrepare(wrappedPlayer.currentMediaItem?.mediaId)
+            val targetId = wrappedPlayer.currentMediaItem?.mediaId
+            TrackLog.onAudioPrepare(targetId)
+            val startedAt = SystemClock.elapsedRealtimeNanos()
             super.prepare()
+            TrackLog.onQueuePhase(
+                targetId,
+                "player_prepare",
+                (SystemClock.elapsedRealtimeNanos() - startedAt) / 1_000L,
+            )
         }
 
         override fun play() {
@@ -7019,9 +7026,17 @@ class PlaybackService : MediaLibraryService() {
 
         override fun setMediaItems(mediaItems: List<MediaItem>, resetPosition: Boolean) {
             if (locked()) return
-            TrackLog.onPlayerQueueReceived(mediaItems.firstOrNull()?.mediaId, mediaItems.size)
+            val targetId = mediaItems.firstOrNull()?.mediaId
+            TrackLog.onPlayerQueueReceived(targetId, mediaItems.size)
             onUserIntent()
+            val startedAt = SystemClock.elapsedRealtimeNanos()
             super.setMediaItems(mediaItems, resetPosition)
+            TrackLog.onQueuePhase(
+                targetId,
+                "player_set_media_items",
+                (SystemClock.elapsedRealtimeNanos() - startedAt) / 1_000L,
+                mediaItems.size,
+            )
         }
 
         override fun setMediaItems(
@@ -7030,12 +7045,17 @@ class PlaybackService : MediaLibraryService() {
             startPositionMs: Long,
         ) {
             if (locked()) return
-            TrackLog.onPlayerQueueReceived(
-                mediaItems.getOrNull(startIndex)?.mediaId,
+            val targetId = mediaItems.getOrNull(startIndex)?.mediaId
+            TrackLog.onPlayerQueueReceived(targetId, mediaItems.size)
+            onUserIntent()
+            val startedAt = SystemClock.elapsedRealtimeNanos()
+            super.setMediaItems(mediaItems, startIndex, startPositionMs)
+            TrackLog.onQueuePhase(
+                targetId,
+                "player_set_media_items",
+                (SystemClock.elapsedRealtimeNanos() - startedAt) / 1_000L,
                 mediaItems.size,
             )
-            onUserIntent()
-            super.setMediaItems(mediaItems, startIndex, startPositionMs)
         }
 
         // Every other way the running order can change from outside: Play next,
@@ -7461,19 +7481,27 @@ class PlaybackService : MediaLibraryService() {
             mediaItems: List<MediaItem>,
             startIndex: Int,
             startPositionMs: Long,
-        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.future(Dispatchers.IO) {
-            val resolved = resolveMediaItems(mediaItems)
-            val validIndex = startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0))
-            MediaSession.MediaItemsWithStartPosition(
-                ImmutableList.copyOf(resolved),
-                validIndex,
-                startPositionMs.coerceAtLeast(0L),
-            )
-        }.also {
-            TrackLog.onSessionQueueReceived(
-                mediaItems.getOrNull(startIndex)?.mediaId,
-                mediaItems.size,
-            )
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val targetId = mediaItems.getOrNull(startIndex)?.mediaId
+            return scope.future(Dispatchers.IO + TrackLog.about(targetId)) {
+                val startedAt = SystemClock.elapsedRealtimeNanos()
+                val resolved = resolveMediaItems(mediaItems)
+                TrackLog.onQueuePhase(
+                    targetId,
+                    "session_resolve",
+                    (SystemClock.elapsedRealtimeNanos() - startedAt) / 1_000L,
+                    mediaItems.size,
+                    "resolved=${resolved.size}",
+                )
+                val validIndex = startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0))
+                MediaSession.MediaItemsWithStartPosition(
+                    ImmutableList.copyOf(resolved),
+                    validIndex,
+                    startPositionMs.coerceAtLeast(0L),
+                )
+            }.also {
+                TrackLog.onSessionQueueReceived(targetId, mediaItems.size)
+            }
         }
 
         override fun onAddMediaItems(

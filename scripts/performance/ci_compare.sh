@@ -139,6 +139,8 @@ run_variant() {
   fi
   adb pull /sdcard/Android/data/org.nexlibre.totalmusic/files/local-playback-performance.csv \
     "$RESULTS/$variant-local-playback-performance.csv" || overall=1
+  adb pull /sdcard/Android/data/org.nexlibre.totalmusic/files/local-playback-performance-phases.csv \
+    "$RESULTS/$variant-local-playback-performance-phases.csv" || overall=1
   adb shell dumpsys package org.nexlibre.totalmusic > "$RESULTS/$variant-package.txt" 2>&1 || true
   if ! adb get-state >/dev/null 2>&1; then
     echo 'Emulator disconnected; measurement is incomplete'

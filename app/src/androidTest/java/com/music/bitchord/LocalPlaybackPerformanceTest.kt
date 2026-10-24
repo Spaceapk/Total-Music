@@ -9,6 +9,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.test.platform.app.InstrumentationRegistry
+import com.music.bitchord.data.TrackLog
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.PlaybackService
 import com.music.bitchord.playback.playSongs
@@ -24,6 +25,8 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
+private val queuePhasePattern = Regex("""phase=([^ ]+).*phaseUs=(-?\d+).*count=(-?\d+)""")
+
 /** Identical harness injected into both refs by CI; reports, never invents, timings. */
 class LocalPlaybackPerformanceTest {
     @Test fun localQueueLatencySamples() {
@@ -38,6 +41,7 @@ class LocalPlaybackPerformanceTest {
         audio.writeBytes(buffer.array())
         var controller: MediaController? = null
         val rows = mutableListOf("queue_size,trial,submit_ms,is_playing_ms")
+        val phaseRows = mutableListOf("queue_size,trial,phase,phase_us,count")
         try {
             var future: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
             instrumentation.runOnMainSync {
@@ -53,6 +57,11 @@ class LocalPlaybackPerformanceTest {
                 }
                 // Trial zero warms the service/decoder and remains in the raw output.
                 repeat(8) { trial ->
+                    // Unique ids keep TrackLog.forTrack scoped to this trial;
+                    // the id prefix is not used by the local fixture resolver.
+                    val trialSongs = songs.mapIndexed { index, song ->
+                        song.copy(videoId = "perf-$size-$trial-$index")
+                    }
                     val started = CountDownLatch(1)
                     val error = AtomicReference<PlaybackException?>()
                     var playingNs = 0L
@@ -72,7 +81,7 @@ class LocalPlaybackPerformanceTest {
                     try {
                         runBlocking { withContext(Dispatchers.Main) {
                             tapNs = SystemClock.elapsedRealtimeNanos()
-                            player.playSongs(songs, size / 2)
+                            player.playSongs(trialSongs, size / 2)
                             submittedNs = SystemClock.elapsedRealtimeNanos()
                         } }
                         assertTrue("Local audio timed out", started.await(30, TimeUnit.SECONDS))
@@ -86,16 +95,28 @@ class LocalPlaybackPerformanceTest {
                             // Verify the selected track and all upcoming tracks,
                             // rather than requiring discarded history to remain.
                             assertEquals(size - size / 2, player.mediaItemCount - player.currentMediaItemIndex)
-                            assertEquals("perf-${size / 2}", player.currentMediaItem!!.mediaId)
-                            assertEquals("perf-${size - 1}", player.getMediaItemAt(player.mediaItemCount - 1).mediaId)
+                            assertEquals("perf-$size-$trial-${size / 2}", player.currentMediaItem!!.mediaId)
+                            assertEquals("perf-$size-$trial-${size - 1}", player.getMediaItemAt(player.mediaItemCount - 1).mediaId)
                         }
+                        val exported = TrackLog.forTrack(trialSongs[size / 2], null)
+                        exported.lineSequence()
+                            .mapNotNull { queuePhasePattern.find(it) }
+                            .forEach { match ->
+                                phaseRows.add(
+                                    "$size,$trial,${match.groupValues[1]}," +
+                                        "${match.groupValues[2]},${match.groupValues[3]}",
+                                )
+                            }
                     } finally {
                         instrumentation.runOnMainSync { player.removeListener(listener) }
                     }
                 }
             }
         } finally {
-            File(context.getExternalFilesDir(null), "local-playback-performance.csv").writeText(rows.joinToString("\n") + "\n")
+            File(context.getExternalFilesDir(null), "local-playback-performance.csv")
+                .writeText(rows.joinToString("\n") + "\n")
+            File(context.getExternalFilesDir(null), "local-playback-performance-phases.csv")
+                .writeText(phaseRows.joinToString("\n") + "\n")
             instrumentation.runOnMainSync { controller?.stop(); controller?.clearMediaItems(); controller?.release() }
             audio.delete()
         }

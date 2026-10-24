@@ -8,6 +8,7 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.View
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -1284,8 +1285,12 @@ private fun BitChordApp(
         // A Spotify page lists songs it has not found on YouTube Music yet (or
         // never will); those can't be queued, so play the rest in their order.
         if (allSongs.getOrNull(allIndex)?.isUnresolvedSpotify == true) return@playFrom
+        val filterStartedAt = SystemClock.elapsedRealtimeNanos()
         val songs = allSongs.filterNot { it.isUnresolvedSpotify }
+        val filterNanos = SystemClock.elapsedRealtimeNanos() - filterStartedAt
+        val indexStartedAt = SystemClock.elapsedRealtimeNanos()
         val index = songs.indexOf(allSongs.getOrNull(allIndex)).coerceAtLeast(0)
+        val indexNanos = SystemClock.elapsedRealtimeNanos() - indexStartedAt
         songs.getOrNull(index)?.let { selected ->
             TrackLog.onPlaybackRequestReceived(
                 videoId = selected.videoId,
@@ -1294,14 +1299,37 @@ private fun BitChordApp(
                 requestedAt = requestStartedAtMs,
                 queueSize = songs.size,
             )
+            TrackLog.onQueuePhase(
+                selected.videoId,
+                "library_filter",
+                filterNanos / 1_000L,
+                allSongs.size,
+                "kept=${songs.size}",
+            )
+            TrackLog.onQueuePhase(
+                selected.videoId,
+                "selected_index_lookup",
+                indexNanos / 1_000L,
+                songs.size,
+            )
         }
         playRequestGeneration++
         activeRadioSeed = null
         scope.launch {
             if (refusedByHost()) return@launch
             val c = controller ?: return@launch
-            val currentTimeline = player.queue.takeIf { it.size == c.mediaItemCount }
+            val selectedVideoId = songs.getOrNull(index)?.videoId
+            val cachedQueue = player.queue.takeIf { it.size == c.mediaItemCount }
+            val snapshotStartedAt = SystemClock.elapsedRealtimeNanos()
+            val currentTimeline = cachedQueue
                 ?: (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toSong() }
+            TrackLog.onQueuePhase(
+                selectedVideoId,
+                "current_queue_snapshot",
+                (SystemClock.elapsedRealtimeNanos() - snapshotStartedAt) / 1_000L,
+                currentTimeline.size,
+                "cached=${cachedQueue != null}",
+            )
             val currentIndex = c.currentMediaItemIndex
 
             if (ListenTogether.state.value.inParty) {
@@ -1321,12 +1349,19 @@ private fun BitChordApp(
                 )
                 c.playSongs(timeline, 0, requestStartedAtMs)
             } else {
+                val contextStartedAt = SystemClock.elapsedRealtimeNanos()
                 val result = QueueCoordinator.buildContextQueue(
                     currentTimeline = currentTimeline,
                     currentIndex = currentIndex,
                     newContextSongs = songs,
                     selectedIndex = index,
                     contextSource = source,
+                )
+                TrackLog.onQueuePhase(
+                    selectedVideoId,
+                    "context_queue_build",
+                    (SystemClock.elapsedRealtimeNanos() - contextStartedAt) / 1_000L,
+                    result.timeline.size,
                 )
                 c.playSongs(result.timeline, result.startIndex, requestStartedAtMs)
             }

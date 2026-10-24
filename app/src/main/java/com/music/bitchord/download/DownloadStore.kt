@@ -6,8 +6,10 @@ import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.SystemClock
 import android.provider.MediaStore
 import com.music.bitchord.data.DebugLog as Log
+import com.music.bitchord.data.TrackLog
 import com.music.bitchord.data.settings.AppSettings
 import androidx.annotation.RequiresApi
 import com.music.bitchord.data.model.Song
@@ -158,21 +160,31 @@ object DownloadStore {
         }
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    private fun mediaStoreEntry(context: Context, name: String): Uri? = runCatching {
-        context.contentResolver.query(
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            arrayOf(MediaStore.MediaColumns._ID),
-            "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND " +
-                "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
-            arrayOf(name, "%$FOLDER%"),
-            null,
-        )?.use { cursor ->
-            if (!cursor.moveToFirst()) return@use null
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI.buildUpon()
-                .appendPath(cursor.getLong(0).toString())
-                .build()
-        }
-    }.onFailure { Log.w(TAG, "media store lookup failed for $name: ${it.message}") }.getOrNull()
+    private fun mediaStoreEntry(context: Context, name: String): Uri? {
+        val startedAt = SystemClock.elapsedRealtimeNanos()
+        return runCatching {
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                arrayOf(MediaStore.MediaColumns._ID),
+                "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND " +
+                    "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
+                arrayOf(name, "%$FOLDER%"),
+                null,
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI.buildUpon()
+                    .appendPath(cursor.getLong(0).toString())
+                    .build()
+            }
+        }.onFailure { Log.w(TAG, "media store lookup failed for $name: ${it.message}") }
+            .getOrNull()
+            .also {
+                TrackLog.onMediaStoreQuery(
+                    "download_lookup",
+                    (SystemClock.elapsedRealtimeNanos() - startedAt) / 1_000L,
+                )
+            }
+    }
 
     /**
      * Whether [uri] still names a file that is there.
