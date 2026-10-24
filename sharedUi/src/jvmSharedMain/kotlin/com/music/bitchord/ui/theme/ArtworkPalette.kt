@@ -116,7 +116,7 @@ fun rememberArtworkPalette(
     // front of a surface that could already be right.
     val knownUpFront = remember(imageUrl) { decoded != null }
 
-    val target = seed?.toPalette(dark) ?: ArtworkPalette(
+    val target = remember(seed, dark, scheme) { seed?.toPalette(dark) ?: ArtworkPalette(
         background = scheme.background,
         wash = scheme.background,
         elevated = scheme.surfaceVariant,
@@ -124,7 +124,7 @@ fun rememberArtworkPalette(
         onBackground = scheme.onBackground,
         onBackgroundVariant = scheme.onSurfaceVariant,
         divider = scheme.outline,
-    )
+    ) }
 
     val spec: AnimationSpec<Color> = if (reduceAnimation || (knownUpFront && !animateCached)) {
         snap()

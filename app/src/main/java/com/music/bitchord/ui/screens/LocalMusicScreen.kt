@@ -206,6 +206,9 @@ fun LocalMusicScreen(
         AppSettings.localMusicViewType.collectAsStateWithLifecycle()
     }
     val sortedSongs = remember(songs, sortOrder) { songs.sortedForLibrary(sortOrder) }
+    // Shared by selection and the album page. Search text changes only filter
+    // this index; they do not regroup and sort the entire library each time.
+    val indexedAlbums = remember(sortedSongs, collections) { lazy { albumEntries(sortedSongs, collections) } }
     var selectedDownloadIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     // Kept separately from the tracks selected for deletion: different albums
     // can share tracks, so inferring an album's selection from those track ids
@@ -242,11 +245,11 @@ fun LocalMusicScreen(
     var drillDownPlaylist by remember { mutableStateOf(false) }
 
     val inDrillDown = drillDownLabel != null
-    val visibleSongs = remember(sortedSongs, drillDownSongs, inDrillDown, searchQuery, sortOrder, selectedTab, collections, drillDownPlaylist) {
+    val visibleSongs = remember(sortedSongs, drillDownSongs, inDrillDown, searchQuery, sortOrder, selectedTab, indexedAlbums, drillDownPlaylist) {
         when {
             inDrillDown -> (if (drillDownPlaylist) drillDownSongs else drillDownSongs.sortedForLibrary(sortOrder)).filter { searchQuery.isBlank() || it.matchesSearch(searchQuery) }
             selectedTab == LOCAL_TAB_ARTISTS -> sortedSongs.filter { searchQuery.isBlank() || it.artist.contains(searchQuery, true) }
-            selectedTab == LOCAL_TAB_ALBUMS -> albumEntries(sortedSongs, collections).filter {
+            selectedTab == LOCAL_TAB_ALBUMS -> indexedAlbums.value.filter {
                 searchQuery.isBlank() || it.title.contains(searchQuery, true) || it.artist.contains(searchQuery, true)
             }.flatMap { it.songs }.distinctBy { it.videoId }
             else -> sortedSongs.filter { searchQuery.isBlank() || it.matchesSearch(searchQuery) }
@@ -536,8 +539,8 @@ fun LocalMusicScreen(
 
                 else -> {
                     // LOCAL_TAB_ALBUMS
-                    val albums = remember(sortedSongs, collections, searchQuery) {
-                        albumEntries(sortedSongs, collections).filter {
+                    val albums = remember(indexedAlbums, searchQuery) {
+                        indexedAlbums.value.filter {
                             searchQuery.isBlank() ||
                                 it.title.contains(searchQuery, ignoreCase = true) ||
                                 it.artist.contains(searchQuery, ignoreCase = true)
