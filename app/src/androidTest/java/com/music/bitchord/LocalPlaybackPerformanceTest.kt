@@ -43,6 +43,9 @@ class LocalPlaybackPerformanceTest {
         var controller: MediaController? = null
         val rows = mutableListOf("queue_size,trial,submit_ms,is_playing_ms")
         val phaseRows = mutableListOf("queue_size,trial,phase,phase_us,count")
+        // Stable media ids are required for the warm-queue case. TrackLog keeps every trial for
+        // an id, so export only lines not already attributed to an earlier trial.
+        val seenPhaseLines = mutableSetOf<String>()
         try {
             var future: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
             instrumentation.runOnMainSync {
@@ -53,16 +56,14 @@ class LocalPlaybackPerformanceTest {
             controller = player
             for (size in listOf(1, 731, 2000)) {
                 val songs = List(size) { index ->
-                    Song("perf-$index", "Local $index", "Test", null,
+                    Song("perf-$size-$index", "Local $index", "Test", null,
                         localUri = Uri.fromFile(audio).toString(), localPath = audio.absolutePath)
                 }
-                // Trial zero warms the service/decoder and remains in the raw output.
+                // Trial zero warms the service/decoder and remains in the raw output. Later trials
+                // keep the installed queue hot and move to another index, exercising both the old
+                // rebuild path and an unchanged-context selection without clearing the sources.
                 repeat(8) { trial ->
-                    // Unique ids keep TrackLog.forTrack scoped to this trial;
-                    // the id prefix is not used by the local fixture resolver.
-                    val trialSongs = songs.mapIndexed { index, song ->
-                        song.copy(videoId = "perf-$size-$trial-$index")
-                    }
+                    val selectedIndex = if (size == 1) 0 else (size / 2 + trial) % size
                     val started = CountDownLatch(1)
                     val error = AtomicReference<PlaybackException?>()
                     var playingNs = 0L
@@ -74,7 +75,7 @@ class LocalPlaybackPerformanceTest {
                     }
                     instrumentation.runOnMainSync {
                         player.stop()
-                        player.clearMediaItems()
+                        if (trial == 0) player.clearMediaItems()
                         player.addListener(listener)
                     }
                     var tapNs = 0L
@@ -82,7 +83,7 @@ class LocalPlaybackPerformanceTest {
                     try {
                         runBlocking { withContext(Dispatchers.Main) {
                             tapNs = SystemClock.elapsedRealtimeNanos()
-                            player.playSongs(trialSongs, size / 2)
+                            player.playSongs(songs, selectedIndex)
                             submittedNs = SystemClock.elapsedRealtimeNanos()
                         } }
                         assertTrue("Local audio timed out", started.await(30, TimeUnit.SECONDS))
@@ -92,12 +93,16 @@ class LocalPlaybackPerformanceTest {
                         rows.add(row)
                         Log.i("TotalMusicPerformance", row)
                         instrumentation.runOnMainSync {
-                            // The service retains only a bounded played history.
-                            // Verify the selected track and all upcoming tracks,
-                            // rather than requiring discarded history to remain.
-                            assertEquals(size - size / 2, player.mediaItemCount - player.currentMediaItemIndex)
-                            assertEquals("perf-$size-$trial-${size / 2}", player.currentMediaItem!!.mediaId)
-                            assertEquals("perf-$size-$trial-${size - 1}", player.getMediaItemAt(player.mediaItemCount - 1).mediaId)
+                            // The service retains only a bounded played history. Both a complete
+                            // rebuild and a valid warm-queue seek must finish with the same head,
+                            // selected index, order and complete upcoming suffix.
+                            val expectedHead = (selectedIndex - 25).coerceAtLeast(0)
+                            assertEquals(size - expectedHead, player.mediaItemCount)
+                            assertEquals(selectedIndex - expectedHead, player.currentMediaItemIndex)
+                            assertEquals(size - selectedIndex, player.mediaItemCount - player.currentMediaItemIndex)
+                            assertEquals("perf-$size-$selectedIndex", player.currentMediaItem!!.mediaId)
+                            assertEquals("perf-$size-$expectedHead", player.getMediaItemAt(0).mediaId)
+                            assertEquals("perf-$size-${size - 1}", player.getMediaItemAt(player.mediaItemCount - 1).mediaId)
                         }
                         // Separate post-callback probe for the readback used by
                         // the Compose queue snapshot. It is intentionally not
@@ -112,8 +117,9 @@ class LocalPlaybackPerformanceTest {
                                     "${snapshot.size}",
                             )
                         }
-                        val exported = runBlocking { TrackLog.forTrack(trialSongs[size / 2], null) }
+                        val exported = runBlocking { TrackLog.forTrack(songs[selectedIndex], null) }
                         exported.lineSequence()
+                            .filter { it.contains("TIMING queue phase:") && seenPhaseLines.add(it) }
                             .mapNotNull { queuePhasePattern.find(it) }
                             .forEach { match ->
                                 phaseRows.add(

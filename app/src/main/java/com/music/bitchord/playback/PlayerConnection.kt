@@ -793,6 +793,82 @@ fun mediaIdIn(uri: Uri): String? = if (uri.authority == "source") {
 }
 
 /**
+ * The installed index to seek to when the timeline is the same context as [songs], or null when
+ * the original queue operation is required.
+ *
+ * This is intentionally a conservative equality check rather than an id-only check. A library
+ * row can change its artwork, source, local URI, or queue tier while its video id stays the same;
+ * reusing a source in any of those cases would play or display stale information. Queue-entry ids
+ * are the exception: QueueCoordinator assigns fresh ids to each rebuilt context, so they are not
+ * identity of the song being selected. Fields which [toMediaItem] does not serialize are compared
+ * in their already-installed form for the same reason — a full rebuild would drop them too.
+ *
+ * The first version is deliberately limited to explicit local rows. That keeps stream routing,
+ * Original Version pins and newly completed online downloads out of the equality question; those
+ * queues still take the original conversion path. USER_QUEUE and AUTOPLAY are excluded as well,
+ * so seekToDefaultPosition cannot change the meaning of a manually queued entry.
+ */
+private fun MediaController.reusableQueueIndex(songs: List<Song>, requestedIndex: Int): Int? {
+    if (requestedIndex !in songs.indices || songs.isEmpty()) return null
+    // Repeat-all rotates expired history to the tail instead of removing it. That needs the
+    // original queue operation, not an assumptions-about-suffixes fast path.
+    if (repeatMode == Player.REPEAT_MODE_ALL) return null
+    if (songs.any { it.queueTier != QueueTier.CONTEXT || it.localUri == null }) return null
+
+    val installedCount = mediaItemCount
+    val installedCurrentIndex = currentMediaItemIndex
+    if (installedCount <= 0 || installedCount > songs.size) return null
+    if (installedCurrentIndex !in 0 until installedCount) return null
+
+    // PlaybackService retains at most MAX_QUEUE_HISTORY entries before the current item. Thus a
+    // previously installed context can be a suffix of the requested library list. No tail is
+    // removed by that policy, so the size difference identifies the suffix's offset.
+    val offset = songs.size - installedCount
+    val targetIndex = requestedIndex - offset
+    if (targetIndex !in 0 until installedCount || targetIndex == installedCurrentIndex) return null
+
+    // A full rebuild would restore the complete list and then trim its history. A seek can only
+    // trim the suffix already present. Require both operations to finish with the same head offset;
+    // otherwise a backward tap could silently lose history which the original path would restore.
+    val rebuiltHead = (requestedIndex - MAX_QUEUE_HISTORY).coerceAtLeast(0)
+    val reusedHead = offset + (targetIndex - MAX_QUEUE_HISTORY).coerceAtLeast(0)
+    if (rebuiltHead != reusedHead) return null
+
+    val matches = (0 until installedCount).all { index ->
+        getMediaItemAt(index).matchesQueueSong(songs[offset + index])
+    }
+    return targetIndex.takeIf { matches }
+}
+
+/** Compare the metadata and playback identity which survive a MediaItem round-trip. */
+private fun MediaItem.matchesQueueSong(song: Song): Boolean {
+    val current = toSong()
+    // bundleOf stores a null explicit flag as a null Bundle value on some Android versions,
+    // while toSong quite correctly treats a present key as a tri-state value. Read the raw value
+    // so a null flag is not mistaken for an explicit "clean" flag.
+    val actualExplicit = mediaMetadata.extras?.let { extras ->
+        if (!extras.containsKey(EXTRA_EXPLICIT) || extras.get(EXTRA_EXPLICIT) == null) {
+            null
+        } else {
+            extras.getBoolean(EXTRA_EXPLICIT)
+        }
+    }
+    val comparableCurrent = current.copy(isExplicit = actualExplicit)
+    val expected = song.copy(
+        thumbnailUrl = song.artworkAt(NOTIFICATION_ART_PX),
+        queueEntryId = current.queueEntryId,
+        artists = current.artists,
+        downloadFormat = current.downloadFormat,
+        localDateAddedSeconds = current.localDateAddedSeconds,
+        localDateModifiedSeconds = current.localDateModifiedSeconds,
+        localTrackNumber = current.localTrackNumber,
+        localDiscNumber = current.localDiscNumber,
+        sourceQuality = current.sourceQuality,
+    )
+    return comparableCurrent == expected
+}
+
+/**
  * Replaces the queue with [songs] and starts it.
  *
  * Suspending because of the mapping: [toMediaItem] is not the cheap struct copy
@@ -827,6 +903,38 @@ suspend fun MediaController.playSongs(
     // played out of order — see [QueueShuffle]. The track the user picked still
     // leads, so it ends up at the top instead of at [startIndex].
     val shuffled = QueueShuffle.enabled.value
+
+    // setMediaItems synchronously creates one MediaSource per entry (Media3
+    // ExoPlayerImpl.setMediaItems). When the exact same context is already installed and the
+    // listener picked a different position, keep those sources and only change the selection.
+    // Same-index taps deliberately fall through so the original operation still resets that
+    // track to position zero and reapplies prepare/play.
+    val reuseCheckStartedAtNs = SystemClock.elapsedRealtimeNanos()
+    val reuseIndex = if (shuffled) null else reusableQueueIndex(songs, selectedIndex)
+    TrackLog.onQueuePhase(
+        videoId = selectedVideoId,
+        phase = "existing_queue_check",
+        phaseUs = (SystemClock.elapsedRealtimeNanos() - reuseCheckStartedAtNs) / 1_000L,
+        queueSize = songs.size,
+        detail = "reuse=${reuseIndex != null} installedIndex=${reuseIndex ?: -1}",
+    )
+    if (reuseIndex != null) {
+        val reuseStartedAtNs = SystemClock.elapsedRealtimeNanos()
+        // ForwardingPlayer delegates this overload straight to ExoPlayer. Unlike
+        // SessionPlayer.seekTo(index, position), it cannot prune or reorder skipped entries.
+        seekToDefaultPosition(reuseIndex)
+        if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) prepare()
+        play()
+        TrackLog.onQueuePhase(
+            videoId = selectedVideoId,
+            phase = "existing_queue_reuse",
+            phaseUs = (SystemClock.elapsedRealtimeNanos() - reuseStartedAtNs) / 1_000L,
+            queueSize = songs.size,
+            detail = "operation=seekToDefaultPosition",
+        )
+        return
+    }
+
     val stats = MediaItemBuildStats()
     var shuffleNanos = 0L
     var conversionNanos = 0L
