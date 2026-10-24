@@ -252,8 +252,10 @@ fun LocalMusicScreen(
             else -> sortedSongs.filter { searchQuery.isBlank() || it.matchesSearch(searchQuery) }
         }
     }
-    LaunchedEffect(searchQuery, drillDownLabel, songs, selectedTab) {
+    LaunchedEffect(visibleSongs) {
         selectedDownloadIds = selectedDownloadIds.intersect(visibleSongs.mapTo(mutableSetOf()) { it.videoId })
+    }
+    LaunchedEffect(searchQuery, drillDownLabel, selectedTab) {
         selectedAlbumKeys = emptySet()
     }
 
@@ -323,14 +325,14 @@ fun LocalMusicScreen(
                 allSelected = visibleSongs.isNotEmpty() && selectedDownloadIds.containsAll(visibleSongs.map { it.videoId }),
                 onSelectAll = { selectedDownloadIds = visibleSongs.mapTo(linkedSetOf()) { it.videoId } },
                 onDelete = {
-                    val chosen = songs.filter { it.videoId in selectedDownloadIds }
+                    val chosen = visibleSongs.filter { it.videoId in selectedDownloadIds }
                     selectedDownloadIds = emptySet()
                     selectedAlbumKeys = emptySet()
                     onDeleteDownloads?.invoke(chosen)
                 },
                 onUpload = onUploadToWebDav?.let { upload ->
                     {
-                        val chosen = songs.filter { it.videoId in selectedDownloadIds }
+                        val chosen = visibleSongs.filter { it.videoId in selectedDownloadIds }
                         selectedDownloadIds = emptySet()
                         selectedAlbumKeys = emptySet()
                         upload(chosen)
@@ -986,6 +988,8 @@ private fun albumEntries(
     songs: List<Song>,
     collections: List<DownloadedCollection>,
 ): List<AlbumEntry> {
+    val songsById = songs.associateBy { it.videoId }
+    val songsByUri = songs.filter { it.localUri != null }.associateBy { it.localUri }
     val asked = collections.map { collection ->
         AlbumEntry(
             title = collection.title,
@@ -994,7 +998,7 @@ private fun albumEntries(
             },
             thumbnailUrl = collection.thumbnailUrl,
             playlist = collection.playlist,
-            songs = collection.songs,
+            songs = collection.songs.map { song -> songsById[song.videoId] ?: songsByUri[song.localUri] ?: song },
             asked = true,
             key = "asked:${collection.id}",
         )
