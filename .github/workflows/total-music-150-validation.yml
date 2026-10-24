@@ -47,8 +47,16 @@ jobs:
       run: ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8' --max-workers=2 :app:lintProdDebug :app:lintVitalProdRelease
         -PspaceSpatialEdition=true --build-cache --stacktrace
     - name: Build test APK and optimized unsigned release
-      run: ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8' --max-workers=2 :app:assembleProdDebug :app:assembleProdDebugAndroidTest
-        :app:assembleProdRelease -PspaceSpatialEdition=true --build-cache --stacktrace
+      run: ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8' --max-workers=2 :app:assembleProdDebug
+        :app:assembleProdDebugAndroidTest :app:assembleProdRelease -PspaceSpatialEdition=true --build-cache --stacktrace
+    - name: Release build memory before emulator
+      run: './gradlew --stop
+
+        free -m
+
+        ps -eo pid,rss,comm --sort=-rss | head -12
+
+        '
     - name: Prepare isolated Android 13 test device
       run: 'set -euo pipefail
 
@@ -67,7 +75,7 @@ jobs:
         echo no | avdmanager create avd -n full150 -k ''system-images;android-33;google_apis;x86_64'' --force
 
         "$ANDROID_HOME/emulator/emulator" -avd full150 -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics
-        -gpu swiftshader -feature -Vulkan -cores 2 -memory 2048 > device-results/emulator.log 2>&1 &
+        -gpu swiftshader -feature -Vulkan -cores 2 -memory 3072 > device-results/emulator.log 2>&1 &
 
         timeout 120 adb wait-for-device
 
@@ -75,6 +83,10 @@ jobs:
         done''
 
         adb shell input keyevent 82
+
+        adb shell svc wifi disable
+
+        adb shell svc data disable
 
         mapfile -t app_apks < <(find app/build/outputs/apk/prod/debug -name ''*universal*debug.apk'')
 
@@ -111,6 +123,19 @@ jobs:
         -PspaceSpatialEdition=true --build-cache --stacktrace
 
         ./gradlew --stop'
+    - name: Capture emulator and host diagnostics
+      if: always()
+      run: 'mkdir -p device-results
+
+        free -m > device-results/host-memory.txt
+
+        ps -eo pid,rss,comm --sort=-rss | head -20 > device-results/host-processes.txt
+
+        adb devices -l > device-results/adb-devices.txt 2>&1 || true
+
+        sudo dmesg | tail -100 > device-results/host-kernel.txt 2>&1 || true
+
+        '
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
