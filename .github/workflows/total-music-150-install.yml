@@ -1,0 +1,171 @@
+name: Verify Total Music 1.5.0 signed upgrade
+'on':
+  push:
+    branches:
+    - work/total-music-1.5.0-recovery
+    paths:
+    - .github/workflows/total-music-150-install.yml
+  workflow_dispatch: null
+permissions:
+  contents: read
+jobs:
+  install-and-upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        ref: a74b44772c1a7a19b49f36be78e72b9a0a90a972
+        persist-credentials: false
+    - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+      with:
+        packages: platform-tools build-tools;36.0.0 emulator system-images;android-33;google_apis;x86_64
+    - name: Retrieve and verify permanent-key APKs
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: Spaceapk/Total-Music
+      run: 'set -euo pipefail
+
+        mkdir -p install-results
+
+        release_id=$(gh api "repos/$GH_REPO/releases" --jq ''.[] | select(.draft == true and .tag_name == "v1.5.0")
+        | .id'')
+
+        [ -n "$release_id" ]
+
+        asset_id=$(gh api "repos/$GH_REPO/releases/$release_id" --jq ''.assets[] | select(.name == "Total-Music-1.5.0-universal.apk")
+        | .id'')
+
+        [ -n "$asset_id" ]
+
+        gh api -H ''Accept: application/octet-stream'' "repos/$GH_REPO/releases/assets/$asset_id" > signed.apk
+
+        curl --fail --location --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.4.1/Total-Music-1.4.1-universal.apk
+        -o previous.apk
+
+        echo ''a49e746446a8e8a010b269f0af8fb5d68ef1eb2b9764f9ba6b009e998fda0208  signed.apk'' | sha256sum -c - |
+        tee install-results/checksum-new.txt
+
+        echo ''71363fb313d58685b3632a6889bb82712ad68d16e1d0fbbef9ad155dd0f78607  previous.apk'' | sha256sum -c -
+        | tee install-results/checksum-previous.txt
+
+        "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs signed.apk > install-results/signature.txt
+
+        grep -q ''Signer #1 certificate SHA-256 digest: 9ae145a703a85902fe6d6ab3d886f6801873d717929deaa3e3d0b0a81de829fa''
+        install-results/signature.txt
+
+        "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging signed.apk > install-results/badging.txt
+
+        grep -q "package: name=''org.nexlibre.totalmusic'' versionCode=''10'' versionName=''1.5.0''" install-results/badging.txt
+
+        ! grep -q ''application-debuggable'' install-results/badging.txt
+
+
+        base64 --decode app/src/androidTest/assets/tagged-track.mp3.b64 > delete-fixture.mp3
+
+        '
+    - name: Boot Android 13 offline
+      run: 'set -euo pipefail
+
+        sudo chmod a+rw /dev/kvm
+
+        export ANDROID_AVD_HOME="$RUNNER_TEMP/total-music-150-install-avd"
+
+        echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+
+        mkdir -p "$ANDROID_AVD_HOME"
+
+        echo no | avdmanager create avd -n signed150 -k ''system-images;android-33;google_apis;x86_64'' --force
+
+        "$ANDROID_HOME/emulator/emulator" -avd signed150 -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics
+        -gpu swiftshader -feature -Vulkan -cores 2 -memory 2048 > install-results/emulator.log 2>&1 &
+
+        timeout 120 adb wait-for-device
+
+        timeout 300 bash -c ''until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2;
+        done''
+
+        adb shell input keyevent 82
+
+        adb shell svc wifi disable
+
+        adb shell svc data disable
+
+        adb logcat -v threadtime > install-results/logcat.txt 2>&1 &
+
+        '
+    - name: Check upgrade and once-only offline release notes
+      run: "python3 - <<'PYCODE'\nimport re, subprocess, time, xml.etree.ElementTree as ET\nfrom pathlib import\
+        \ Path\n\nPACKAGE='org.nexlibre.totalmusic'\nOUT=Path('install-results'); OUT.mkdir(exist_ok=True)\ndef\
+        \ adb(*args):\n    return subprocess.check_output(['adb',*args],text=True)\ndef ui():\n    adb('shell','uiautomator','dump','/sdcard/window.xml')\n\
+        \    return ET.fromstring(adb('shell','cat','/sdcard/window.xml'))\ndef text_present(root, text):\n    return\
+        \ any(text in (n.get('text','') + n.get('content-desc','')) for n in root.iter('node'))\ndef dismiss_back(root):\n\
+        \    for n in root.iter('node'):\n        if n.get('text')=='Back':\n            nums=list(map(int,re.findall(r'\\\
+        d+',n.get('bounds',''))))\n            if len(nums)==4:\n                adb('shell','input','tap',str((nums[0]+nums[2])//2),str((nums[1]+nums[3])//2));return\
+        \ True\n    return False\n\ndef launch():\n    adb('shell','monkey','-p',PACKAGE,'-c','android.intent.category.LAUNCHER','1')\n\
+        \    time.sleep(5)\n\nsubprocess.run(['adb','install','--no-streaming','previous.apk'],check=True)\nadb('shell','pm','grant',PACKAGE,'android.permission.READ_MEDIA_AUDIO')\n\
+        adb('shell','pm','grant',PACKAGE,'android.permission.POST_NOTIFICATIONS')\nlaunch()\n# Clear the old release\
+        \ popup through its real UI, when present.\nold=ui();dismiss_back(old)\nadb('shell','am','force-stop',PACKAGE)\n\
+        subprocess.run(['adb','install','--no-streaming','-r','signed.apk'],check=True)\nassert 'versionCode=10'\
+        \ in adb('shell','dumpsys','package',PACKAGE)\nassert 'android.permission.READ_MEDIA_AUDIO: granted=true'\
+        \ in adb('shell','dumpsys','package',PACKAGE)\nlaunch()\ntitle='What is new in Total Music 1.5.0'\nroot=ui()\n\
+        (OUT/'first-launch.xml').write_bytes(ET.tostring(root))\nassert text_present(root,title),'Installed release\
+        \ notes did not appear offline after update'\nsubprocess.run(['adb','exec-out','screencap','-p'],check=True,stdout=(OUT/'after-update.png').open('wb'))\n\
+        assert dismiss_back(root),'Release popup could not be dismissed'\nadb('shell','am','force-stop',PACKAGE)\n\
+        launch()\nroot=ui()\n(OUT/'second-launch.xml').write_bytes(ET.tostring(root))\nassert not text_present(root,title),'Release\
+        \ notes repeated after acknowledgement'\nassert adb('shell','pidof',PACKAGE).strip(),'App process not running'\n\
+        subprocess.run(['adb','exec-out','screencap','-p'],check=True,stdout=(OUT/'second-launch.png').open('wb'))\n\
+        print('PASS: production APK updated in place, audio permission retained, installed notes shown offline once,\
+        \ second launch alive')\n\n# Exercise the offline history through the installed production UI.\ndef click_label(root,\
+        \ label):\n    for n in root.iter('node'):\n        if n.get('text')==label or n.get('content-desc')==label:\n\
+        \            nums=list(map(int,re.findall(r'\\d+',n.get('bounds',''))))\n            if len(nums)==4:\n\
+        \                adb('shell','input','tap',str((nums[0]+nums[2])//2),str((nums[1]+nums[3])//2));return True\n\
+        \    return False\nassert click_label(root,'Settings'),'Settings entry missing from the production UI'\n\
+        time.sleep(2)\nroot=ui()\nfor n in root.iter('node'):\n    if n.get('class')=='android.widget.EditText':\n\
+        \        nums=list(map(int,re.findall(r'\\d+',n.get('bounds',''))))\n        adb('shell','input','tap',str((nums[0]+nums[2])//2),str((nums[1]+nums[3])//2))\n\
+        \        adb('shell','input','text','version%shistory')\n        adb('shell','input','keyevent','66')\n\
+        \        break\nelse: raise AssertionError('Settings search field unavailable')\ntime.sleep(2)\nroot=ui()\n\
+        assert click_label(root,'What is new \xB7 Version history'),'Version history option unavailable'\ntime.sleep(2)\n\
+        root=ui();(OUT/'history-offline.xml').write_bytes(ET.tostring(root))\nassert text_present(root,'1.5.0 (10)')\
+        \ and text_present(root,'1.4.1 (9)'), 'Offline history missing installed or previous version'\nsubprocess.run(['adb','exec-out','screencap','-p'],check=True,stdout=(OUT/'history-offline.png').open('wb'))\n\
+        print('PASS: offline version history accessible from Settings')\n\n# Use only disposable synthetic audio\
+        \ to verify real menus and Android consent.\ndismiss_back(root)\nadb('shell','am','force-stop',PACKAGE)\n\
+        fixture='/sdcard/Music/TotalMusic150DeleteFixture.mp3'\nsubprocess.run(['adb','push','delete-fixture.mp3',fixture],check=True)\n\
+        adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file://'+fixture)\n\
+        time.sleep(4)\nlaunch()\nroot=ui()\nassert text_present(root,'Tagged track'),'Synthetic file missing from\
+        \ the installed library'\nassert click_label(root,'More'),'Track action menu unavailable'\ntime.sleep(1)\n\
+        root=ui()\nassert click_label(root,'Song information'),'Song information action missing'\ntime.sleep(2)\n\
+        root=ui();(OUT/'song-information.xml').write_bytes(ET.tostring(root))\nassert text_present(root,'Exact Artist'),'Embedded\
+        \ artist missing from song information'\nsubprocess.run(['adb','exec-out','screencap','-p'],check=True,stdout=(OUT/'song-information.png').open('wb'))\n\
+        assert dismiss_back(root)\ntime.sleep(1)\nroot=ui()\nassert click_label(root,'Delete file from device'),'Delete\
+        \ action missing'\ntime.sleep(1)\nroot=ui()\nassert click_label(root,'Cancel'),'Deletion confirmation has\
+        \ no cancellation'\nsubprocess.run(['adb','shell','test','-f',fixture],check=True)\nroot=ui()\nassert click_label(root,'Delete\
+        \ file from device')\ntime.sleep(1)\nroot=ui()\nassert click_label(root,'Delete'),'Deletion confirmation\
+        \ could not be accepted'\ntime.sleep(2)\nroot=ui();(OUT/'android-delete-consent.xml').write_bytes(ET.tostring(root))\n\
+        assert click_label(root,'Allow'),'Android deletion consent not presented'\ntime.sleep(3)\nassert subprocess.run(['adb','shell','test','-f',fixture]).returncode!=0,'Confirmed\
+        \ file still exists'\nprint('PASS: native metadata visible; cancel preserved audio; Android consent removed\
+        \ only disposable fixture')\n\n# Check that the two navigation themes expose their existing controls.\n\
+        adb('shell','am','force-stop',PACKAGE)\nlaunch();root=ui()\nassert click_label(root,'Settings')\ntime.sleep(1)\n\
+        def settings_search(query):\n    root=ui()\n    for n in root.iter('node'):\n        if n.get('class')=='android.widget.EditText':\n\
+        \            nums=list(map(int,re.findall(r'\\d+',n.get('bounds',''))))\n            adb('shell','input','tap',str((nums[0]+nums[2])//2),str((nums[1]+nums[3])//2))\n\
+        \            adb('shell','input','keyevent',*(['67']*64))\n            adb('shell','input','text',query.replace('\
+        \ ','%s'))\n            adb('shell','input','keyevent','66')\n            time.sleep(1)\n            return\
+        \ ui()\n    raise AssertionError('Settings search unavailable')\nroot=settings_search('Google Expressive')\n\
+        assert click_label(root,'Google Expressive')\ntime.sleep(1)\nroot=settings_search('artwork colors')\nassert\
+        \ click_label(root,'Cover colors')\ntime.sleep(1)\nroot=ui();assert any(n.get('checkable')=='true' and n.get('checked')=='true'\
+        \ for n in root.iter('node'))\nassert click_label(root,'Cover colors')\ntime.sleep(1)\nroot=ui();assert\
+        \ not any(n.get('checkable')=='true' and n.get('checked')=='true' for n in root.iter('node'))\nroot=settings_search('adaptive\
+        \ navigation')\nassert click_label(root,'Adaptive navigation')\ntime.sleep(1)\nroot=ui();assert any(n.get('checkable')=='true'\
+        \ and n.get('checked')=='true' for n in root.iter('node'))\nsubprocess.run(['adb','exec-out','screencap','-p'],check=True,stdout=(OUT/'google-adaptive.png').open('wb'))\n\
+        root=settings_search('Google Expressive');assert click_label(root,'Original')\ntime.sleep(1)\nroot=settings_search('adaptive\
+        \ navigation')\nassert text_present(root,'Adaptive navigation')\nsubprocess.run(['adb','exec-out','screencap','-p'],check=True,stdout=(OUT/'glass-adaptive.png').open('wb'))\n\
+        print('PASS: Google theme, optional cover colors and universal adaptive setting accessible; Original/Glass\
+        \ setting retained')\n\nPYCODE\n"
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      if: always()
+      with:
+        name: total-music-150-signed-upgrade
+        path: install-results/
+        retention-days: 14
+    permissions:
+      contents: write
