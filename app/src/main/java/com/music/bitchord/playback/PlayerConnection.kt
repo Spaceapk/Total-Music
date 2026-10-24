@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.os.bundleOf
+import androidx.media3.common.DeviceInfo
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -810,9 +811,11 @@ fun mediaIdIn(uri: Uri): String? = if (uri.authority == "source") {
  */
 private fun MediaController.reusableQueueIndex(songs: List<Song>, requestedIndex: Int): Int? {
     if (requestedIndex !in songs.indices || songs.isEmpty()) return null
-    // Repeat-all rotates expired history to the tail instead of removing it. That needs the
-    // original queue operation, not an assumptions-about-suffixes fast path.
-    if (repeatMode == Player.REPEAT_MODE_ALL) return null
+    // Repeat-all rotates expired history to the tail instead of removing it. Native shuffle and
+    // a remote Cast sink also have different selection/callback semantics; keep their original
+    // queue operation rather than approximating them with a local seek.
+    if (repeatMode == Player.REPEAT_MODE_ALL || shuffleModeEnabled) return null
+    if (deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) return null
     if (songs.any { it.queueTier != QueueTier.CONTEXT || it.localUri == null }) return null
 
     val installedCount = mediaItemCount
@@ -842,6 +845,9 @@ private fun MediaController.reusableQueueIndex(songs: List<Song>, requestedIndex
 
 /** Compare the metadata and playback identity which survive a MediaItem round-trip. */
 private fun MediaItem.matchesQueueSong(song: Song): Boolean {
+    // A full rebuild would start again from the row's original rendition. Do not silently retain
+    // a quality-upgraded replacement when the original operation would have discarded it.
+    if (mediaMetadata.extras?.getBoolean(EXTRA_QUALITY_UPGRADED) == true) return false
     val current = toSong()
     // bundleOf stores a null explicit flag as a null Bundle value on some Android versions,
     // while toSong quite correctly treats a present key as a tri-state value. Read the raw value
@@ -914,8 +920,8 @@ suspend fun MediaController.playSongs(
     TrackLog.onQueuePhase(
         videoId = selectedVideoId,
         phase = "existing_queue_check",
-        phaseUs = (SystemClock.elapsedRealtimeNanos() - reuseCheckStartedAtNs) / 1_000L,
-        queueSize = songs.size,
+        durationUs = (SystemClock.elapsedRealtimeNanos() - reuseCheckStartedAtNs) / 1_000L,
+        count = songs.size,
         detail = "reuse=${reuseIndex != null} installedIndex=${reuseIndex ?: -1}",
     )
     if (reuseIndex != null) {
@@ -928,8 +934,8 @@ suspend fun MediaController.playSongs(
         TrackLog.onQueuePhase(
             videoId = selectedVideoId,
             phase = "existing_queue_reuse",
-            phaseUs = (SystemClock.elapsedRealtimeNanos() - reuseStartedAtNs) / 1_000L,
-            queueSize = songs.size,
+            durationUs = (SystemClock.elapsedRealtimeNanos() - reuseStartedAtNs) / 1_000L,
+            count = songs.size,
             detail = "operation=seekToDefaultPosition",
         )
         return
