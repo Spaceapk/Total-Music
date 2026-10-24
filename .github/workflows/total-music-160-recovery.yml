@@ -210,7 +210,5 @@ jobs:
         - baseline
         - candidate
 'on':
-  push:
-    branches:
-    - work/total-music-1.6.0-performance
+  
   workflow_dispatch: null
