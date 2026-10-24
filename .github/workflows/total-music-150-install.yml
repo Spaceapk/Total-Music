@@ -79,6 +79,12 @@ jobs:
         timeout 300 bash -c ''until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2;
         done''
 
+        adb shell settings put system screen_off_timeout 2147483647
+
+        adb shell svc power stayon true
+
+        adb shell wm dismiss-keyguard
+
         adb shell input keyevent 82
 
         adb shell svc wifi disable
@@ -91,13 +97,23 @@ jobs:
     - name: Check upgrade and once-only offline release notes
       run: "python3 - <<'PYCODE'\nimport re, subprocess, time, xml.etree.ElementTree as ET\nfrom pathlib import\
         \ Path\n\nPACKAGE='org.nexlibre.totalmusic'\nOUT=Path('install-results'); OUT.mkdir(exist_ok=True)\ndef\
-        \ adb(*args):\n    return subprocess.check_output(['adb',*args],text=True)\ndef ui():\n    adb('shell','uiautomator','dump','/sdcard/window.xml')\n\
-        \    return ET.fromstring(adb('shell','cat','/sdcard/window.xml'))\ndef text_present(root, text):\n    return\
-        \ any(text in (n.get('text','') + n.get('content-desc','')) for n in root.iter('node'))\ndef dismiss_back(root):\n\
-        \    for n in root.iter('node'):\n        if n.get('text')=='Back':\n            nums=list(map(int,re.findall(r'\\\
-        d+',n.get('bounds',''))))\n            if len(nums)==4:\n                adb('shell','input','tap',str((nums[0]+nums[2])//2),str((nums[1]+nums[3])//2));return\
-        \ True\n    return False\n\ndef launch():\n    adb('shell','monkey','-p',PACKAGE,'-c','android.intent.category.LAUNCHER','1')\n\
-        \    time.sleep(5)\n\nsubprocess.run(['adb','install','--no-streaming','previous.apk'],check=True)\nadb('shell','pm','grant',PACKAGE,'android.permission.READ_MEDIA_AUDIO')\n\
+        \ adb(*args):\n    return subprocess.check_output(['adb',*args],text=True)\ndef ui():\n    # UiAutomator\
+        \ can return exit 0 with a null root during startup/animation.\n    # Delete the last dump so no assertion\
+        \ can accidentally read stale UI.\n    deadline=time.monotonic()+35\n    last_error='no hierarchy'\n   \
+        \ while time.monotonic()<deadline:\n        try:\n            adb('shell','rm','-f','/sdcard/window.xml')\n\
+        \            dumped=subprocess.run(['adb','shell','uiautomator','dump','/sdcard/window.xml'],\n        \
+        \        capture_output=True,text=True,timeout=15)\n            if 'UI hierarch' not in dumped.stdout or\
+        \ 'dumped to' not in dumped.stdout:\n                last_error=dumped.stdout+dumped.stderr\n          \
+        \      time.sleep(0.5)\n                continue\n            root=ET.fromstring(adb('shell','cat','/sdcard/window.xml'))\n\
+        \            if list(root): return root\n            last_error='empty hierarchy'\n        except (subprocess.SubprocessError,\
+        \ ET.ParseError) as error:\n            last_error=str(error)\n        time.sleep(0.5)\n    raise AssertionError('Fresh\
+        \ UI hierarchy unavailable: '+last_error)\n\ndef text_present(root, text):\n    return any(text in (n.get('text','')\
+        \ + n.get('content-desc','')) for n in root.iter('node'))\ndef dismiss_back(root):\n    for n in root.iter('node'):\n\
+        \        if n.get('text')=='Back':\n            nums=list(map(int,re.findall(r'\\d+',n.get('bounds',''))))\n\
+        \            if len(nums)==4:\n                adb('shell','input','tap',str((nums[0]+nums[2])//2),str((nums[1]+nums[3])//2));return\
+        \ True\n    return False\n\ndef launch():\n    adb('shell','input','keyevent','KEYCODE_WAKEUP')\n    adb('shell','wm','dismiss-keyguard')\n\
+        \    adb('shell','monkey','-p',PACKAGE,'-c','android.intent.category.LAUNCHER','1')\n    time.sleep(5)\n\
+        \nsubprocess.run(['adb','install','--no-streaming','previous.apk'],check=True)\nadb('shell','pm','grant',PACKAGE,'android.permission.READ_MEDIA_AUDIO')\n\
         adb('shell','pm','grant',PACKAGE,'android.permission.POST_NOTIFICATIONS')\nlaunch()\n# Clear the old release\
         \ popup through its real UI, when present.\nold=ui();dismiss_back(old)\nadb('shell','am','force-stop',PACKAGE)\n\
         subprocess.run(['adb','install','--no-streaming','-r','signed.apk'],check=True)\nassert 'versionCode=10'\
