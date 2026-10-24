@@ -14,6 +14,7 @@ import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.LibraryViewType
 import com.music.bitchord.data.settings.LocalMusicSort
+import com.music.bitchord.download.DownloadedCollection
 import com.music.bitchord.ui.screens.LocalMusicScreen
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -22,7 +23,11 @@ import org.junit.Test
 /** Opens the actual album UI, chooses the exposed sort item, then inspects its playback order. */
 class AlbumTrackOrderUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
-    @Test fun opensAlbumAndSortsByDiscAndTrack() {
+    @Test fun opensAlbumAndSortsByDiscAndTrack() = verifyAlbumOrder(false)
+
+    @Test fun existingDownloadedAlbumUsesNewlyScannedTrackTags() = verifyAlbumOrder(true)
+
+    private fun verifyAlbumOrder(legacyCollection: Boolean) {
         val oldSort = AppSettings.localMusicSort.value
         val oldView = AppSettings.localMusicViewType.value
         val songs = listOf(
@@ -40,7 +45,12 @@ class AlbumTrackOrderUiTest {
             compose.setContent { MaterialTheme {
                 LocalMusicScreen(songs, onSongClick = { tracks, _ -> played = tracks.map { it.videoId } },
                     onSongLongPress = {}, onSongSwipe = {}, onShuffle = {},
-                    contentPadding = PaddingValues(), navigationTab = 2)
+                    contentPadding = PaddingValues(), navigationTab = 2,
+                    collections = if (legacyCollection) listOf(DownloadedCollection(
+                        id = "legacy-album", title = "Test album", subtitle = "Artist",
+                        thumbnailUrl = null, playlist = false,
+                        songs = songs.map { it.copy(localTrackNumber = null, localDiscNumber = null) },
+                    )) else emptyList())
             } }
             compose.onNodeWithText("Test album").performClick()
             compose.onNodeWithContentDescription(compose.activity.getString(R.string.sort_music)).performClick()
