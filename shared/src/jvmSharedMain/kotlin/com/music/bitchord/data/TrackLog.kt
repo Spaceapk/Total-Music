@@ -186,9 +186,14 @@ object TrackLog {
      */
     private val queueRequestedAt = ConcurrentHashMap<String, Long>()
 
-    fun onQueueRequested(videoId: String, previousVideoId: String?, queueSize: Int) {
+    fun onQueueRequested(
+        videoId: String,
+        previousVideoId: String?,
+        queueSize: Int,
+        requestStartedAtMs: Long? = null,
+    ) {
         if (queueRequestedAt.size >= MAX_REMEMBERED) queueRequestedAt.clear()
-        val at = MonotonicClock.nowMs()
+        val at = requestStartedAtMs ?: MonotonicClock.nowMs()
         queueRequestedAt[videoId] = at
         d(
             "BitChord",

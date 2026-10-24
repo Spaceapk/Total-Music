@@ -132,6 +132,7 @@ import com.music.bitchord.data.listentogether.JamInviteLink
 import com.music.bitchord.data.listentogether.ListenTogether
 import com.music.bitchord.data.listentogether.partyQueueIndexOf
 import com.music.bitchord.data.NerdStats
+import com.music.bitchord.data.MonotonicClock
 import com.music.bitchord.data.TrackLog
 import com.music.bitchord.data.innertube.InnertubeParser
 import com.music.bitchord.data.model.BrowseType
@@ -1277,6 +1278,9 @@ private fun BitChordApp(
     }
 
     val playFrom: (List<Song>, Int, QueueSource) -> Unit = playFrom@{ allSongs, allIndex, source ->
+        // Start at the UI callback, not after filtering and building the
+        // context queue: that preparation is part of the listener's wait.
+        val requestStartedAtMs = MonotonicClock.nowMs()
         // A Spotify page lists songs it has not found on YouTube Music yet (or
         // never will); those can't be queued, so play the rest in their order.
         if (allSongs.getOrNull(allIndex)?.isUnresolvedSpotify == true) return@playFrom
@@ -1306,7 +1310,7 @@ private fun BitChordApp(
                     source = source,
                     upcomingPartyTracks = upcomingPartyTracks,
                 )
-                c.playSongs(timeline, 0)
+                c.playSongs(timeline, 0, requestStartedAtMs)
             } else {
                 val result = QueueCoordinator.buildContextQueue(
                     currentTimeline = currentTimeline,
@@ -1315,7 +1319,7 @@ private fun BitChordApp(
                     selectedIndex = index,
                     contextSource = source,
                 )
-                c.playSongs(result.timeline, result.startIndex)
+                c.playSongs(result.timeline, result.startIndex, requestStartedAtMs)
             }
             // Start playback in the mini-player; the user opens the full view by tapping it.
         }

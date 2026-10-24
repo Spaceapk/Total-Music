@@ -757,14 +757,25 @@ fun mediaIdIn(uri: Uri): String? = if (uri.authority == "source") {
  * starts. Built off the main thread and handed to the player back on it, which
  * is where Media3 requires the call to be made.
  */
-suspend fun MediaController.playSongs(songs: List<Song>, startIndex: Int) {
+suspend fun MediaController.playSongs(
+    songs: List<Song>,
+    startIndex: Int,
+    requestStartedAtMs: Long? = null,
+) {
     if (songs.isEmpty()) return
     val selectedIndex = startIndex.coerceIn(songs.indices)
     val selectedVideoId = songs[selectedIndex].videoId
     // Capture the old item before leaving the main thread. Together with the
     // service's callback line this gives a user-exportable request-to-callback
-    // interval for both a first start and a change to another song.
-    TrackLog.onQueueRequested(selectedVideoId, currentMediaItem?.mediaId, songs.size)
+    // interval for both a first start and a change to another song. Library
+    // taps supply their earlier playFrom timestamp so queue preparation is
+    // included as well.
+    TrackLog.onQueueRequested(
+        selectedVideoId,
+        currentMediaItem?.mediaId,
+        songs.size,
+        requestStartedAtMs,
+    )
     // A queue started while shuffle is on goes in shuffled rather than being
     // played out of order — see [QueueShuffle]. The track the user picked still
     // leads, so it ends up at the top instead of at [startIndex].

@@ -64,9 +64,11 @@ monotónico y se pueden copiar desde el teléfono:
    conclusión. No hace falta logcat, root ni ADB.
 
 En cada log, `queue requested` incluye la canción anterior y el tamaño de cola;
-`queue built` y `queue submitted` separan construcción y entrega al reproductor;
-`track selected` y `isPlaying after track selected` pertenecen al servicio;
-`isPlaying callback ... sinceQueueRequestMs` es el intervalo solicitud→callback.
+en una selección de la biblioteca su reloj comienza en `playFrom`, antes del
+trabajo de preparación de la cola, no solamente al llamar a Media3. `queue built`
+y `queue submitted` separan construcción y entrega al reproductor; `track selected`
+y `isPlaying after track selected` pertenecen al servicio; `isPlaying callback ...
+sinceQueueRequestMs` es el intervalo solicitud/tap→callback en ese camino.
 `isPlaying` **no prueba el primer sonido audible**, por lo que no debe convertirse
 en una afirmación de mejoría de altavoz. Si una línea no aparece, conserva el
 log igualmente: indica que ese camino no pasó por una nueva solicitud de cola.

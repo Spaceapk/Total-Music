@@ -119,8 +119,10 @@ def main():
         "PRUEBA SIN ADB\n"
         "Inicia una canción y luego cambia a otra. En el reproductor abre el menú\n"
         "de la canción actual y elige Copy log. Pega ese texto y conserva si fue\n"
-        "primer inicio o cambio. Las líneas TIMING muestran solicitud de cola,\n"
-        "construcción, envío y callback isPlaying. isPlaying NO prueba el instante\n"
+        "primer inicio o cambio. En la biblioteca, TIMING queue requested empieza\n"
+        "en playFrom e incluye la preparación previa de la cola. Las líneas\n"
+        "TIMING muestran solicitud, construcción, envío y callback isPlaying.\n"
+        "isPlaying NO prueba el instante\n"
         "en que el altavoz produjo sonido; anota también esa observación con un\n"
         "cronómetro o grabación si quieres medir latencia audible.\n",
         encoding="utf-8",
