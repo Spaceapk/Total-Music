@@ -22,23 +22,17 @@ jobs:
         packages: platform-tools build-tools;36.0.0 emulator system-images;android-33;google_apis;x86_64
     - name: Retrieve and verify permanent-key APKs
       env:
-        GH_TOKEN: ${{ github.token }}
-        GH_REPO: Spaceapk/Total-Music
+        TOTAL_MUSIC_CANDIDATE_URL: ${{ secrets.TOTAL_MUSIC_CANDIDATE_URL }}
       run: 'set -euo pipefail
 
         mkdir -p install-results
 
-        release_id=$(gh api "repos/$GH_REPO/releases" --jq ''.[] | select(.draft == true and .tag_name == "v1.5.0")
-        | .id'')
+        # Read-only, short-lived access to this exact candidate; no signing key or repository-write token.
 
-        [ -n "$release_id" ]
+        : "${TOTAL_MUSIC_CANDIDATE_URL:?Temporary candidate URL is required}"
 
-        asset_id=$(gh api "repos/$GH_REPO/releases/$release_id" --jq ''.assets[] | select(.name == "Total-Music-1.5.0-universal.apk")
-        | .id'')
+        curl --fail --location --retry 3 "$TOTAL_MUSIC_CANDIDATE_URL" -o signed.apk
 
-        [ -n "$asset_id" ]
-
-        gh api -H ''Accept: application/octet-stream'' "repos/$GH_REPO/releases/assets/$asset_id" > signed.apk
 
         curl --fail --location --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.4.1/Total-Music-1.4.1-universal.apk
         -o previous.apk
