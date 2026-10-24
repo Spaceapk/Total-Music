@@ -76,3 +76,13 @@ instalación ni prueba de interfaz superada. Se usa KVM en GitHub para continuar
 La API de escritura de GitHub devuelve 403; la vía web del propietario permitió
 conservar los cambios en rama sin alterar main. No se han publicado APK estables
 ni sustituido claves. La recuperación solo puede escribir en su rama dedicada.
+
+## Resultado de la suite ampliada
+
+CI de c5e41d09: JVM, lint y APK release correctos (run 40027502397).
+La suite completa inició 26 pruebas: 18 resultados recibidos, con un fallo de
+expectativa heredada en Android Auto (el servicio local ya exponía local_music
+en la base 1.4.1) y una interrupción de reproducción coincidente con pérdida
+del emulador. No se consideran las pruebas restantes aprobadas. Se corrige
+la expectativa al contrato local y se limita memoria para repetir la suite.
+Metadatos reales se ejecutan primero para obtener evidencia independiente.
