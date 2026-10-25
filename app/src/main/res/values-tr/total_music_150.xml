@@ -1,0 +1,28 @@
+<resources>
+    <string name="sort_track_number">Parça numarası</string>
+    <string name="release_history">Yenilikler · Sürüm geçmişi</string>
+    <string name="playlist_added_count">%1$d şarkı eklendi</string>
+    <string name="release_notes_unavailable">Bu derleme için yerleşik sürüm notları yok.</string>
+    <string name="local_song_information">Şarkı bilgileri</string>
+    <string name="local_delete_file">Dosyayı cihazdan sil</string>
+    <string name="local_delete_file_confirm">«%1$s» cihazdan silinsin mi? Bu işlem geri alınamaz.</string>
+    <string name="local_file_deleted">Dosya silindi</string>
+    <string name="local_file_delete_failed">Dosya silinemedi</string>
+    <string name="meta_title">Başlık</string>
+    <string name="meta_artist">Sanatçı</string>
+    <string name="meta_album">Albüm</string>
+    <string name="meta_album_artist">Albüm sanatçısı</string>
+    <string name="meta_composer">Besteci</string>
+    <string name="meta_writer">Söz yazarı</string>
+    <string name="meta_author">Yazar</string>
+    <string name="meta_year">Yıl</string>
+    <string name="meta_genre">Tür</string>
+    <string name="meta_track">Parça numarası</string>
+    <string name="meta_disc">Disk numarası</string>
+    <string name="meta_bitrate">Bit hızı (bit/sn)</string>
+    <string name="meta_duration">Süre (ms)</string>
+    <string name="meta_format">Biçim</string>
+    <string name="meta_location">Konum</string>
+    <string name="meta_filename">Dosya adı</string>
+    <string name="meta_size">Boyut</string>
+</resources>

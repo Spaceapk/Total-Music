@@ -22,3 +22,11 @@ for name in tracked:
     assert not name.lower().endswith(('.p12', '.pfx', '.jks', '.keystore')), 'Private signing file is tracked'
     assert 'signing-password' not in name.lower(), 'Signing password file is tracked'
 print('Public identity and repository signing isolation verified')
+
+import json
+notes = json.loads((root / 'app/src/main/assets/release-notes.json').read_text())
+assert len({(n['versionCode'], n['versionName']) for n in notes}) == len(notes), 'Duplicate release identities'
+assert len({n['versionName'] for n in notes}) == len(notes), 'Duplicate release names'
+assert all(n['notes'].strip() for n in notes), 'Empty release notes'
+assert any(n['versionCode'] == int(config['versionCode']) and n['versionName'] == config['versionName'] for n in notes), 'Missing installed-version release notes'
+print('Bundled release notes match release version')

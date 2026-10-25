@@ -72,6 +72,13 @@ val betaSuffix = ""
 // This integration maintains Total Music by default. Explicit false retains the legacy Space Music build.
 val spaceSpatialEdition = providers.gradleProperty("spaceSpatialEdition").getOrElse("true") == "true"
 
+// Optional CI/test-only signing for the release-like measurement variant. It
+// deliberately defaults to false: normal measurement/release builds keep the
+// existing release signing behavior. The test workflow uses Android's already
+// configured debug signing, never a new permanent key or a different package.
+val measurementDebugSigning = providers.gradleProperty("totalMusicMeasurementDebugSigning")
+    .getOrElse("false") == "true"
+
 val totalMusicRelease = Properties().apply {
     rootProject.file("total-music-release.properties").inputStream().use { load(it) }
 }
@@ -217,6 +224,37 @@ android {
             applicationIdSuffix = ".benchmark"
             matchingFallbacks += listOf("release")
         }
+        /*
+         * Physical Macrobenchmark target. Unlike the historical `benchmark`
+         * type above, this deliberately keeps the shipped applicationId and
+         * the release signing configuration so a measurement can be compared
+         * with the installed Total Music build. The only additions are the
+         * profileable manifest and ProfileInstaller dependency in this source
+         * set; normal debug/release artifacts do not contain either one.
+         * Without the local release keystore this remains unsigned, exactly
+         * like `release`, and is not presented as an installable update.
+         */
+        create("measurement") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            if (measurementDebugSigning) {
+                // Test-only CI output: still release-like and non-debuggable,
+                // but installable with the existing Android debug certificate.
+                signingConfig = signingConfigs.getByName("debug")
+            }
+        }
+        /*
+         * Independent on-device diagnosis. The shipped prodRelease variant is
+         * untouched; this release-like copy has its own package, label and
+         * debug certificate so it can be installed beside Total Music.
+         */
+        create("diagnostic") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            applicationIdSuffix = ".debug"
+            signingConfig = signingConfigs.getByName("debug")
+            resValue("string", "app_name", "Total Music Debug")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -292,6 +330,12 @@ val newPipeExtractorStripped = tasks.register<org.gradle.api.tasks.bundling.Jar>
 dependencies {
     implementation(project(":shared"))
     implementation(project(":sharedUi"))
+    // Macrobenchmark needs ProfileInstaller in the measured target. Keep it
+    // out of the normal release graph; this configuration exists only for the
+    // release-like `measurement` build type declared above. The independent
+    // diagnostic variant carries the same profiling support.
+    add("measurementImplementation", "androidx.profileinstaller:profileinstaller:1.4.1")
+    add("diagnosticImplementation", "androidx.profileinstaller:profileinstaller:1.4.1")
 
     // ---- Compose (Material 3) ----
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
@@ -437,6 +481,9 @@ dependencies {
     // the OkHttp version already on the runtime classpath.
     testImplementation("com.squareup.okhttp3:mockwebserver:5.3.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    androidTestImplementation(composeBom)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 }

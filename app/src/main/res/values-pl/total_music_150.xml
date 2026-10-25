@@ -1,0 +1,28 @@
+<resources>
+    <string name="sort_track_number">Numer utworu</string>
+    <string name="release_history">Co nowego · Historia wersji</string>
+    <string name="playlist_added_count">Dodano utwory: %1$d</string>
+    <string name="release_notes_unavailable">Ta kompilacja nie zawiera informacji o wydaniu.</string>
+    <string name="local_song_information">Informacje o utworze</string>
+    <string name="local_delete_file">Usuń plik z urządzenia</string>
+    <string name="local_delete_file_confirm">Usunąć „%1$s” z urządzenia? Tej czynności nie można cofnąć.</string>
+    <string name="local_file_deleted">Plik usunięty</string>
+    <string name="local_file_delete_failed">Nie udało się usunąć pliku</string>
+    <string name="meta_title">Tytuł</string>
+    <string name="meta_artist">Wykonawca</string>
+    <string name="meta_album">Album</string>
+    <string name="meta_album_artist">Wykonawca albumu</string>
+    <string name="meta_composer">Kompozytor</string>
+    <string name="meta_writer">Autor tekstu</string>
+    <string name="meta_author">Autor</string>
+    <string name="meta_year">Rok</string>
+    <string name="meta_genre">Gatunek</string>
+    <string name="meta_track">Numer utworu</string>
+    <string name="meta_disc">Numer płyty</string>
+    <string name="meta_bitrate">Przepływność (bit/s)</string>
+    <string name="meta_duration">Czas trwania (ms)</string>
+    <string name="meta_format">Format</string>
+    <string name="meta_location">Lokalizacja</string>
+    <string name="meta_filename">Nazwa pliku</string>
+    <string name="meta_size">Rozmiar</string>
+</resources>

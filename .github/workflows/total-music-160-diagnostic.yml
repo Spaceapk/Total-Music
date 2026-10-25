@@ -1,0 +1,69 @@
+name: Total Music 1.6.0 independent diagnostic APK
+
+on:
+  push:
+    branches: [arena/eef105a8-total-music]
+    paths:
+      - .github/workflows/total-music-160-diagnostic.yml
+      - app/**
+      - shared/**
+      - sharedUi/**
+      - macrobenchmark/**
+      - scripts/release/package_diagnostic_test.py
+      - scripts/performance/publish_diagnostic_check.py
+      - total-music-release.properties
+      - docs/performance/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: total-music-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      ORG_GRADLE_PROJECT_spaceNdkVersion: '27.0.12077973'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+      - name: Verify main identity and private-key isolation
+        run: python3 scripts/release/check_release.py
+      - name: Install required Android SDK
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+      - name: Build independent diagnostic APK and Macrobenchmark
+        run: |
+          chmod +x gradlew
+          ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8 -Djava.net.preferIPv4Stack=true' \
+            --max-workers=2 :app:assembleProdDiagnostic :macrobenchmark:assembleDiagnostic \
+            -PspaceSpatialEdition=true --build-cache --stacktrace
+      - name: Verify diagnostic identity, label, provider, signature and package artifacts
+        run: ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0" python3 scripts/release/package_diagnostic_test.py
+      - name: Publish recoverable diagnostic metadata check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/performance/publish_diagnostic_check.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-debug-diagnostic-${{ github.sha }}
+          path: diagnostic-test-artifacts/
+          if-no-files-found: error
+          retention-days: 14

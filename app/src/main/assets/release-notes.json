@@ -1,0 +1,32 @@
+[
+  {
+    "versionCode": 12,
+    "versionName": "1.6.0",
+    "notes": "Reutilización conservadora de colas locales ya instaladas para cambiar de canción sin recrear todas las fuentes, conservando historial, orden y colas manuales. Preparación de colas en el despachador de entrada y salida, escaneo local con lectura única de la carpeta elegida, índice de álbumes durante búsquedas y colores de carátula durante animaciones. Se conservan los temas y controles de audio."
+  },
+  {
+    "versionCode": 10,
+    "versionName": "1.5.0",
+    "notes": "Orden por disco y número de pista en la biblioteca y dentro de álbumes. Seleccionar todas respeta la búsqueda y la colección abierta. Menús de álbumes y artistas para añadir sus canciones a playlists. Navegación adaptable para Google Expressive y Liquid Glass. Novedades integradas sin conexión e historial desde Ajustes. Se restauran los menús de información de canción y eliminación de archivos locales con confirmación."
+  },
+  {
+    "versionCode": 9,
+    "versionName": "1.4.1",
+    "notes": "Corrección del código de versión para permitir actualizar desde 1.3.0; verificación de instalación y actualización en Android 13."
+  },
+  {
+    "versionCode": 8,
+    "versionName": "1.4.0",
+    "notes": "Navegación adaptable de Liquid Glass y opción de colores dinámicos de carátula en Google Expressive."
+  },
+  {
+    "versionCode": 8,
+    "versionName": "1.3.0",
+    "notes": "Organización de biblioteca, eliminación de archivos locales e información detallada de canciones."
+  },
+  {
+    "versionCode": 7,
+    "versionName": "1.2.0",
+    "notes": "Mejoras de biblioteca local, listas de reproducción y personalización de Total Music."
+  }
+]

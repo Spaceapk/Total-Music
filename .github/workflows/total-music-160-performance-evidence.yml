@@ -1,0 +1,70 @@
+name: Total Music 1.6.0 performance evidence
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: total-music-160-performance-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - arena/eef105a8-total-music
+  workflow_dispatch:
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ORG_GRADLE_PROJECT_spaceNdkVersion: 27.0.12077973
+      BASE_REF: a6019d21492718a0f68f22af846974ea71c1e19c
+      CANDIDATE_REF: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+
+      - name: Install required Android SDK
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then
+            ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
+          fi
+
+      - name: Build and compare baseline and candidate in one emulator
+        run: |
+          chmod +x scripts/performance/ci_compare.sh
+          scripts/performance/ci_compare.sh
+
+      - name: Publish CSV and hashes through the Checks API
+        if: always()
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/performance/publish_check.py
+
+      - name: Upload complete evidence and test APKs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: total-music-160-performance-evidence-${{ github.sha }}
+          path: |
+            device-results/
+            release-artifacts/
+          if-no-files-found: warn
+          retention-days: 14

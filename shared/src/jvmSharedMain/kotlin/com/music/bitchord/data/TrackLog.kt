@@ -176,6 +176,244 @@ object TrackLog {
         startedAt[videoId] = System.currentTimeMillis()
     }
 
+    // ── Playback-route timing ───────────────────────────────────────────────
+
+    /**
+     * A pending request, keyed by the track the listener is waiting for. The
+     * route and origin are part of every line: a library tap starts at the UI,
+     * whereas Next starts when the service receives the command. The optional
+     * service timestamp gives both routes a comparable service-to-callback leg.
+     */
+    private data class PlaybackRequest(
+        val route: String,
+        val origin: String,
+        val requestedAt: Long,
+        val previousVideoId: String?,
+        val serviceReceivedAt: Long? = null,
+        // Aggregated rather than logged per row: an N+1 query is exactly the
+        // thing this probe must be able to reveal without becoming the cost it
+        // is trying to measure.
+        val mediaStoreQueries: Int = 0,
+        val mediaStoreQueryUs: Long = 0L,
+        val mediaStoreSources: Set<String> = emptySet(),
+    )
+
+    private val playbackRequests = ConcurrentHashMap<String, PlaybackRequest>()
+
+    private fun elapsed(at: Long, start: Long?): String =
+        start?.let { (at - it).toString() } ?: "unknown"
+
+    private fun recordRequest(
+        videoId: String,
+        previousVideoId: String?,
+        route: String,
+        origin: String,
+        requestedAt: Long,
+        queueSize: Int,
+        serviceReceivedAt: Long? = null,
+    ): PlaybackRequest {
+        if (playbackRequests.size >= MAX_REMEMBERED) playbackRequests.clear()
+        // playFrom records the tap and playSongs records the same request when
+        // it receives the prepared queue. Keep the first record in that case
+        // so the phase probe is not reset halfway through the same tap.
+        val request = playbackRequests[videoId]
+            ?.takeIf { it.requestedAt == requestedAt && it.route == route }
+            ?: PlaybackRequest(route, origin, requestedAt, previousVideoId, serviceReceivedAt)
+        playbackRequests[videoId] = request
+        d(
+            "BitChord",
+            "TIMING request received: route=$route origin=$origin id=$videoId " +
+                "previous=${previousVideoId ?: "none"} songs=$queueSize monotonicMs=$requestedAt",
+            about = videoId,
+        )
+        return request
+    }
+
+    /** Called at the library UI callback, before context-queue preparation. */
+    fun onPlaybackRequestReceived(
+        videoId: String,
+        previousVideoId: String?,
+        route: String,
+        requestedAt: Long,
+        queueSize: Int,
+    ) {
+        recordRequest(videoId, previousVideoId, route, "ui", requestedAt, queueSize)
+    }
+
+    /** Called when the service receives Next; no new queue is constructed. */
+    fun onNextRequestReceived(videoId: String?, previousVideoId: String?, queueSize: Int) {
+        if (videoId == null) return
+        val at = MonotonicClock.nowMs()
+        recordRequest(videoId, previousVideoId, "next_button", "service", at, queueSize, at)
+    }
+
+    /**
+     * Keeps the earlier UI timestamp when [onPlaybackRequestReceived] already
+     * ran, and also supports radio/other callers that enter directly here.
+     */
+    fun onQueueRequested(
+        videoId: String,
+        previousVideoId: String?,
+        queueSize: Int,
+        requestStartedAtMs: Long? = null,
+    ) {
+        val at = MonotonicClock.nowMs()
+        val request = playbackRequests[videoId] ?: recordRequest(
+            videoId = videoId,
+            previousVideoId = previousVideoId,
+            route = if (requestStartedAtMs == null) "queue" else "manual_library",
+            origin = if (requestStartedAtMs == null) "service" else "ui",
+            requestedAt = requestStartedAtMs ?: at,
+            queueSize = queueSize,
+        )
+        d(
+            "BitChord",
+            "TIMING queue build started: route=${request.route} id=$videoId songs=$queueSize " +
+                "sinceRequestMs=${at - request.requestedAt} monotonicMs=$at",
+            about = videoId,
+        )
+    }
+
+    fun onQueueBuilt(videoId: String, itemCount: Int) {
+        val at = MonotonicClock.nowMs()
+        val request = playbackRequests[videoId]
+        d(
+            "BitChord",
+            "TIMING queue built: route=${request?.route ?: "unknown"} id=$videoId items=$itemCount " +
+                "sinceRequestMs=${elapsed(at, request?.requestedAt)} monotonicMs=$at",
+            about = videoId,
+        )
+    }
+
+    /**
+     * One measured phase of a queue request. Durations are microseconds so a
+     * cheap phase does not disappear behind the millisecond request clock.
+     * The current MediaStore totals ride along on every phase, making a zero
+     * explicit instead of leaving "no query line" ambiguous.
+     */
+    fun onQueuePhase(
+        videoId: String?,
+        phase: String,
+        durationUs: Long = -1L,
+        count: Int = -1,
+        detail: String = "",
+    ) {
+        if (videoId == null) return
+        val request = playbackRequests[videoId] ?: return
+        val at = MonotonicClock.nowMs()
+        val duration = if (durationUs >= 0L) " phaseUs=$durationUs" else ""
+        val items = if (count >= 0) " count=$count" else ""
+        val suffix = detail.takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty()
+        d(
+            "BitChord",
+            "TIMING queue phase: phase=$phase route=${request.route} id=$videoId" +
+                "$duration$items mediaStoreQueries=${request.mediaStoreQueries}" +
+                " mediaStoreQueryUs=${request.mediaStoreQueryUs}" +
+                " mediaStoreSources=${request.mediaStoreSources.ifEmpty { setOf("none") }.joinToString(",")}" +
+                " sinceRequestMs=${at - request.requestedAt}" +
+                " sinceServiceMs=${elapsed(at, request.serviceReceivedAt)} monotonicMs=$at$suffix",
+            about = videoId,
+        )
+    }
+
+    /**
+     * Accounts for a MediaStore operation on the request associated with the
+     * current coroutine. No per-row log line is emitted: the aggregate is
+     * printed by the surrounding queue/session phase instead.
+     */
+    fun onMediaStoreQuery(source: String, durationUs: Long) {
+        val videoId = working.get() ?: return
+        playbackRequests.computeIfPresent(videoId) { _, request ->
+            request.copy(
+                mediaStoreQueries = request.mediaStoreQueries + 1,
+                mediaStoreQueryUs = request.mediaStoreQueryUs + durationUs.coerceAtLeast(0L),
+                mediaStoreSources = request.mediaStoreSources + source,
+            )
+        }
+    }
+
+    fun onQueueSubmitted(videoId: String) {
+        val at = MonotonicClock.nowMs()
+        val request = playbackRequests[videoId]
+        d(
+            "BitChord",
+            "TIMING queue submitted: stage=controller route=${request?.route ?: "unknown"} id=$videoId " +
+                "sinceRequestMs=${elapsed(at, request?.requestedAt)} monotonicMs=$at",
+            about = videoId,
+        )
+    }
+
+    private fun onServiceQueueReceived(videoId: String?, itemCount: Int, stage: String) {
+        if (videoId == null) return
+        val request = playbackRequests[videoId] ?: return
+        val at = MonotonicClock.nowMs()
+        val serviceAt = request.serviceReceivedAt ?: at
+        if (request.serviceReceivedAt == null) {
+            playbackRequests[videoId] = request.copy(serviceReceivedAt = at)
+        }
+        d(
+            "BitChord",
+            "TIMING $stage queue received: route=${request.route} id=$videoId items=$itemCount " +
+                "sinceRequestMs=${at - request.requestedAt} sinceServiceMs=${at - serviceAt} monotonicMs=$at",
+            about = videoId,
+        )
+    }
+
+    fun onSessionQueueReceived(videoId: String?, itemCount: Int) =
+        onServiceQueueReceived(videoId, itemCount, "session")
+
+    fun onPlayerQueueReceived(videoId: String?, itemCount: Int) =
+        onServiceQueueReceived(videoId, itemCount, "player")
+
+    private fun onRequestEvent(videoId: String?, label: String) {
+        if (videoId == null) return
+        val request = playbackRequests[videoId] ?: return
+        val at = MonotonicClock.nowMs()
+        d(
+            "BitChord",
+            "TIMING $label: route=${request.route} id=$videoId " +
+                "sinceRequestMs=${at - request.requestedAt} " +
+                "sinceServiceMs=${elapsed(at, request.serviceReceivedAt)} monotonicMs=$at",
+            about = videoId,
+        )
+    }
+
+    fun onAudioPrepare(videoId: String?) = onRequestEvent(videoId, "audio prepare received")
+
+    fun onPlayCommand(videoId: String?) = onRequestEvent(videoId, "play command received")
+
+    fun onAudioState(videoId: String?, state: String) = onRequestEvent(videoId, "audio state $state")
+
+    fun onTrackSelected(videoId: String?, reason: Int) {
+        if (videoId == null) return
+        val at = MonotonicClock.nowMs()
+        val request = playbackRequests[videoId]
+        d(
+            "BitChord",
+            "TIMING track selected: id=$videoId reason=$reason route=${request?.route ?: "untracked"} " +
+                "sinceRequestMs=${elapsed(at, request?.requestedAt)} " +
+                "sinceServiceMs=${elapsed(at, request?.serviceReceivedAt)} monotonicMs=$at",
+            about = videoId,
+        )
+    }
+
+    /**
+     * Records the player callback associated with a request. This is not called
+     * "first audio": isPlaying does not prove when the speaker produced sound.
+     */
+    fun onIsPlayingCallback(videoId: String) {
+        val request = playbackRequests.remove(videoId) ?: return
+        val at = MonotonicClock.nowMs()
+        d(
+            "BitChord",
+            "TIMING isPlaying callback: route=${request.route} id=$videoId " +
+                "sinceRequestMs=${at - request.requestedAt} " +
+                "sinceServiceMs=${elapsed(at, request.serviceReceivedAt)} " +
+                "monotonicMs=$at (not audible-output proof)",
+            about = videoId,
+        )
+    }
+
     /**
      * The log for [song]: the lines about that track, plus the ones about
      * nothing in particular, from where its own story starts.

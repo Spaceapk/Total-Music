@@ -1,0 +1,98 @@
+name: Total Music 1.6.0 physical benchmark build
+
+permissions:
+  contents: read
+  checks: write
+
+on:
+  push:
+    branches:
+      - arena/eef105a8-total-music
+    paths:
+      - '.github/workflows/total-music-160-physical-benchmark-build.yml'
+      - 'app/build.gradle.kts'
+      - 'app/src/measurement/**'
+      - 'app/src/main/java/com/music/bitchord/ui/screens/LocalMusicScreen.kt'
+      - 'build.gradle.kts'
+      - 'macrobenchmark/**'
+      - 'scripts/performance/publish_build_check.py'
+      - 'settings.gradle.kts'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ORG_GRADLE_PROJECT_spaceNdkVersion: 27.0.12077973
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+
+      - name: Install required Android SDK
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then
+            ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
+          fi
+
+      - name: Compile the release-like physical benchmark target
+        run: |
+          mkdir -p physical-benchmark-artifacts
+          set +e
+          ./gradlew '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8 -Djava.net.preferIPv4Stack=true' \
+            --max-workers=2 :app:assembleProdMeasurement :macrobenchmark:assembleMeasurement \
+            -PspaceSpatialEdition=true --build-cache --stacktrace \
+            > physical-benchmark-artifacts/gradle.log 2>&1
+          rc=$?
+          echo "$rc" > physical-benchmark-artifacts/exit-code.txt
+          tail -n 100 physical-benchmark-artifacts/gradle.log
+          exit 0
+
+      - name: Publish bounded build diagnostics
+        if: always()
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/performance/publish_build_check.py
+
+      - name: Record hashes and signing status
+        if: always()
+        run: |
+          mkdir -p physical-benchmark-artifacts
+          find app/build/outputs/apk/prod/measurement macrobenchmark/build/outputs/apk/measurement \
+            -type f -name '*.apk' -exec cp '{}' physical-benchmark-artifacts/ \; 2>/dev/null || true
+          {
+            echo 'package=org.nexlibre.totalmusic'
+            echo 'target_variant=prodMeasurement (release-like, non-debuggable, profileable)'
+            echo 'release_signing=only if the checkout has the existing local release keystore; CI is unsigned'
+            echo 'physical_execution=not run by this build-only workflow'
+            find physical-benchmark-artifacts -type f -name '*.apk' -print0 | sort -z | xargs -0 -r sha256sum
+          } > physical-benchmark-artifacts/README.txt
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-160-physical-benchmark-build-${{ github.sha }}
+          path: physical-benchmark-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Preserve the compilation result
+        if: always()
+        run: |
+          test -f physical-benchmark-artifacts/exit-code.txt
+          test "$(cat physical-benchmark-artifacts/exit-code.txt)" -eq 0

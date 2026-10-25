@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Diagnostic-only: retain the same profiling/measurement capability as
+         prodMeasurement without changing the normal release manifest. The
+         literal label also wins over localized main app_name resources. -->
+    <application
+        android:label="Total Music Debug"
+        tools:replace="android:label">
+        <profileable android:shell="true" />
+    </application>
+</manifest>

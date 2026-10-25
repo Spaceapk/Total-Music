@@ -80,7 +80,8 @@ class AndroidAutoMediaLibraryTest {
         assertNotNull("Children list must not be null", items)
         assertTrue("Top-level children must not be empty", items!!.isNotEmpty())
 
-        val expectedRootOrder = listOf("quick_picks", "recents", "playlists", "liked", "more")
+        // Total Music exposes the device library; the upstream online root is intentionally disabled.
+        val expectedRootOrder = listOf("local_music")
         assertEquals("Root must expose the pinned Android Auto folders", expectedRootOrder, items.map { it.mediaId })
         items.forEach {
             assertTrue("Root child ${it.mediaId} must be browsable", it.mediaMetadata.isBrowsable == true)

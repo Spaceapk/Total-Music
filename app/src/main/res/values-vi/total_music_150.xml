@@ -1,0 +1,28 @@
+<resources>
+    <string name="sort_track_number">Số bài hát</string>
+    <string name="release_history">Có gì mới · Lịch sử phiên bản</string>
+    <string name="playlist_added_count">Đã thêm %1$d bài hát</string>
+    <string name="release_notes_unavailable">Bản dựng này không có ghi chú phát hành đi kèm.</string>
+    <string name="local_song_information">Thông tin bài hát</string>
+    <string name="local_delete_file">Xóa tệp khỏi thiết bị</string>
+    <string name="local_delete_file_confirm">Xóa «%1$s» khỏi thiết bị? Không thể hoàn tác thao tác này.</string>
+    <string name="local_file_deleted">Đã xóa tệp</string>
+    <string name="local_file_delete_failed">Không thể xóa tệp</string>
+    <string name="meta_title">Tiêu đề</string>
+    <string name="meta_artist">Nghệ sĩ</string>
+    <string name="meta_album">Album</string>
+    <string name="meta_album_artist">Nghệ sĩ album</string>
+    <string name="meta_composer">Nhạc sĩ</string>
+    <string name="meta_writer">Người viết lời</string>
+    <string name="meta_author">Tác giả</string>
+    <string name="meta_year">Năm</string>
+    <string name="meta_genre">Thể loại</string>
+    <string name="meta_track">Số bài hát</string>
+    <string name="meta_disc">Số đĩa</string>
+    <string name="meta_bitrate">Tốc độ bit (bit/giây)</string>
+    <string name="meta_duration">Thời lượng (ms)</string>
+    <string name="meta_format">Định dạng</string>
+    <string name="meta_location">Vị trí</string>
+    <string name="meta_filename">Tên tệp</string>
+    <string name="meta_size">Kích thước</string>
+</resources>

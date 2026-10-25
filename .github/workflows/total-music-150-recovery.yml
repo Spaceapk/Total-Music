@@ -1,0 +1,102 @@
+name: Recover and verify Total Music 1.5.0 source
+on:
+  push:
+    branches: [work/total-music-1.5.0-recovery]
+    paths: ['.github/workflows/total-music-150-recovery.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write
+jobs:
+  apply-and-dispatch:
+    if: github.repository == 'Spaceapk/Total-Music' && github.ref == 'refs/heads/work/total-music-1.5.0-recovery'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      ORG_GRADLE_PROJECT_spaceNdkVersion: '27.0.12077973'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Apply checked source patch without overwriting newer changes
+        env:
+          PATCH_SHA256: 586de6daca78228b66da825906cd6fcd74f9427cef04a40a2c1fc630920a563c
+          PATCH_B64: |
+            H4sIAAAAAAACA61UTVMbRxC9769oyzlIJbSSEAJhF1UmFOUQ85Eysq9U70zLtJmdWc/MylYo/6AccspP4I+lZ5eNsV0VLnBYVjs9
+            r9/rft2aVysYjT5wBBxjVY2DV2O02jvWSwpx/BHXOFauHJd1YDUuOKpr5/X4sI05rKM7I814yoVHv0l38psIxROCZWw1fQG9mE/3
+            C8I8R9yZ4wxnMJ1Mdnd2stFo9KTss+Fw+LQKXr2C0WKytQdDeS5AfiqDIcD/XIPbDLo/CSUfz108r43p946u2WhPFgxLnDCJYJ3U
+            nMDKeW8LOFIZBj/eX/qa+r2lq0aG1mRAdTAPEais4qaDePYs5yBpj9PH/kAQs1GHuUYD9KUiFUm/dS5eeE0eDhpOF6t+71PN6uaq
+            kkcQuJ4nRTY2r5XBTYpqfhi+IZ1eSuepN8iGHf54DEsXJclZqnRK5QIFiNcEmtasSDI1xXrZfKurED1hCc4atgReKAEHYBslLzuL
+            xmxAc8DCkM6/5XlMh3EKzVXT7t5PJT3+VKMJ/V662Jax5dlQqtha0l2PITUZVs4IfFL+U877muclVnAr73mZHHGi4euDtG3Iyvlj
+            VNcPLfJjmxtGTYfhl9tvYF9bltLowrvPTTGaZrfnZxRRY0Tp+q/dMRwcQBTIQaYf7grtVBgvL5aHp1dn7y5Pjq6m+TyfXF0uD5fv
+            LvNSy/w8FnI/16hW892F3s/z6Wx7voeL7e/n+lGYdlofDUszuLe7NYOhPKezNIRsgzgMFd/9Y8EyVKKzQPFXYxu/wj8h1BV5KUoO
+            l2KygPDm/RnIzLzm+FtdQIUeQTlxmK3RZ3CKcPjHSUKgoDzH2jdw99Fi3JrMmmBnMnsJBmF99zfCZ0onRrK7iqUDnh1I0pKj8MoS
+            urR1jR6MC6CwLFj+CwWPJUJgC2iErJyXyDaHcwdiwGu0UNWFYYXaCac3QiimfoYsKQ3iAmHHciabaE0hT9RlSBu5bUGCM0Kkpk5M
+            wT6lDXWbWYtjVKpMNsyGz5/DWwq1iSmbXBBtoRazApaVYYlKQUdNYdScdqZ6sv8Cfn9/tiVzZiNsGoaeDKFwV84Lkygq+762UqzJ
+            9t58sj3b3xtIstMOWtZwZaRe0ixOjGF7976D4QVMFwJ3TygkYUJf3rZSOUFAV7IPEtNs2A4iRl4jXJMnLWyTzu/mti/9SV2QRA6a
+            lQAbbIbdphY+WBICaJP8IimZ5jv5dCDyaoutp3xdtdWVSniSlutatR+UY6tYy7aihmR195fXnCqXzEFlbUSK7/qbXCHBHlOy0OlO
+            miMKQgAU7EKkhMa5qaT8QdQahIeCRUdyr8f4n6yEbljch1CSbGXG1uXClqJYoGuttOJ+XzQFRrFWukofxUQxuc9zSd61l10ha1j2
+            qmxuUag4VUMLoNWcBOfZv9CSMMOJCAAA
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor c5e41d099e2dcbb8470695850b7d34a2babc49cd HEAD
+          printf '%s' "$PATCH_B64" | base64 --decode | gzip --decompress > "$RUNNER_TEMP/total-music-150.patch"
+          echo "$PATCH_SHA256  $RUNNER_TEMP/total-music-150.patch" | sha256sum -c -
+          if git apply --reverse --check "$RUNNER_TEMP/total-music-150.patch" 2>/dev/null; then
+            echo 'Source patch is already applied.'
+          else
+            git apply --check "$RUNNER_TEMP/total-music-150.patch"
+            git apply "$RUNNER_TEMP/total-music-150.patch"
+            python3 scripts/release/check_release.py
+            git diff --check
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add app shared scripts/release/check_release.py total-music-release.properties docs/TOTAL_MUSIC_1.5.0_STATUS.md
+            git commit -m 'Add real container metadata regression fixtures and update validation status'
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
+          git rev-parse HEAD
+      - name: Start the maintained Android verification workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run total-music-android.yml --ref "$GITHUB_REF_NAME"
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools emulator system-images;android-33;google_apis;x86_64
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+      - name: Install build tools
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+      - name: Run album, selection and playlist regression on Android 13
+        run: |
+          set -euo pipefail
+          mkdir -p device-results
+          git rev-parse HEAD > device-results/source-commit.txt
+          adb start-server
+          sudo chmod a+rw /dev/kvm
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/total-music-150-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd -n totalmusic150 -k 'system-images;android-33;google_apis;x86_64' --force
+          "$ANDROID_HOME/emulator/emulator" -avd totalmusic150 -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -gpu swiftshader_indirect -feature -Vulkan -cores 2 -memory 1536 > device-results/emulator.log 2>&1 &
+          timeout 120 adb wait-for-device
+          timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
+          adb shell input keyevent 82
+          adb logcat -v threadtime > device-results/logcat.txt 2>&1 &
+          chmod +x gradlew
+          ./gradlew '-Dorg.gradle.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8' --max-workers=2 :app:connectedProdDebugAndroidTest -PspaceSpatialEdition=true '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.LocalTrackMetadataTest' --build-cache --stacktrace
+          ./gradlew '-Dorg.gradle.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8' --max-workers=2 :app:connectedProdDebugAndroidTest -PspaceSpatialEdition=true '-Pandroid.testInstrumentationRunnerArguments.notClass=com.music.bitchord.LocalTrackMetadataTest' --build-cache --stacktrace
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-150-android-ui-${{ github.event.workflow_run.head_sha || github.sha }}
+          path: |
+            device-results/
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          retention-days: 14

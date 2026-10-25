@@ -8,6 +8,7 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.View
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -132,6 +133,7 @@ import com.music.bitchord.data.listentogether.JamInviteLink
 import com.music.bitchord.data.listentogether.ListenTogether
 import com.music.bitchord.data.listentogether.partyQueueIndexOf
 import com.music.bitchord.data.NerdStats
+import com.music.bitchord.data.MonotonicClock
 import com.music.bitchord.data.TrackLog
 import com.music.bitchord.data.innertube.InnertubeParser
 import com.music.bitchord.data.model.BrowseType
@@ -472,6 +474,7 @@ private fun BitChordApp(
     // Recording the backdrop layer costs a draw pass, so it only runs when a
     // liquid-glass surface (the nav bar or artwork-page back button) can sample it.
     val glassActive = LocalLiquidGlassEnabled.current
+    val expressiveNavigation by com.music.bitchord.data.settings.TotalMusicSettings.expressive.collectAsStateWithLifecycle()
     val adaptiveGlass by com.music.bitchord.data.settings.TotalMusicSettings.adaptiveGlass.collectAsStateWithLifecycle()
     // "Reduce dynamic blur" keeps the glass bar's *shape* — the folding
     // now-playing-and-tabs component is a layout, not an effect, and dropping
@@ -703,10 +706,8 @@ private fun BitChordApp(
     var showWhatsNew by rememberSaveable {
         mutableStateOf(updatePreferences.getInt("seen_version", 0) < BuildConfig.VERSION_CODE)
     }
-    val installedNotes = remember {
-        if (updatePreferences.getString("pending_version", null) == BuildConfig.VERSION_NAME)
-            updatePreferences.getString("pending_notes", null)?.takeIf { it.isNotBlank() }
-        else null
+    val installedNotes = remember(context) {
+        com.music.bitchord.data.ReleaseNotes.installed(context)
     }
     var updateDialogShown by rememberSaveable { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -1278,18 +1279,57 @@ private fun BitChordApp(
     }
 
     val playFrom: (List<Song>, Int, QueueSource) -> Unit = playFrom@{ allSongs, allIndex, source ->
+        // Start at the UI callback, not after filtering and building the
+        // context queue: that preparation is part of the listener's wait.
+        val requestStartedAtMs = MonotonicClock.nowMs()
         // A Spotify page lists songs it has not found on YouTube Music yet (or
         // never will); those can't be queued, so play the rest in their order.
         if (allSongs.getOrNull(allIndex)?.isUnresolvedSpotify == true) return@playFrom
+        val filterStartedAt = SystemClock.elapsedRealtimeNanos()
         val songs = allSongs.filterNot { it.isUnresolvedSpotify }
+        val filterNanos = SystemClock.elapsedRealtimeNanos() - filterStartedAt
+        val indexStartedAt = SystemClock.elapsedRealtimeNanos()
         val index = songs.indexOf(allSongs.getOrNull(allIndex)).coerceAtLeast(0)
+        val indexNanos = SystemClock.elapsedRealtimeNanos() - indexStartedAt
+        songs.getOrNull(index)?.let { selected ->
+            TrackLog.onPlaybackRequestReceived(
+                videoId = selected.videoId,
+                previousVideoId = player.song?.videoId,
+                route = "manual_library",
+                requestedAt = requestStartedAtMs,
+                queueSize = songs.size,
+            )
+            TrackLog.onQueuePhase(
+                selected.videoId,
+                "library_filter",
+                filterNanos / 1_000L,
+                allSongs.size,
+                "kept=${songs.size}",
+            )
+            TrackLog.onQueuePhase(
+                selected.videoId,
+                "selected_index_lookup",
+                indexNanos / 1_000L,
+                songs.size,
+            )
+        }
         playRequestGeneration++
         activeRadioSeed = null
         scope.launch {
             if (refusedByHost()) return@launch
             val c = controller ?: return@launch
-            val currentTimeline = player.queue.takeIf { it.size == c.mediaItemCount }
+            val selectedVideoId = songs.getOrNull(index)?.videoId
+            val cachedQueue = player.queue.takeIf { it.size == c.mediaItemCount }
+            val snapshotStartedAt = SystemClock.elapsedRealtimeNanos()
+            val currentTimeline = cachedQueue
                 ?: (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toSong() }
+            TrackLog.onQueuePhase(
+                selectedVideoId,
+                "current_queue_snapshot",
+                (SystemClock.elapsedRealtimeNanos() - snapshotStartedAt) / 1_000L,
+                currentTimeline.size,
+                "cached=${cachedQueue != null}",
+            )
             val currentIndex = c.currentMediaItemIndex
 
             if (ListenTogether.state.value.inParty) {
@@ -1307,8 +1347,9 @@ private fun BitChordApp(
                     source = source,
                     upcomingPartyTracks = upcomingPartyTracks,
                 )
-                c.playSongs(timeline, 0)
+                c.playSongs(timeline, 0, requestStartedAtMs)
             } else {
+                val contextStartedAt = SystemClock.elapsedRealtimeNanos()
                 val result = QueueCoordinator.buildContextQueue(
                     currentTimeline = currentTimeline,
                     currentIndex = currentIndex,
@@ -1316,7 +1357,13 @@ private fun BitChordApp(
                     selectedIndex = index,
                     contextSource = source,
                 )
-                c.playSongs(result.timeline, result.startIndex)
+                TrackLog.onQueuePhase(
+                    selectedVideoId,
+                    "context_queue_build",
+                    (SystemClock.elapsedRealtimeNanos() - contextStartedAt) / 1_000L,
+                    result.timeline.size,
+                )
+                c.playSongs(result.timeline, result.startIndex, requestStartedAtMs)
             }
             // Start playback in the mini-player; the user opens the full view by tapping it.
         }
@@ -2119,7 +2166,7 @@ private fun BitChordApp(
     val floatingBarsHeight = remember { mutableIntStateOf(0) }
     val bottomContentPadding = with(LocalDensity.current) {
         // Keep list geometry stable while the overlay morphs; it can reveal rows without moving them.
-        if (glassActive && adaptiveGlass) { if (player.song != null) 184.dp else 120.dp }
+        if ((glassActive || expressiveNavigation) && adaptiveGlass) { if (player.song != null) 184.dp else 120.dp }
         else if (floatingBarsHeight.intValue > 0) floatingBarsHeight.intValue.toDp() + 20.dp
         else if (player.song != null) 164.dp else 100.dp
     }
@@ -2575,7 +2622,7 @@ private fun BitChordApp(
                     modifier = Modifier
                         .hazeSource(hazeState)
                         .then(
-                            if (glassActive) {
+                            if (glassActive || (expressiveNavigation && adaptiveGlass)) {
                                 Modifier
                                     // Not under "reduce dynamic blur": nothing
                                     // samples the layer then, and recording a
@@ -3734,8 +3781,9 @@ private fun BitChordApp(
                         .onSizeChanged { floatingBarsHeight.intValue = it.height },
                 ) {
                     QueueActionNoticeHost(queueNotice)
-                    if (glassActive && adaptiveGlass) {
+                    if ((glassActive || expressiveNavigation) && adaptiveGlass) {
                         GlassNavBar(
+                            materialSurface = expressiveNavigation && !glassActive,
                             tabs = listOf(
                                 BottomTab(stringResource(R.string.songs), Icons.Rounded.MusicNote),
                                 BottomTab(stringResource(R.string.albums), Icons.Rounded.Album),
@@ -4111,6 +4159,12 @@ private fun BitChordApp(
             SongActionsSheet(
                 song = song,
                 presentation = presentation,
+                onLocalFileDeleted = {
+                    songActions = null
+                    viewModel.loadLibrarySongs()
+                    viewModel.reloadLocalDetail("local:all")
+                    viewModel.reloadLocalDetail("local:downloads")
+                },
                 signedIn = signedIn,
                 likeStatus = likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
                 onPlayNext = { playNext(song); songActions = null },
@@ -4755,7 +4809,7 @@ private fun BitChordApp(
                 title = { Text(stringResource(R.string.space_whats_new, BuildConfig.VERSION_NAME)) },
                 text = {
                     Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
-                        Text(installedNotes ?: stringResource(R.string.space_whats_new_body))
+                        Text(installedNotes)
                     }
                 },
                 confirmButton = {

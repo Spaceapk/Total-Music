@@ -626,7 +626,7 @@ class PlaybackService : MediaLibraryService() {
     /** Last sampled position of the playing track, in seconds. */
     private var lastPositionSeconds = 0L
 
-    /** When the current track was chosen, for the time-to-first-audio log. */
+    /** When the current track was chosen, for the isPlaying-callback timing log. */
     private var trackSelectedAt: Long? = null
 
     /**
@@ -807,25 +807,27 @@ class PlaybackService : MediaLibraryService() {
             // The player this fired on, which is by definition the one the
             // session is currently pointed at.
             val exoPlayer = player ?: return
-            // The only number that describes what a listener actually
-            // waits through. Every other timing in this app measures one
-            // leg of getting a track started — a resolve, a client walk, an
-            // extraction — and a leg being fast has repeatedly turned out
-            // to say nothing about whether sound arrived quickly, because
-            // the legs that were measured were the ones running in the
-            // background for tracks nobody was waiting on.
+            // A request-to-isPlaying interval is the closest player-side
+            // proxy for what a listener waits through. It is not proof of
+            // audible output; the exported timing deliberately says so.
+            // Every other timing in this app measures one leg of getting a
+            // track started — a resolve, a client walk, an extraction — and a
+            // leg being fast does not by itself establish when sound arrived.
             if (isPlaying) {
+                exoPlayer.currentMediaItem?.mediaId?.let(TrackLog::onIsPlayingCallback)
                 trackSelectedAt?.let {
                     TrackLog.d(
                         "BitChord",
-                        "TIMING first audio: ${SystemClock.elapsedRealtime() - it}ms since track selected",
+                        "TIMING isPlaying after track selected: " +
+                            "${SystemClock.elapsedRealtime() - it}ms (not audible-output proof)",
                         about = exoPlayer.currentMediaItem?.mediaId,
                     )
                     trackSelectedAt = null
                 }
-                // Sound is out of the speaker, so whatever happens to this track
-                // from here is a failure mid-song. Also the one thing that can
-                // say the queue is not simply unplayable end to end.
+                // The player reports isPlaying, so whatever happens to this
+                // track from here is treated as a failure mid-song. Also the
+                // one thing that can say the queue is not simply unplayable
+                // end to end. This callback alone is not audible-output proof.
                 audibleMediaId = exoPlayer.currentMediaItem?.mediaId
                 consecutiveErrorSkips = 0
             }
@@ -999,6 +1001,14 @@ class PlaybackService : MediaLibraryService() {
             // The player this fired on, which is by definition the one the
             // session is currently pointed at.
             val exoPlayer = player ?: return
+            val timingState = when (state) {
+                Player.STATE_IDLE -> "IDLE"
+                Player.STATE_BUFFERING -> "BUFFERING"
+                Player.STATE_READY -> "READY"
+                Player.STATE_ENDED -> "ENDED"
+                else -> state.toString()
+            }
+            TrackLog.onAudioState(exoPlayer.currentMediaItem?.mediaId, timingState)
             if (state == Player.STATE_ENDED) {
                 SleepTimer.cancel()
                 // The queue ran dry, so no transition will ever close the last
@@ -2929,7 +2939,7 @@ class PlaybackService : MediaLibraryService() {
         if (alreadyAudible) {
             TrackLog.d(
                 "BitChord",
-                "TIMING first audio: 0ms, the crossfade covered it",
+                "TIMING isPlaying after track selected: 0ms (crossfade; not audible-output proof)",
                 about = mediaItem?.mediaId,
             )
             // The other way a track becomes audible. `onIsPlayingChanged` never
@@ -2952,11 +2962,7 @@ class PlaybackService : MediaLibraryService() {
                 mediaItem.localConfiguration?.uri?.let(QualityUpgrade::cacheTag),
             )
         }
-        TrackLog.d(
-            "BitChord",
-            "TIMING track selected: ${mediaItem?.mediaId} (reason=$reason)",
-            about = mediaItem?.mediaId,
-        )
+        TrackLog.onTrackSelected(mediaItem?.mediaId, reason)
 
         // currentPosition already belongs to the new item by now, so
         // the outgoing track is closed out on the last sampled value.
@@ -6884,7 +6890,34 @@ class PlaybackService : MediaLibraryService() {
          */
         private fun locked(): Boolean = ListenTogether.state.value.controlsLocked
 
+        private fun logNextRequest() {
+            val nextIndex = wrappedPlayer.nextMediaItemIndex
+            val nextId = if (nextIndex in 0 until wrappedPlayer.mediaItemCount) {
+                wrappedPlayer.getMediaItemAt(nextIndex).mediaId
+            } else {
+                null
+            }
+            TrackLog.onNextRequestReceived(
+                nextId,
+                wrappedPlayer.currentMediaItem?.mediaId,
+                wrappedPlayer.mediaItemCount,
+            )
+        }
+
+        override fun prepare() {
+            val targetId = wrappedPlayer.currentMediaItem?.mediaId
+            TrackLog.onAudioPrepare(targetId)
+            val startedAt = SystemClock.elapsedRealtimeNanos()
+            super.prepare()
+            TrackLog.onQueuePhase(
+                targetId,
+                "player_prepare",
+                (SystemClock.elapsedRealtimeNanos() - startedAt) / 1_000L,
+            )
+        }
+
         override fun play() {
+            TrackLog.onPlayCommand(wrappedPlayer.currentMediaItem?.mediaId)
             // Locked, this plays only here — the party carries on untouched and
             // this device rejoins it wherever it has got to. See
             // [PartySync.onLockedTransport], which owns that catch-up.
@@ -6993,8 +7026,17 @@ class PlaybackService : MediaLibraryService() {
 
         override fun setMediaItems(mediaItems: List<MediaItem>, resetPosition: Boolean) {
             if (locked()) return
+            val targetId = mediaItems.firstOrNull()?.mediaId
+            TrackLog.onPlayerQueueReceived(targetId, mediaItems.size)
             onUserIntent()
+            val startedAt = SystemClock.elapsedRealtimeNanos()
             super.setMediaItems(mediaItems, resetPosition)
+            TrackLog.onQueuePhase(
+                targetId,
+                "player_set_media_items",
+                (SystemClock.elapsedRealtimeNanos() - startedAt) / 1_000L,
+                mediaItems.size,
+            )
         }
 
         override fun setMediaItems(
@@ -7003,8 +7045,17 @@ class PlaybackService : MediaLibraryService() {
             startPositionMs: Long,
         ) {
             if (locked()) return
+            val targetId = mediaItems.getOrNull(startIndex)?.mediaId
+            TrackLog.onPlayerQueueReceived(targetId, mediaItems.size)
             onUserIntent()
+            val startedAt = SystemClock.elapsedRealtimeNanos()
             super.setMediaItems(mediaItems, startIndex, startPositionMs)
+            TrackLog.onQueuePhase(
+                targetId,
+                "player_set_media_items",
+                (SystemClock.elapsedRealtimeNanos() - startedAt) / 1_000L,
+                mediaItems.size,
+            )
         }
 
         // Every other way the running order can change from outside: Play next,
@@ -7141,6 +7192,7 @@ class PlaybackService : MediaLibraryService() {
 
         override fun seekToNextMediaItem() {
             if (locked()) return
+            logNextRequest()
             onUserIntent()
             crossfade.onSkipRequested()
             wrappedPlayer.seekToNextMediaItem()
@@ -7148,6 +7200,7 @@ class PlaybackService : MediaLibraryService() {
 
         override fun seekToNext() {
             if (locked()) return
+            logNextRequest()
             onUserIntent()
             crossfade.onSkipRequested()
             wrappedPlayer.seekToNext()
@@ -7428,14 +7481,27 @@ class PlaybackService : MediaLibraryService() {
             mediaItems: List<MediaItem>,
             startIndex: Int,
             startPositionMs: Long,
-        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.future(Dispatchers.IO) {
-            val resolved = resolveMediaItems(mediaItems)
-            val validIndex = startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0))
-            MediaSession.MediaItemsWithStartPosition(
-                ImmutableList.copyOf(resolved),
-                validIndex,
-                startPositionMs.coerceAtLeast(0L),
-            )
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val targetId = mediaItems.getOrNull(startIndex)?.mediaId
+            return scope.future(Dispatchers.IO + TrackLog.about(targetId)) {
+                val startedAt = SystemClock.elapsedRealtimeNanos()
+                val resolved = resolveMediaItems(mediaItems)
+                TrackLog.onQueuePhase(
+                    targetId,
+                    "session_resolve",
+                    (SystemClock.elapsedRealtimeNanos() - startedAt) / 1_000L,
+                    mediaItems.size,
+                    "resolved=${resolved.size}",
+                )
+                val validIndex = startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0))
+                MediaSession.MediaItemsWithStartPosition(
+                    ImmutableList.copyOf(resolved),
+                    validIndex,
+                    startPositionMs.coerceAtLeast(0L),
+                )
+            }.also {
+                TrackLog.onSessionQueueReceived(targetId, mediaItems.size)
+            }
         }
 
         override fun onAddMediaItems(
