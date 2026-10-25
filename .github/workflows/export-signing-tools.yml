@@ -1,0 +1,44 @@
+name: Export Android Build Tools for local signing
+on:
+  push:
+    branches:
+      - codex/signing-tools-bootstrap-20261024
+    paths:
+      - .github/workflows/export-signing-tools.yml
+permissions:
+  contents: read
+jobs:
+  export-tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+      - name: Install Android Build Tools 36.0.0
+        run: sdkmanager 'build-tools;36.0.0'
+      - name: Check and package public tools only
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          test -x "$tools/apksigner"
+          test -x "$tools/zipalign"
+          test -x "$tools/aapt"
+          "$tools/apksigner" version
+          "$tools/aapt" version
+          "$tools/zipalign" -h >/dev/null 2>&1 || true
+          mkdir -p export
+          tar -czf export/android-build-tools-36.0.0-linux.tar.gz -C "$ANDROID_HOME/build-tools" 36.0.0
+          sha256sum export/android-build-tools-36.0.0-linux.tar.gz > export/SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-build-tools-36.0.0-linux
+          path: export/
+          if-no-files-found: error
+          retention-days: 3
