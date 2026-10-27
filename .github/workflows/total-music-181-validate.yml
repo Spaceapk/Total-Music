@@ -121,6 +121,7 @@ jobs:
         run: |
           set -o pipefail
           ./gradlew :app:assembleProdDebug :app:assembleProdMeasurement :app:assembleProdRelease \
+            :app:assembleProdDebugAndroidTest \
             --max-workers=2 --build-cache --stacktrace \
             -PspaceSpatialEdition=true -PtotalMusicMeasurementDebugSigning=true \
             2>&1 | tee ci-logs/assemble.log
@@ -633,7 +634,7 @@ jobs:
               echo "<details><summary>ui-test.log, interesting lines</summary>"
               echo
               echo '```'
-              grep -E '(FAILED|AssertionError|Process crashed|INSTRUMENTATION|not found|No connected devices|Exception)' ui-test.log 2>/dev/null | head -40 || tail -40 ui-test.log
+              grep -E '^(e: |w: .*androidTest)|FAILED|AssertionError|Process crashed|INSTRUMENTATION|not found|No connected devices|Exception|What went wrong|Caused by:' ui-test.log 2>/dev/null | head -60 || tail -60 ui-test.log
               echo '```'
               echo "</details>"
             fi
