@@ -49,6 +49,8 @@ on:
       - 'total-music-release.properties'
       - 'scripts/release/**'
       - 'scripts/verify/rebirth_check.py'
+      - 'scripts/verify/device_probe.py'
+      - 'app/src/androidTest/**'
   workflow_dispatch:
     inputs:
       pr:
@@ -479,12 +481,24 @@ jobs:
                   parts += [f"#### {title}", "", "(the probe never ran)", ""]
                   continue
               text = open(name, encoding="utf-8", errors="replace").read()
-              keep = [line for line in text.splitlines()
-                      if line.startswith(("==", "::", "- ", "style file", "launch", "GOOGLE", "LIQUID", "Installing", "Success", "Failure"))
+              lines = text.splitlines()
+              # The verdict first: the notes and the failure list are what the
+              # reader needs, and the step-by-step headings are evidence for it.
+              verdict, inside = [], False
+              for line in lines:
+                  if line.startswith("== notes") or line.startswith("== failures"):
+                      inside = True
+                  if inside:
+                      verdict.append(line)
+              keep = [line for line in lines
+                      if line.startswith(("==", "::", "style file", "launch", "Installing", "Success", "Failure", "DEAD"))
                       or "crash=" in line or "pid=" in line or "FATAL" in line or "Exception" in line]
-              if len(keep) > 120:
-                  keep = keep[:120] + ["… truncated"]
-              parts += [f"<details><summary>{title}</summary>", "", "```", *keep, "```", "</details>", ""]
+              if len(keep) > 200:
+                  keep = keep[:200] + ["… truncated"]
+              parts += [f"<details><summary>{title}</summary>", ""]
+              if verdict:
+                  parts += ["**Verdict**", "", "```", *verdict[:40], "```", ""]
+              parts += ["**Steps**", "", "```", *keep, "```", "</details>", ""]
           print("\n".join(parts)[:60000])
           PY
           tail -40 device-comment.md
@@ -499,3 +513,148 @@ jobs:
             emulator.log
           if-no-files-found: warn
           retention-days: 30
+
+  ui:
+    # The crash this release fixes was native: RenderThread walking a render
+    # tree that contained itself. No JVM test can see it — there is no
+    # RenderThread and no RenderNode — and a tap-driven probe can only report
+    # that the process was already gone. So the shell is composed and drawn by a
+    # Compose UI test on a real emulator, and the redraw after Settings is part
+    # of the test rather than an aside.
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools emulator system-images;android-33;google_apis;x86_64
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+
+      - name: Install the SDK this project compiles against
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+
+      - name: Boot Android 13
+        run: |
+          set -euo pipefail
+          sudo chmod a+rw /dev/kvm || { echo "no /dev/kvm on this runner"; exit 1; }
+          adb start-server >/dev/null
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd -n ui -k 'system-images;android-33;google_apis;x86_64' --force
+          echo "disk.dataPartition.size=6G" >> "$ANDROID_AVD_HOME/ui.avd/config.ini"
+          echo "hw.ramSize=3072" >> "$ANDROID_AVD_HOME/ui.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -avd ui -no-window -no-audio -no-boot-anim \
+            -no-snapshot -no-metrics -gpu swiftshader_indirect -cores 4 -memory 3072 \
+            > emulator-ui.log 2>&1 &
+          timeout 300 adb wait-for-device
+          timeout 900 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb devices
+          echo "booted"
+
+      - name: Compose and draw the rebirth shell
+        id: uitest
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          # One ABI: the emulator is x86_64, and building the other three native
+          # ABIs would add minutes to prove nothing.
+          ./gradlew :app:connectedProdDebugAndroidTest \
+            -PspaceSpatialEdition=true \
+            -Pandroid.injected.build.abi=x86_64 \
+            '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest' \
+            --max-workers=2 --build-cache --stacktrace 2>&1 | tee ui-test.log
+
+      - name: Read the UI test results
+        if: always()
+        run: |
+          python3 - <<'PY' > ui-test-summary.md
+          import glob, xml.etree.ElementTree as ET
+          rows, total, failed = [], 0, 0
+          for path in sorted(glob.glob("app/build/outputs/androidTest-results/connected/**/*.xml", recursive=True)):
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception as error:
+                  rows.append(f"- could not read {path}: {error}")
+                  continue
+              for case in root.iter("testcase"):
+                  total += 1
+                  problem = case.find("failure")
+                  if problem is None:
+                      problem = case.find("error")
+                  name = f"{case.get('classname','?').split('.')[-1]} > {case.get('name')}"
+                  if problem is None:
+                      rows.append(f"- passed: {name}")
+                      continue
+                  failed += 1
+                  rows.append(f"- **failed: {name}**")
+                  body = (problem.text or "").strip().splitlines()
+                  rows += [f"  `{line.strip()[:200]}`" for line in body[:6]]
+          if failed:
+              print(f"### Rebirth shell UI test: **{failed} failed** of {total}")
+          elif total:
+              print(f"### Rebirth shell UI test: **{total} passed**")
+          else:
+              print("### Rebirth shell UI test: **no result**")
+          print()
+          print("\n".join(rows) if rows else "No report was written; see the log.")
+          PY
+          cat ui-test-summary.md
+
+      - name: Report the UI test on the pull request
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr || '4' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OUTCOME: ${{ steps.uitest.outcome }}
+        run: |
+          set -uo pipefail
+          {
+            echo "Run: ${RUN_URL}"
+            echo
+            cat ui-test-summary.md 2>/dev/null || echo "no summary"
+            if [ "${OUTCOME}" != "success" ]; then
+              echo
+              echo "<details><summary>ui-test.log, interesting lines</summary>"
+              echo
+              echo '```'
+              grep -E '(FAILED|AssertionError|Process crashed|INSTRUMENTATION|not found|No connected devices|Exception)' ui-test.log 2>/dev/null | head -40 || tail -40 ui-test.log
+              echo '```'
+              echo "</details>"
+            fi
+          } > ui-test-comment.md
+          gh pr comment "$PR_NUMBER" --body-file ui-test-comment.md || echo "could not comment"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-181-uitest
+          path: |
+            ui-test.log
+            ui-test-summary.md
+            app/build/outputs/androidTest-results/
+            app/build/reports/androidTests/
+            emulator-ui.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Fail when the UI test failed
+        if: steps.uitest.outcome != 'success'
+        run: |
+          echo "The rebirth shell UI test did not pass; see the comment and ui-test-summary.md."
+          exit 1
