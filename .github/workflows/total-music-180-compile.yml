@@ -57,12 +57,8 @@ jobs:
           ./gradlew :app:compileProdDebugKotlin --max-workers=2 --build-cache --stacktrace \
             -PspaceSpatialEdition=true 2>&1 | tee ci-logs/compile.log
 
-      - name: Run the rebirth unit tests that had never run
-        run: |
-          set -o pipefail
-          ./gradlew :app:testProdDebugUnitTest --tests 'com.music.bitchord.ui.rebirth.*' \
-            --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true 2>&1 | tee ci-logs/test.log
-
+      # Before the tests, deliberately: a failing assertion must still leave a
+      # test APK to install, and the job still reports the failure at the end.
       - name: Assemble the debug test APK
         run: |
           set -o pipefail
@@ -75,17 +71,59 @@ jobs:
           set -euo pipefail
           APK=$(find app/build/outputs/apk/prod/debug -name '*.apk' | head -1)
           echo "APK=$APK"
-          sha256sum "$APK" > ci-logs/apk-sha256.txt
-          cat ci-logs/apk-sha256.txt
           {
-            echo "### Test APK (debug signature)"
+            echo "### Test APK"
+            echo
+            echo 'The APK in the artifact is built from `prodDebug`: **signed with'
+            echo 'the Android debug certificate**, debuggable, not a release and'
+            echo 'not installable over a build signed with the release key.'
             echo
             echo '```'
             sha256sum "$APK"
-            "$ANDROID_HOME"/build-tools/36.0.0/apksigner verify --print-certs --verbose "$APK" || true
+            "$ANDROID_HOME"/build-tools/36.0.0/apksigner verify --print-certs "$APK" || true
             echo '```'
           } > ci-logs/apk-signature.txt
           cat ci-logs/apk-signature.txt
+
+      - name: Run the rebirth unit tests
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./gradlew :app:testProdDebugUnitTest --tests 'com.music.bitchord.ui.rebirth.*' \
+            --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true 2>&1 | tee ci-logs/test.log
+
+      - name: Read the unit test results
+        if: always()
+        run: |
+          python3 - <<'PY' > ci-logs/tests-summary.md
+          import glob, xml.etree.ElementTree as ET
+          rows, failed, total = [], 0, 0
+          for path in sorted(glob.glob("app/build/test-results/testProdDebugUnitTest/TEST-*.xml")):
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception as error:  # noqa: BLE001 - a broken XML is a result too
+                  rows.append(f"- could not read {path}: {error}")
+                  continue
+              for case in root.iter("testcase"):
+                  total += 1
+                  problem = case.find("failure")
+                  if problem is None:
+                      problem = case.find("error")
+                  if problem is None:
+                      continue
+                  failed += 1
+                  message = (problem.get("message") or "").strip().splitlines()
+                  where = (problem.get("type") or "").strip()
+                  rows.append(f"- **{case.get('classname','?').split('.')[-1]} › {case.get('name')}** — {where}")
+                  rows += [f"  > {line.strip()[:300]}" for line in message[:4]]
+                  body = (problem.text or "").strip().splitlines()
+                  rows += [f"  `{line.strip()[:220]}`" for line in body[:6]]
+          print("### Unit tests: " + (f"**{failed} failed** of {total}" if failed else f"**{total} passed**"))
+          print()
+          print("\n".join(rows) if rows else "No failures.")
+          PY
+          cat ci-logs/tests-summary.md
 
       - name: Report the outcome on the pull request
         if: always() && github.event_name == 'pull_request'
@@ -94,17 +132,22 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           JOB_STATUS: ${{ job.status }}
+          TEST_OUTCOME: ${{ steps.tests.outcome }}
         run: |
           set -uo pipefail
-          python3 - "$JOB_STATUS" "$RUN_URL" <<'PY' > ci-logs/comment.md
+          python3 - "$JOB_STATUS" "$RUN_URL" "$TEST_OUTCOME" <<'PY' > ci-logs/comment.md
           import os, re, sys
-          status, run_url = sys.argv[1], sys.argv[2]
+          status, run_url, test_outcome = sys.argv[1], sys.argv[2], sys.argv[3]
           # Kotlin prints "e: <line>" and then, for a call that matches no
           # overload, several indented "candidate" lines. Keeping only the
           # first line hides exactly the part that says why.
           starts = re.compile(r"^(e: |FAILURE:|What went wrong|Caused by:|> Task .*FAILED|FAILED$|AssertionError|org\.gradle)")
-          parts = [f"### 1.8.0 compile: **{status}**", "", f"Run: {run_url}", ""]
-          for name in ("compile", "test", "assemble"):
+          parts = [f"### 1.8.0 compile and tests: **{status}**", "", f"Run: {run_url}", ""]
+          if os.path.isfile("ci-logs/tests-summary.md"):
+              parts += [open("ci-logs/tests-summary.md", encoding="utf-8").read(), ""]
+          if os.path.isfile("ci-logs/apk-signature.txt"):
+              parts += [open("ci-logs/apk-signature.txt", encoding="utf-8").read(), ""]
+          for name in ("compile", "assemble", "test"):
               path = f"ci-logs/{name}.log"
               if not os.path.isfile(path):
                   continue
@@ -114,15 +157,15 @@ jobs:
                   if starts.search(lines[index]):
                       hits.append(lines[index])
                       for extra in lines[index + 1:index + 4]:
-                          if extra.startswith((" ", "\t")) or extra.startswith("  "):
+                          if extra.startswith((" ", "\t")):
                               hits.append(extra)
                           else:
                               break
                   index += 1
-              if not hits and status == "success":
+              if not hits:
                   continue
               parts += [f"<details><summary>{name}.log — {len(lines)} lines</summary>", "", "```"]
-              parts += hits or lines[-60:]
+              parts += hits
               parts += ["```", "</details>", ""]
           body = "\n".join(parts)
           if len(body) > 60000:
@@ -142,3 +185,9 @@ jobs:
             app/build/reports/tests/testProdDebugUnitTest/
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Fail the job when the unit tests failed
+        if: steps.tests.outcome == 'failure'
+        run: |
+          echo "Unit tests failed; see the run's comment and the tests-summary artifact."
+          exit 1
