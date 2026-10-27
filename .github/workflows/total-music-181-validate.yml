@@ -32,6 +32,22 @@ on:
   # it does reach main.
   push:
     branches: [arena/c83a7b6e-total-music]
+    # Only a change that can affect the build starts this: an hour of Gradle,
+    # lint and two emulators is not worth re-running for a comment or a probe
+    # script. The published-APK probe has its own workflow and its own trigger.
+    paths:
+      - 'app/**'
+      - 'shared/**'
+      - 'sharedUi/**'
+      - 'macrobenchmark/**'
+      - 'native/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'total-music-release.properties'
+      - 'scripts/release/**'
+      - 'scripts/verify/rebirth_check.py'
   workflow_dispatch:
     inputs:
       pr:
@@ -382,130 +398,6 @@ jobs:
             fi
           } > ci-logs/lint-comment.md
           gh pr comment "$PR_NUMBER" --body-file ci-logs/lint-comment.md || echo "could not comment"
-
-  published:
-    # The reported close on startup happened on the APK that is actually
-    # published, signed with the permanent key, upgrading an installed 1.7.0.
-    # Nothing is rebuilt here: the two release APKs are downloaded by hash and
-    # treated as evidence.
-    if: ${{ github.event_name == 'push' || inputs.published_probe }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          persist-credentials: false
-      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
-        with:
-          packages: platform-tools emulator system-images;android-33;google_apis;x86_64
-      - name: Download the exact signed 1.7.0 and 1.8.0 APKs
-        run: |
-          set -euo pipefail
-          mkdir -p results
-          curl -fL --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.7.0/Total-Music-1.7.0-universal.apk -o previous.apk
-          curl -fL --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.8.0-preview.1/Total-Music-1.8.0-universal.apk -o published.apk
-          echo '2f06be1aca0452d9a19a45195863d7b68a44d4c42be71dc09cb6353236e1bc2c  previous.apk' | sha256sum -c -
-          echo '0c757220666a28724c128f40284102c96e6049eb0f8eea121798fb66e90877e3  published.apk' | sha256sum -c -
-      - name: Boot Android 13
-        run: |
-          set -euo pipefail
-          sudo chmod a+rw /dev/kvm || { echo "no /dev/kvm on this runner"; exit 1; }
-          adb start-server >/dev/null
-          export ANDROID_AVD_HOME="$RUNNER_TEMP/avd"
-          mkdir -p "$ANDROID_AVD_HOME"
-          echo no | avdmanager create avd -n probe -k 'system-images;android-33;google_apis;x86_64' --force
-          "$ANDROID_HOME/emulator/emulator" -avd probe -no-window -no-audio -no-boot-anim \
-            -no-snapshot -no-metrics -gpu swiftshader_indirect -cores 2 -memory 2048 \
-            > results/emulator.log 2>&1 &
-          timeout 240 adb wait-for-device
-          timeout 900 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
-          adb shell input keyevent 82
-          adb shell getprop > results/device-properties.txt
-          echo "booted"
-      - name: Install 1.7.0, launch, upgrade to the published 1.8.0, launch again
-        run: |
-          set -uo pipefail
-          PKG=org.nexlibre.totalmusic
-          ACT=com.music.bitchord.MainActivity
-          launch () {
-            local label="$1"
-            adb logcat -c || true
-            adb shell am force-stop $PKG
-            adb shell am start -W -n $PKG/$ACT > "results/$label-start.txt" 2>&1
-            sleep 20
-            adb logcat -d -v threadtime > "results/$label-logcat.txt" 2>&1
-            adb logcat -d -b crash -v threadtime > "results/$label-crash.txt" 2>&1
-            adb shell pidof $PKG > "results/$label-pid.txt" 2>&1
-            adb exec-out screencap -p > "results/$label-screen.png" 2>&1 || true
-            echo "== $label: pid=$(cat results/$label-pid.txt) =="
-            sed -n '1,40p' "results/$label-crash.txt"
-            grep -E "FATAL EXCEPTION|AndroidRuntime|Process: $PKG|Caused by|at com\.music|at androidx\.compose" "results/$label-logcat.txt" | head -60 || true
-          }
-          echo "== install 1.7.0 =="
-          timeout 300 adb install --no-streaming previous.apk || exit 1
-          adb shell pm grant $PKG android.permission.READ_MEDIA_AUDIO || true
-          launch baseline170
-          echo "== upgrade to the published 1.8.0 =="
-          timeout 300 adb install --no-streaming -r published.apk || exit 1
-          launch upgrade180
-          adb shell dumpsys activity exit-info $PKG > results/exit-info.txt 2>&1 || true
-          grep -A 20 "Historical Process Exits" results/exit-info.txt | head -40 || true
-          echo "== clean install of the published 1.8.0 =="
-          timeout 120 adb uninstall $PKG || true
-          timeout 300 adb install --no-streaming published.apk || exit 1
-          adb shell pm grant $PKG android.permission.READ_MEDIA_AUDIO || true
-          launch clean180
-          # 1.7.0 being alive and 1.8.0 not is the finding; both alive is not a
-          # finding this job invents. Either way the transcript is the result.
-          for label in baseline170 upgrade180 clean180; do
-            size=$(stat -c %s "results/$label-pid.txt" 2>/dev/null || echo 0)
-            echo "$label pid bytes: $size"
-          done
-      - name: Publish what the emulator saw
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '4' }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -uo pipefail
-          python3 - <<'PY' > results/comment.md
-          import os
-          def read(name, limit=6000):
-              path = os.path.join("results", name)
-              if not os.path.isfile(path):
-                  return "(missing)"
-              try:
-                  text = open(path, encoding="utf-8", errors="replace").read().strip()
-              except Exception as error:
-                  return f"(unreadable: {error})"
-              return text[:limit] if text else "(empty)"
-          def pid(name):
-              return read(f"{name}-pid.txt", 200).strip() or "(no process)"
-          parts = ["### Published 1.8.0 on Android 13", ""]
-          parts.append(f"Run: {os.environ.get('RUN_URL','')}")
-          parts.append("")
-          parts.append("| Launch | Process after 20s |")
-          parts.append("| --- | --- |")
-          for label, title in (("baseline170", "1.7.0 (installed)"), ("upgrade180", "1.8.0 (updated over it)"), ("clean180", "1.8.0 (clean install)")):
-              parts.append(f"| {title} | `{pid(label)}` |")
-          for label in ("baseline170", "upgrade180", "clean180"):
-              crash = read(f"{label}-crash.txt")
-              start = read(f"{label}-start.txt", 1500)
-              parts += ["", f"<details><summary>{label}: crash buffer and launch</summary>", "", "```", start, "```", "", "```", crash, "```", "</details>"]
-          exit_info = read("exit-info.txt", 4000)
-          parts += ["", "<details><summary>exit-info</summary>", "", "```", exit_info, "```", "</details>"]
-          body = "\n".join(parts)
-          print(body[:60000])
-          PY
-          cat results/comment.md
-          gh pr comment "$PR_NUMBER" --body-file results/comment.md || echo "could not comment"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: total-music-180-published-device
-          path: results/
-          retention-days: 30
 
   device:
     # The 1.8.1 candidate, doing the two things that were reported broken.

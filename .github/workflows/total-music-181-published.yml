@@ -1,0 +1,222 @@
+name: Published 1.8.0 on a real Android 13
+
+# The reported close-on-startup happened on the APK that is actually published:
+# the permanently signed 1.8.0 preview, installed over 1.7.0, on Android 13.
+#
+# Nothing is rebuilt here. The two release APKs are downloaded by hash and
+# treated as evidence, so what this job says is about the exact binaries a user
+# would have installed. It runs on its own trigger — a push that touches this
+# file — because it needs no Gradle and answers in ten minutes rather than an
+# hour, and because its transcript is the only thing the agent can read back.
+#
+# The transcript is a pull-request comment: every step tee's what it ran and what
+# adb answered into results/, and the last step posts it. Artifacts are uploaded
+# as well, for anyone with a browser.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/c83a7b6e-total-music]
+    paths:
+      - '.github/workflows/total-music-181-published.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: total-music-181-published
+  cancel-in-progress: true
+
+jobs:
+  published:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools emulator system-images;android-33;google_apis;x86_64
+
+      - name: Download the exact signed 1.7.0 and 1.8.0 APKs
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          curl -fL --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.7.0/Total-Music-1.7.0-universal.apk -o previous.apk
+          curl -fL --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.8.0-preview.1/Total-Music-1.8.0-universal.apk -o published.apk
+          echo '2f06be1aca0452d9a19a45195863d7b68a44d4c42be71dc09cb6353236e1bc2c  previous.apk' | sha256sum -c -
+          echo '0c757220666a28724c128f40284102c96e6049eb0f8eea121798fb66e90877e3  published.apk' | sha256sum -c -
+          {
+            echo "== files =="
+            ls -l previous.apk published.apk
+            for apk in previous.apk published.apk; do
+              echo
+              echo "== $apk =="
+              "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" 2>&1 | head -8 || true
+              echo "-- native code --"
+              "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" 2>/dev/null | grep -E "native-code|sdkVersion|targetSdkVersion" || true
+              echo "-- signature --"
+              "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" 2>&1 | grep -E "certificate (DN|SHA-256)" || echo "not verified"
+            done
+          } > results/apks.txt 2>&1
+          cat results/apks.txt
+
+      - name: Boot Android 13
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          {
+            echo "== kvm =="
+            ls -l /dev/kvm || echo "no /dev/kvm"
+            sudo chmod a+rw /dev/kvm
+          } > results/boot.txt 2>&1
+          adb start-server >> results/boot.txt 2>&1
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd -n probe -k 'system-images;android-33;google_apis;x86_64' --force >> results/boot.txt 2>&1
+          # A 160 MB universal APK plus its extracted native libraries needs more
+          # room than the default data partition offers.
+          echo "disk.dataPartition.size=6G" >> "$ANDROID_AVD_HOME/probe.avd/config.ini"
+          echo "hw.ramSize=2048" >> "$ANDROID_AVD_HOME/probe.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -avd probe -no-window -no-audio -no-boot-anim \
+            -no-snapshot -no-metrics -gpu swiftshader_indirect -cores 2 -memory 2048 \
+            >> results/emulator.log 2>&1 &
+          timeout 240 adb wait-for-device >> results/boot.txt 2>&1
+          timeout 900 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done' >> results/boot.txt 2>&1
+          adb shell input keyevent 82 >> results/boot.txt 2>&1
+          adb shell getprop > results/device-properties.txt
+          adb shell df -h > results/disk-before.txt 2>&1
+          echo "booted"
+          tail -5 results/boot.txt
+
+      # Deliberately not `set -e`: every command that fails is the finding, so it
+      # is recorded and the next one still runs. The job fails at the end if the
+      # published APK is the one that dies.
+      - name: Install 1.7.0, launch, upgrade to the published 1.8.0, launch again
+        run: |
+          set -uo pipefail
+          mkdir -p results
+          PKG=org.nexlibre.totalmusic
+          ACT=com.music.bitchord.MainActivity
+
+          install () { # apk, label
+            local apk="$1" label="$2"
+            {
+              echo "\$ adb install --no-streaming -r -g $apk"
+              timeout 600 adb install --no-streaming -r -g "$apk" 2>&1
+              echo "exit=$?"
+            } > "results/install-$label.txt" 2>&1
+            if ! grep -q "Success" "results/install-$label.txt"; then
+              {
+                echo "retry without --no-streaming"
+                timeout 600 adb install -r -g "$apk" 2>&1
+                echo "exit=$?"
+              } >> "results/install-$label.txt" 2>&1
+            fi
+            cat "results/install-$label.txt"
+            adb shell df -h /data >> "results/install-$label.txt" 2>&1
+          }
+
+          launch () { # label
+            local label="$1"
+            adb logcat -c >/dev/null 2>&1
+            adb shell am force-stop $PKG
+            timeout 120 adb shell am start -W -n $PKG/$ACT > "results/$label-start.txt" 2>&1
+            sleep 25
+            adb logcat -d -v threadtime > "results/$label-logcat.txt" 2>&1
+            adb logcat -d -b crash -v threadtime > "results/$label-crash.txt" 2>&1
+            adb shell pidof $PKG > "results/$label-pid.txt" 2>&1
+            adb exec-out screencap -p > "results/$label-screen.png" 2>/dev/null || true
+            echo "== $label: process=[$(cat results/$label-pid.txt)] =="
+            cat "results/$label-start.txt"
+            sed -n '1,60p' "results/$label-crash.txt"
+            grep -nE "FATAL EXCEPTION|Process: $PKG|Caused by: |^[[:space:]]+at (com\.music|androidx\.compose|android\.)" \
+              "results/$label-logcat.txt" | head -40 || true
+          }
+
+          echo "== 1.7.0, as the user had it =="
+          install previous.apk 170
+          adb shell pm grant $PKG android.permission.READ_MEDIA_AUDIO 2>/dev/null
+          adb shell dumpsys package $PKG | grep -E "versionCode|versionName" | head -2 > results/version-170.txt 2>&1
+          cat results/version-170.txt
+          launch baseline170
+
+          echo "== the published 1.8.0, updated over it =="
+          install published.apk 180upgrade
+          adb shell dumpsys package $PKG | grep -E "versionCode|versionName" | head -2 > results/version-180.txt 2>&1
+          cat results/version-180.txt
+          launch upgrade180
+          adb shell dumpsys activity exit-info $PKG > results/exit-info.txt 2>&1
+
+          echo "== the published 1.8.0, clean install =="
+          timeout 120 adb uninstall $PKG > results/uninstall.txt 2>&1
+          install published.apk 180clean
+          adb shell pm grant $PKG android.permission.READ_MEDIA_AUDIO 2>/dev/null
+          launch clean180
+
+      - name: Publish what the emulator saw
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: "4"
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          # Frames are grep output rather than the whole logcat, which is far too
+          # big for a comment and is not what answers the question.
+          for label in baseline170 upgrade180 clean180; do
+            grep -nE "FATAL EXCEPTION|Process: |Caused by: |^[[:space:]]+at " "results/$label-logcat.txt" 2>/dev/null | head -120 \
+              > "results/$label-frames.txt" || true
+          done
+          # The comment is rebuilt now that the frames exist.
+          python3 - <<'PY' > results/comment.md
+          import os
+          def read(name, limit=5000):
+              path = os.path.join("results", name)
+              if not os.path.isfile(path):
+                  return "(missing)"
+              try:
+                  text = open(path, encoding="utf-8", errors="replace").read().strip()
+              except Exception as error:
+                  return f"(unreadable: {error})"
+              if not text:
+                  return "(empty)"
+              return text if len(text) <= limit else text[:limit] + "\n… truncated"
+          def pid(name):
+              return read(f"{name}-pid.txt", 200).strip() or "(no process)"
+          parts = ["### Published 1.8.0 on Android 13", ""]
+          parts.append(f"Run: {os.environ.get('RUN_URL','')}")
+          parts.append("")
+          parts.append("| Launch | Process 25s after `am start` |")
+          parts.append("| --- | --- |")
+          for label, title in (("baseline170", "1.7.0 (installed)"),
+                               ("upgrade180", "1.8.0 (updated over it)"),
+                               ("clean180", "1.8.0 (clean install)")):
+              parts.append(f"| {title} | `{pid(label)}` |")
+          parts.append("")
+          for name, title in (("apks.txt", "the two APKs"),
+                              ("install-170.txt", "install 1.7.0"),
+                              ("install-180upgrade.txt", "install 1.8.0 over it"),
+                              ("install-180clean.txt", "install 1.8.0 clean"),
+                              ("boot.txt", "boot")):
+              parts += [f"<details><summary>{title}</summary>", "", "```", read(name), "```", "</details>", ""]
+          for label in ("baseline170", "upgrade180", "clean180"):
+              parts += [f"<details><summary>{label}: launch, crash buffer, frames</summary>", "",
+                        "```", read(f"{label}-start.txt", 1500), "```", "",
+                        "```", read(f"{label}-crash.txt", 4000), "```", "",
+                        "```", read(f"{label}-frames.txt", 6000), "```", "</details>", ""]
+          parts += ["<details><summary>exit-info</summary>", "", "```", read("exit-info.txt", 4000), "```", "</details>"]
+          print("\n".join(parts)[:60000])
+          PY
+          tail -60 results/comment.md
+          gh pr comment "$PR_NUMBER" --body-file results/comment.md || echo "could not comment"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-180-published-device
+          path: results/
+          retention-days: 30

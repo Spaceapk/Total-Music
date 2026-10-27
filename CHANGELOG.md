@@ -1,3 +1,23 @@
+## Total Music 1.8.1 — Explorar retirado y navegación del renacimiento
+
+- Se retira Explorar de la navegación de Google Expressive+ y Liquid Glass+: era una página que
+  solo mostraba una carga sin fin. Quedan Inicio, Biblioteca, Buscar, las categorías (Canciones,
+  Álbumes, Artistas, Listas, Favoritos) y el Reproductor.
+- Una sesión guardada en Explorar vuelve a Inicio, y el acceso «abrir origen» de una canción
+  encolada desde Explorar lleva a la biblioteca de la que salió.
+- versionCode 15 sobre el 14 de 1.8.0; mismo paquete y misma firma permanente para actualizar
+  sobre una instalación existente.
+- Estado de compilación, pruebas, lint y dispositivo en `docs/verification-1.8.1.md`. No se
+  presenta como versión verificada en teléfono hasta que exista esa prueba.
+
+## Total Music 1.8.0 — renacimiento visual (preliminar, retirado)
+
+- Composiciones independientes Google Expressive+ Reimagined y Liquid Glass+ Reimagined para
+  inicio, biblioteca, reproductor, ajustes y ecualizador, sobre una sola capa de estado.
+- Cola y listas con arrastre, controles de letras, hojas temáticas y 18 idiomas en el reproductor.
+- Retirado de la publicación: la compilación preliminar se cerró al iniciar en Android 13. Esta
+  rama es su continuación y la sustituye.
+
 ## Total Music 1.7.0 — Visual Experience
 
 - Reproductores Original, Google Expressive+ y Liquid Glass+; Original conserva el aspecto de las instalaciones existentes.
