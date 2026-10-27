@@ -1,5 +1,10 @@
 [
   {
+    "versionCode": 15,
+    "versionName": "1.8.1",
+    "notes": "Correcciones sobre 1.8.0. Se retira Explorar de la navegación de Google Expressive+ y Liquid Glass+ (solo mostraba una carga sin fin): quedan Biblioteca, Álbumes, Artistas, Listas, Buscar y el Reproductor. Se corrige el cierre inesperado al volver a Biblioteca desde Ajustes o el Reproductor. Se conservan reproducción en segundo plano, ecualizador de 10 bandas, orden de la biblioteca, listas, widgets, colores dinámicos, modo AMOLED y controles multimedia. Mismo paquete y misma firma permanente para actualizar sobre 1.8.0."
+  },
+  {
     "versionCode": 14,
     "versionName": "1.8.0",
     "notes": "Vista previa en desarrollo de Google Expressive+ y Liquid Glass+ con nuevas composiciones de inicio, biblioteca, reproductor y personalización. Original conserva su interfaz. Las pantallas avanzadas y la validación visual completa siguen pendientes; esta compilación interna no es una publicación oficial."

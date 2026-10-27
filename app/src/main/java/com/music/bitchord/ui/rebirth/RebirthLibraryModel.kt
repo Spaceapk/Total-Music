@@ -97,7 +97,6 @@ internal class RebirthLibraryActions(
     val onMoveInPlaylist: (Int, Int) -> Unit,
     val onRemoveFromPlaylist: (Int) -> Unit,
     val onOpenGlobalSearch: () -> Unit,
-    val onOpenExplore: () -> Unit,
 )
 
 /**

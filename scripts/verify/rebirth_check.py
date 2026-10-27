@@ -61,7 +61,13 @@ PROTECTED_PATHS = (
 # and its content is then checked for anything that could publish: a release
 # action, a tag, a push, or a build of a release variant. The publishing
 # workflows stay refused even if their content is innocuous.
-VALIDATION_WORKFLOWS = (".github/workflows/total-music-180-compile.yml",)
+VALIDATION_WORKFLOWS = (
+    ".github/workflows/total-music-180-compile.yml",
+    # 1.8.1's single validation workflow: the same restriction, one branch
+    # later. It compiles, tests, runs lint on its own runner and drives an
+    # emulator; it publishes nothing, and this gate refuses it if that changes.
+    ".github/workflows/total-music-181-validate.yml",
+)
 # What a validation workflow may not do. Building the *unsigned* release APK is
 # allowed — it is inert, the repository's own verification job builds it too, and
 # it is precisely the artefact the permanent key would sign later. Signing it,

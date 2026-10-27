@@ -35,7 +35,6 @@ import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LibraryMusic
@@ -181,7 +180,6 @@ internal fun RebirthGlassLibrary(data: RebirthLibraryData, actions: RebirthLibra
         RebirthGlassNav(
             current = data.destination,
             onDestination = actions.onDestination,
-            onExplore = actions.onOpenExplore,
             glassEffects = data.glassEffects && data.backdropRecording,
         )
     }
@@ -360,11 +358,6 @@ private fun GlassHome(data: RebirthLibraryData, actions: RebirthLibraryActions) 
                     Icon(Icons.Rounded.LibraryMusic, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.library))
-                }
-                TextButton(onClick = actions.onOpenExplore) {
-                    Icon(Icons.Rounded.Explore, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.explore))
                 }
             }
         }
@@ -669,7 +662,6 @@ private fun GlassCollection(data: RebirthLibraryData, actions: RebirthLibraryAct
 private fun RebirthGlassNav(
     current: RebirthDestination,
     onDestination: (RebirthDestination) -> Unit,
-    onExplore: () -> Unit,
     glassEffects: Boolean,
 ) {
     val shape = RoundedCornerShape(28.dp)
@@ -693,20 +685,6 @@ private fun RebirthGlassNav(
             DestinationButton(RebirthDestination.HOME, current, onDestination, Icons.Rounded.Home)
             DestinationButton(RebirthDestination.LIBRARY, current, onDestination, Icons.Rounded.LibraryMusic)
             DestinationButton(RebirthDestination.SEARCH, current, onDestination, Icons.Rounded.Search)
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                modifier = Modifier.clip(CircleShape).clickable(onClick = onExplore),
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Rounded.Explore, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.explore), style = MaterialTheme.typography.labelMedium)
-                }
-            }
         }
     }
 }

@@ -490,7 +490,15 @@ private fun BitChordApp(
     // rather than inside the bar because the page's scroll is what drives it,
     // and the page is a sibling of the bar rather than a child.
     val navBarScroll = rememberFloatingTabBarScrollConnection()
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
+    // 1.8.1 removed Explore from the navigation: its page only ever sat on a
+    // spinner, so the tab it used to occupy is no longer one of the app's
+    // destinations. A session saved while Explore was selected restores the old
+    // index, and without this it would reopen exactly that dead page — the
+    // restoration is the one route left into it once the buttons are gone.
+    LaunchedEffect(Unit) {
+        if (selectedTab == TAB_EXPLORE) selectedTab = TAB_HOME
+    }
     // LocalMusicScreen uses 0=songs, 1=artists, 2=albums, 3=playlists.
     var spaceLibraryTab by rememberSaveable { mutableIntStateOf(0) }
     var spaceQuery by rememberSaveable { mutableStateOf("") }
@@ -2449,7 +2457,9 @@ private fun BitChordApp(
                         replayLandingPage = ReplayStoryPage.INTRO
                         showReplay = true
                     }
-                    PlaybackSourceType.EXPLORE -> selectedTab = TAB_EXPLORE
+                    // Explore is gone; a track queued from it came out of the
+                    // local library, so that is where its source now leads.
+                    PlaybackSourceType.EXPLORE -> selectedTab = TAB_HOME
                     PlaybackSourceType.SHARED_LINK -> {
                         val id = sourceId ?: return@openSource
                         context.startActivity(
@@ -3072,11 +3082,6 @@ private fun BitChordApp(
                                         viewModel.onQueryChange("")
                                         searchFocusRequested = true
                                         selectedTab = TAB_SEARCH
-                                    },
-                                    onOpenExplore = {
-                                        viewModel.clearDetail()
-                                        viewModel.closeMoodGenre()
-                                        selectedTab = TAB_EXPLORE
                                     },
                                 ) else LocalMusicScreen(
                                     songs = deviceSongs,

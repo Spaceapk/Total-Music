@@ -167,7 +167,6 @@ internal fun RebirthGlassMiniPlayer(
 internal fun RebirthExpressiveNav(
     current: RebirthDestination,
     onDestination: (RebirthDestination) -> Unit,
-    onExplore: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
@@ -177,29 +176,6 @@ internal fun RebirthExpressiveNav(
         ExpressiveNavItem(RebirthDestination.HOME, Icons.Rounded.Home, current, onDestination, Modifier.weight(1f))
         ExpressiveNavItem(RebirthDestination.LIBRARY, Icons.Rounded.LibraryMusic, current, onDestination, Modifier.weight(1f))
         ExpressiveNavItem(RebirthDestination.SEARCH, Icons.Rounded.Search, current, onDestination, Modifier.weight(1f))
-        Surface(
-            shape = RoundedCornerShape(18.dp),
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clip(RoundedCornerShape(18.dp)).clickable(onClick = onExplore),
-        ) {
-            Row(
-                Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.MusicNote,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = stringResource(R.string.explore),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                )
-            }
-        }
     }
 }
 

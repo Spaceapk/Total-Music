@@ -34,7 +34,6 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
@@ -186,7 +185,6 @@ internal fun RebirthExpressiveLibrary(data: RebirthLibraryData, actions: Rebirth
         RebirthExpressiveNav(
             current = data.destination,
             onDestination = actions.onDestination,
-            onExplore = actions.onOpenExplore,
         )
     }
 }
@@ -360,13 +358,6 @@ private fun ExpressiveHome(data: RebirthLibraryData, actions: RebirthLibraryActi
                 Icon(Icons.Rounded.LibraryMusic, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.library))
-            }
-        }
-        item {
-            TextButton(onClick = actions.onOpenExplore, modifier = Modifier.padding(horizontal = 12.dp)) {
-                Icon(Icons.Rounded.Explore, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.explore))
             }
         }
     }

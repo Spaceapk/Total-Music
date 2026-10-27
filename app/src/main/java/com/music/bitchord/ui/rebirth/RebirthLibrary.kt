@@ -60,7 +60,6 @@ fun RebirthLocalExperience(
     emptyMessage: String? = null,
     onShuffle: ((List<Song>) -> Unit)? = null,
     onOpenGlobalSearch: (() -> Unit)? = null,
-    onOpenExplore: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val store = remember(context) { DevicePlaylistStore.forDevice(context) }
@@ -201,7 +200,6 @@ fun RebirthLocalExperience(
             if (id != null && song != null && canReorder) store.remove(id, index)
         },
         onOpenGlobalSearch = { onOpenGlobalSearch?.invoke() },
-        onOpenExplore = { onOpenExplore?.invoke() },
     )
 
     MaterialTheme(colorScheme = colors) {
