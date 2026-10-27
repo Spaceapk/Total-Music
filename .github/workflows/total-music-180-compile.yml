@@ -1,10 +1,10 @@
-name: 1.8.0 compile, unit tests and test APK (no release)
+name: 1.8.0 compile, tests and test APK (no release)
 
 # Exists because the agent's sandbox cannot reach Gradle, Google or Maven, so
-# the only place this branch can be compiled is here. It builds a **debug**
-# APK for testing and never publishes anything: no release, no tag, no push,
-# no signing key of its own. The publishing workflows are untouched and keep
-# their own triggers.
+# the only place this branch is compiled is here. It builds a **debug-signed
+# test APK** and the unsigned release APK the permanent key would later sign,
+# and publishes nothing: no release, no tag, no push, no signing key of its
+# own. The publishing workflows are untouched and keep their own triggers.
 
 on:
   workflow_dispatch:
@@ -49,7 +49,9 @@ jobs:
           sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
           if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
 
-      - name: Compile the Kotlin of the app and its shared UI
+      # The whole app, not just the rebirth layer: every module's Kotlin, the
+      # resource merger and the Compose compiler plugin.
+      - name: Compile the whole app
         run: |
           set -o pipefail
           mkdir -p ci-logs
@@ -57,40 +59,20 @@ jobs:
           ./gradlew :app:compileProdDebugKotlin --max-workers=2 --build-cache --stacktrace \
             -PspaceSpatialEdition=true 2>&1 | tee ci-logs/compile.log
 
-      # Before the tests, deliberately: a failing assertion must still leave a
-      # test APK to install, and the job still reports the failure at the end.
-      - name: Assemble the debug test APK
+      # Before the tests, deliberately: a failing assertion must still leave an
+      # APK to install, and the job still reports the failure at the end.
+      - name: Assemble the debug APK and the unsigned release APK
         run: |
           set -o pipefail
-          ./gradlew :app:assembleProdDebug --max-workers=2 --build-cache --stacktrace \
-            -PspaceSpatialEdition=true 2>&1 | tee ci-logs/assemble.log
+          ./gradlew :app:assembleProdDebug :app:assembleProdRelease \
+            --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true 2>&1 | tee ci-logs/assemble.log
 
-      - name: Record the APK's signature and checksum
-        if: success()
-        run: |
-          set -euo pipefail
-          APK=$(find app/build/outputs/apk/prod/debug -name '*.apk' | head -1)
-          echo "APK=$APK"
-          {
-            echo "### Test APK"
-            echo
-            echo 'The APK in the artifact is built from `prodDebug`: **signed with'
-            echo 'the Android debug certificate**, debuggable, not a release and'
-            echo 'not installable over a build signed with the release key.'
-            echo
-            echo '```'
-            sha256sum "$APK"
-            "$ANDROID_HOME"/build-tools/36.0.0/apksigner verify --print-certs "$APK" || true
-            echo '```'
-          } > ci-logs/apk-signature.txt
-          cat ci-logs/apk-signature.txt
-
-      - name: Run the rebirth unit tests
+      - name: Run every unit test this tree has
         id: tests
         continue-on-error: true
         run: |
           set -o pipefail
-          ./gradlew :app:testProdDebugUnitTest --tests 'com.music.bitchord.ui.rebirth.*' \
+          ./gradlew :shared:jvmTest :app:testProdDebugUnitTest \
             --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true 2>&1 | tee ci-logs/test.log
 
       - name: Read the unit test results
@@ -98,8 +80,10 @@ jobs:
         run: |
           python3 - <<'PY' > ci-logs/tests-summary.md
           import glob, xml.etree.ElementTree as ET
-          rows, failed, total = [], 0, 0
-          for path in sorted(glob.glob("app/build/test-results/testProdDebugUnitTest/TEST-*.xml")):
+          rows, failed, total, classes = [], 0, 0, set()
+          paths = (glob.glob("app/build/test-results/testProdDebugUnitTest/TEST-*.xml")
+                   + glob.glob("shared/build/test-results/jvmTest/TEST-*.xml"))
+          for path in sorted(paths):
               try:
                   root = ET.parse(path).getroot()
               except Exception as error:  # noqa: BLE001 - a broken XML is a result too
@@ -107,6 +91,7 @@ jobs:
                   continue
               for case in root.iter("testcase"):
                   total += 1
+                  classes.add(case.get("classname", "?"))
                   problem = case.find("failure")
                   if problem is None:
                       problem = case.find("error")
@@ -119,11 +104,59 @@ jobs:
                   rows += [f"  > {line.strip()[:300]}" for line in message[:4]]
                   body = (problem.text or "").strip().splitlines()
                   rows += [f"  `{line.strip()[:220]}`" for line in body[:6]]
-          print("### Unit tests: " + (f"**{failed} failed** of {total}" if failed else f"**{total} passed**"))
+          head = (f"### Unit tests: **{failed} failed** of {total} in {len(classes)} classes"
+                  if failed else f"### Unit tests: **{total} passed** in {len(classes)} classes")
+          print(head)
           print()
           print("\n".join(rows) if rows else "No failures.")
           PY
           cat ci-logs/tests-summary.md
+
+      # The repository's own packager: it checks the APK's package name, version
+      # code, version name and debuggable flag against total-music-release.properties,
+      # refuses a debug APK that carries the permanent key, writes the test
+      # suites' counts and states the signing blocker in build-verification.json.
+      - name: Package the test APK and the unsigned release APK
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python3 scripts/release/package_ci.py 2>&1 | tee ci-logs/package.log
+          ls -l release-artifacts
+
+      - name: Record version, version code and signatures
+        if: always()
+        run: |
+          set -uo pipefail
+          TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          {
+            echo "### Build identity"
+            echo
+            echo '```'
+            grep -E '^(applicationId|versionName|versionCode|certificateSha256|keyAlias)=' total-music-release.properties
+            echo '```'
+            for apk in $(find app/build/outputs/apk -name '*.apk' | sort); do
+              echo
+              echo "#### $(basename "$apk")"
+              echo
+              echo '```'
+              "$TOOLS"/aapt dump badging "$apk" 2>/dev/null | head -2
+              sha256sum "$apk"
+              if "$TOOLS"/apksigner verify "$apk" >/dev/null 2>&1; then
+                "$TOOLS"/apksigner verify --print-certs "$apk" 2>/dev/null | grep -E 'certificate (DN|SHA-256 digest)'
+              else
+                echo "NOT SIGNED — this APK cannot be installed; it is the release build waiting for the permanent key."
+              fi
+              echo '```'
+            done
+            echo
+            echo '### Can this update an installed Total Music?'
+            echo
+            echo "Only if its signing certificate SHA-256 is \`9ae145a7a85902fe6d6ab3d886f6801873d717929deaa3e3d0b0a81de829fa\`"
+            echo "(the permanent certificate named in \`total-music-release.properties\`). The debug APK is"
+            echo "signed with the runner's throwaway debug key instead, so it is a **test build** and not an"
+            echo "update. The permanent keystore is not available to this workflow; see docs/design/1.8.0/VALIDATION.md."
+          } > ci-logs/apk-signature.txt
+          cat ci-logs/apk-signature.txt
 
       - name: Report the outcome on the pull request
         if: always() && github.event_name == 'pull_request'
@@ -132,22 +165,21 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           JOB_STATUS: ${{ job.status }}
-          TEST_OUTCOME: ${{ steps.tests.outcome }}
         run: |
           set -uo pipefail
-          python3 - "$JOB_STATUS" "$RUN_URL" "$TEST_OUTCOME" <<'PY' > ci-logs/comment.md
+          python3 - "$JOB_STATUS" "$RUN_URL" <<'PY' > ci-logs/comment.md
           import os, re, sys
-          status, run_url, test_outcome = sys.argv[1], sys.argv[2], sys.argv[3]
+          status, run_url = sys.argv[1], sys.argv[2]
           # Kotlin prints "e: <line>" and then, for a call that matches no
           # overload, several indented "candidate" lines. Keeping only the
           # first line hides exactly the part that says why.
           starts = re.compile(r"^(e: |FAILURE:|What went wrong|Caused by:|> Task .*FAILED|FAILED$|AssertionError|org\.gradle)")
-          parts = [f"### 1.8.0 compile and tests: **{status}**", "", f"Run: {run_url}", ""]
-          if os.path.isfile("ci-logs/tests-summary.md"):
-              parts += [open("ci-logs/tests-summary.md", encoding="utf-8").read(), ""]
-          if os.path.isfile("ci-logs/apk-signature.txt"):
-              parts += [open("ci-logs/apk-signature.txt", encoding="utf-8").read(), ""]
-          for name in ("compile", "assemble", "test"):
+          parts = [f"### 1.8.0 build: **{status}**", "", f"Run: {run_url}", ""]
+          for name in ("tests-summary.md", "apk-signature.txt"):
+              path = f"ci-logs/{name}"
+              if os.path.isfile(path):
+                  parts += [open(path, encoding="utf-8").read(), ""]
+          for name in ("compile", "assemble", "test", "package"):
               path = f"ci-logs/{name}.log"
               if not os.path.isfile(path):
                   continue
@@ -177,17 +209,20 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: total-music-180-test-apk-${{ github.sha }}
+          name: total-music-1.8.0-test-apk-${{ github.sha }}
           path: |
+            release-artifacts/
             app/build/outputs/apk/prod/debug/*.apk
+            app/build/outputs/apk/prod/release/*.apk
             ci-logs/
             app/build/test-results/testProdDebugUnitTest/
             app/build/reports/tests/testProdDebugUnitTest/
+            shared/build/test-results/jvmTest/
           if-no-files-found: warn
           retention-days: 14
 
       - name: Fail the job when the unit tests failed
         if: steps.tests.outcome == 'failure'
         run: |
-          echo "Unit tests failed; see the run's comment and the tests-summary artifact."
+          echo "Unit tests failed; see the run's comment and ci-logs/tests-summary.md."
           exit 1

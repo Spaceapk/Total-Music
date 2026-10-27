@@ -62,6 +62,10 @@ PROTECTED_PATHS = (
 # action, a tag, a push, or a build of a release variant. The publishing
 # workflows stay refused even if their content is innocuous.
 VALIDATION_WORKFLOWS = (".github/workflows/total-music-180-compile.yml",)
+# What a validation workflow may not do. Building the *unsigned* release APK is
+# allowed — it is inert, the repository's own verification job builds it too, and
+# it is precisely the artefact the permanent key would sign later. Signing it,
+# reading a secret or publishing anything is not.
 FORBIDDEN_IN_VALIDATION = (
     "gh release",
     "action-gh-release",
@@ -69,10 +73,12 @@ FORBIDDEN_IN_VALIDATION = (
     "softprops/",
     "git push",
     "git tag",
-    "assembleProdRelease",
-    "bundleProdRelease",
-    "publishProd",
     "pull_request_target",
+    "apksigner sign",
+    "keystore.properties",
+    "signingConfig",
+    "android.injected.signing",
+    "secrets.",
 )
 
 # Version metadata is expected to move on a release branch; it is reported
