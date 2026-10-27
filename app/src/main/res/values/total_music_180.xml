@@ -12,6 +12,7 @@
     <string name="rebirth_search_local">Search your library</string>
     <string name="rebirth_selected_count">%1$d selected</string>
     <string name="rebirth_reorder_search_hint">Clear the search to reorder this playlist</string>
+    <string name="rebirth_playlist_drag">Drag to reorder</string>
     <string name="rebirth_player_style">Player style</string>
     <string name="rebirth_visual_experience">Visual experience</string>
     <string name="rebirth_effect_background">Dynamic background</string>

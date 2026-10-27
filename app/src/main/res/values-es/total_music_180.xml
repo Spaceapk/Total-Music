@@ -10,6 +10,7 @@
     <string name="rebirth_search_global">Buscar en YouTube Music</string>
     <string name="rebirth_search_local">Buscar en tu biblioteca</string>
     <string name="rebirth_selected_count">%1$d seleccionadas</string>
+    <string name="rebirth_playlist_drag">Arrastra para reordenar</string>
     <string name="rebirth_reorder_search_hint">Borra la búsqueda para reordenar esta lista</string>
     <string name="rebirth_player_style">Estilo del reproductor</string>
     <string name="rebirth_visual_experience">Experiencia visual</string>

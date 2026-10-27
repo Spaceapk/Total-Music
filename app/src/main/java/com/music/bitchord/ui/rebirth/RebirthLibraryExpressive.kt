@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MoreVert
@@ -559,8 +561,13 @@ private fun ExpressiveGallery(data: RebirthLibraryData, actions: RebirthLibraryA
 @Composable
 private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibraryActions) {
     val collection = data.opened ?: return
+    val listState = rememberLazyListState()
+    // One move per drop, decided on release — see [RebirthPlaylistDrag].
+    val drag = remember(listState) { RebirthPlaylistDrag(listState) }
+    drag.onDrop = { from, to -> actions.onMoveInPlaylist(from, to) }
     LazyColumn(
         Modifier.fillMaxSize(),
+        state = listState,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp),
     ) {
         item {
@@ -626,10 +633,31 @@ private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibra
             }
         }
         itemsIndexed(data.visible, key = { _, song -> song.videoId }) { index, song ->
+            val reorderable = collection.isPlaylist && data.canReorder
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
+                    .then(
+                        if (reorderable) {
+                            Modifier.rebirthPlaylistLift(drag, song.videoId)
+                        } else {
+                            Modifier
+                        },
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (reorderable) {
+                    Icon(
+                        Icons.Rounded.DragHandle,
+                        contentDescription = stringResource(R.string.rebirth_playlist_drag),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .padding(8.dp)
+                            .rebirthPlaylistHandle(drag, song.videoId, index, data.visible.size),
+                    )
+                }
                 Box(Modifier.weight(1f)) {
                     ExpressiveTrackRow(
                         song = song,
@@ -641,16 +669,19 @@ private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibra
                         onMenu = { actions.onSongMenu(song) },
                     )
                 }
-                if (collection.isPlaylist && data.canReorder) {
-                    IconButton(onClick = { actions.onMoveInPlaylist(index, index - 1) }, enabled = index > 0) {
-                        Icon(Icons.Rounded.ArrowUpward, contentDescription = stringResource(R.string.star_move_up))
-                    }
-                    IconButton(onClick = { actions.onMoveInPlaylist(index, index + 1) }, enabled = index < data.visible.lastIndex) {
-                        Icon(Icons.Rounded.ArrowDownward, contentDescription = stringResource(R.string.star_move_down))
-                    }
-                    IconButton(onClick = { actions.onRemoveFromPlaylist(index) }) {
-                        Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.remove_from_playlist))
-                    }
+                if (collection.isPlaylist) {
+                    // The same three actions the arrows offered, in the room
+                    // the arrows took: at 200 % font they were three 40 dp
+                    // targets squeezing the title on a narrow phone, and only
+                    // two of them could reorder.
+                    PlaylistRowActions(
+                        index = index,
+                        lastIndex = data.visible.lastIndex,
+                        canMove = data.canReorder,
+                        onMoveUp = { actions.onMoveInPlaylist(index, index - 1) },
+                        onMoveDown = { actions.onMoveInPlaylist(index, index + 1) },
+                        onRemove = { actions.onRemoveFromPlaylist(index) },
+                    )
                 }
             }
         }
