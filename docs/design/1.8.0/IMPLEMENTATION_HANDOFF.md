@@ -146,15 +146,33 @@ Also in this pass:
 * **Playback tools** still open the real surfaces; the sheets now draw in the
   player's own material (see the third-pass note in the table above).
 
+## Fourth pass: the whole app builds, and the APK question answered
+
+The validation workflow now compiles and tests the repository, not just the
+rebirth layer (`:app:compileProdDebugKotlin`, `:app:assembleProdDebug`,
+`:app:assembleProdRelease`, `:shared:jvmTest`, `:app:testProdDebugUnitTest`),
+then runs the repository's own `scripts/release/package_ci.py` to check both
+APKs against `total-music-release.properties` and to write
+`build-verification.json`. See [VALIDATION.md](VALIDATION.md) for the run.
+
+**Signing is blocked, and not by choice.** `.signing/space-release-key.cms` is
+PKCS#7 EnvelopedData (AES-256-CBC, key wrapped with RSA-OAEP for
+`CN=Space Music signing backup, O=nexlibre`), and the private key that opens it
+is not in the checkout, not in this environment and not in any workflow secret.
+No other key was generated. So the test APK is debug-signed and is labelled
+`test-only` in the artifact, in `build-verification.json` and in the run's
+comment; the unsigned release APK is kept for whoever holds that key.
+
 ## Remaining work, in the order it should be done
 
-1. **Device pass.** The checklist below. This is now the only way to learn what
+1. **The five panels still drawn the old way.** `AudioOutputSheet`,
+   `LyricsProviderSheet`, `LyricsOffsetSheet`, `CastDialog` and
+   `AudioPipelineDialog` take their material from the player that opened them,
+   but their internal distribution is the original's. Until they are rebuilt
+   the redesign is **not** complete, and it is not described as complete.
+2. **Device pass.** The checklist below. This is now the only way to learn what
    the compiler cannot: whether the two drags feel right, whether the glass
    samples, whether 200 % text still fits.
-2. **Sheet internals.** The player's sheets match their player's material; their
-   *layouts* are still the original's. The larger one is the pipeline readout,
-   whose signal graph is still drawn for a dark pane even though its ink now
-   follows the theme.
 3. **Localisation scope.** The 18 player strings are in all 17 locales. The
    library, settings and equalizer strings in `res/values/total_music_180.xml`
    are English and Spanish only; the file says so at the top.
