@@ -7,6 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -177,10 +178,27 @@ internal fun RebirthPlayer(
             }
         }
         if (toolsOpen) {
+            // A tool opens a surface of its own — the output drawer, the
+            // equalizer page — so the sheet it was tapped in closes first.
+            // Left open, it would be a second sheet behind the one that just
+            // arrived, and back would have to dismiss both.
+            val rows = remember(tools) {
+                tools.map { tool ->
+                    RebirthTool(
+                        label = tool.label,
+                        icon = tool.icon,
+                        caption = tool.caption,
+                        enabled = tool.enabled,
+                    ) {
+                        toolsOpen = false
+                        tool.onClick()
+                    }
+                }
+            }
             RebirthToolsSheet(
                 style = style,
                 hazeState = hazeState,
-                tools = tools,
+                tools = rows,
                 onDismiss = { toolsOpen = false },
             )
         }
