@@ -1,136 +1,155 @@
 # 1.8.0 validation
 
-Rewritten 2026-10-27, after the second pass on this branch. It replaces both the
-checkpoint file that shipped in the recovery patch (whose figures — 1018 tests,
-four APKs, SDK 37 — describe a checkout that was never pushed) and the earlier
-draft of this page.
+Rewritten 2026-10-27, after the branch was compiled for the first time. It
+replaces the checkpoint file that shipped in the recovery patch (whose figures
+— 1018 tests, four APKs, SDK 37 — describe a checkout that was never pushed).
 
-**Nothing on this branch has been compiled or run.** What follows says exactly
-what was executed, what it proves, and what it does not.
+## Compilation: real, on Actions, green
 
-## Why there is no compile or device run
+The sandbox this work was written in has no JDK, no Android SDK and no route to
+Gradle, Google or Maven ([BUILD_ENVIRONMENT.md](BUILD_ENVIRONMENT.md)), so the
+first compile happens in CI:
 
-No JDK, no Android SDK, and no route to a Gradle distribution or a Maven
-repository in this sandbox. A JDK *was* fetched from PyPI (Temurin 25) and given
-to the wrapper, which then failed downloading Gradle itself. Exact commands,
-hosts and stack traces: [BUILD_ENVIRONMENT.md](BUILD_ENVIRONMENT.md).
+**Run:** https://github.com/Spaceapk/Total-Music/actions/runs/40448078644
+**Commit:** `2882ae2b`
+**Workflow:** `.github/workflows/total-music-180-compile.yml` (validation only;
+publishes nothing)
 
-## What was executed
+| Step | Result |
+| --- | --- |
+| `:app:compileProdDebugKotlin` | ✅ BUILD SUCCESSFUL |
+| `:app:testProdDebugUnitTest --tests 'com.music.bitchord.ui.rebirth.*'` | ✅ 12/12 passed |
+| `:app:assembleProdDebug` | ✅ APK produced |
 
-```
-$ python3 scripts/verify/rebirth_check.py --base main
-note: Kotlin parse: 567 file(s) checked, 0 broken, 15 pre-existing gap(s).
-note: R references: 1604 checked.
-note: Resource XML references: 164 checked.
-note: Translation format arguments: 18577 translated string(s) compared.
-note: Compose resource references: 242 checked.
-note: Compose translations: 3230 translated string(s) compared.
-note: Symbol resolution proxy: 31 file(s), 0 unresolved name(s).
-note: Call signatures: 123 named-argument call(s) checked.
-note: Import packages: 746 import(s) checked against the tree.
-note: Hardcoded rebirth text: 0 literal(s) found.
-note: Manifest components checked against declared classes.
-note: Protected paths checked against main (105 changed file(s)).
-OK: every static check passed.
-```
+The repository's own `Total Music Android verification` workflow also runs on
+this pull request (shared JVM tests, the full app unit-test suite, lint and the
+unsigned release build); it exercises the same tree from the other direction.
 
-What each check can and cannot catch:
+### What the compiler found, and what that says about the static gate
 
-| Check | Catches | Cannot catch |
+Ten defects, none of which static analysis had caught, all fixed:
+
+| # | Defect | Caught by |
 | --- | --- | --- |
-| Kotlin parse (tree-sitter) | unbalanced braces, malformed declarations, a file that stops parsing | everything semantic; 15 files already fail this grammar at `main` and are reported, not failed |
-| R references | `R.string.x` with no resource | a wrong-but-existing resource |
-| Resource XML references | `@font/x` in a layout with no font | attribute-level validity |
-| Translation format arguments | a locale that drops `%1$s` (a runtime crash) | awkward translations |
-| Compose resources | `Res.string.x` with no key | missing *usages* |
-| Compose translations | argument mismatch per locale; missing keys | tone and grammar of 18 locales |
-| Symbol resolution proxy | a capitalised name that is neither imported nor declared in its package — the missing-import class of error | types, overload resolution, receivers, generics |
-| Call signatures | a named argument a function does not declare, or a required one omitted (including calls from `MainActivity`, `SettingsSheet`, `EqualizerScreen`, `SongActionsSheet`, `NowPlayingScreen`) | positional-argument type errors |
-| Import packages | an import taken from a package no other file in the tree uses for that name — a wrong package is a hard error and invisible to every other check. Only imports this branch introduces are judged, so the tree's own odd-looking ones are not re-reported | a name genuinely imported from two packages |
-| Hardcoded text | a literal passed to `Text()`, `label =`, `title =` in the rebirth layer | literals inside resources |
-| Manifest components | an `android:name` no class declares | runtime contract of the component |
-| Protected paths | changes to `.github/workflows/`, `signing/`, `.signing/`, any `keystore` | — |
+| 1 | `padding(horizontal = …, bottom = …)` — no such overload | compiler |
+| 2 | `Res.string.listen_together` used without importing the generated property | compiler |
+| 3 | same for `Res.string.more` | compiler |
+| 4 | `roundToInt` without `kotlin.math.roundToInt` | compiler |
+| 5 | `lyrics_loading_lines` is a string-array, used as a string | compiler |
+| 6 | the drag state's private edge fields assigned from a composable | compiler |
+| 7 | `LocalAudioPopupInk.current` read inside a `DrawScope` | compiler |
+| 8 | `Icons.AutoMirrored.Rounded.ArrowBack` without its import | compiler |
+| 9 | `EqualizerPreset` imported from `data.settings`; it lives in `playback` | the import check (added in this branch) |
+| 10 | `Notes` taken from the non-mirrored icon package | the import check |
 
-These checks found four real defects in the layer, all fixed: a missing `Spacer`
-import in `RebirthPlayerAtoms.kt`; a `DynamicCard`/`ManualCard` call that had
-lost its `enabled` argument; an `EqualizerPreset` imported from
-`data.settings` when the only such class is in `playback`; and `Notes` taken
-from the non-mirrored icon package. The last two are exactly the class of error
-a parse or a symbol grep cannot see, which is why the import check exists.
-
-## Acceptance criteria, one by one
-
-"Static" = written, reviewed and covered by the gate above. It does **not**
-mean observed running.
-
-| Requirement | Where it lives | Status |
-| --- | --- | --- |
-| Playback from the library | `RebirthLocalExperience` → `onPlay` → `MainActivity.playFrom` | static |
-| Search inside the library | `rebirthMatches`, `RebirthSearchField`, both scenes | unit-tested |
-| Filtered multi-select | `rebirthFilteredSelection` | unit-tested |
-| Selection → playlist | `DevicePlaylistPickerDialog` from the selection bar | static |
-| Create / rename / delete playlist | `RebirthDialog` + `DevicePlaylistStore` | static |
-| Library ordering | `rebirthSortedLibrary` + `LocalMusicSort` (all five, including track number) | unit-tested |
-| Favourites | `RebirthCategory.FAVORITES` + `rebirthVisibleSongs` | unit-tested |
-| Playlist reorder by drag | `RebirthQueueDrag` is for the queue; playlists move with the two arrows, which stay reachable under a screen reader | static |
-| Queue reorder by drag | `RebirthQueueReorder.kt` + `RebirthQueuePage` — long-press a handle, carry, live swaps, edge auto-scroll; a per-row menu keeps the same moves reachable without a drag | static |
-| Queue locked in a party | drag and menu items disabled, with the reason shown (`rebirth_queue_locked`) | static |
-| Lyrics: tap to seek | `RebirthLyricsPage` | static |
-| Lyrics: translate / romanize | `rememberLyricsTranslation` toggles | static |
-| Lyrics: offset | `LyricsOffsetSheet`, opened from the lyric page; signed value shown when it is not zero | static |
-| Lyrics: provider | `LyricsProviderSheet`, opened from the lyric page and from the tools sheet | static |
-| Lyrics: sync state | reported on the lyric page (read-only: the player's settings interface has no setter) | static |
-| Equalizer | `RebirthEqualizer`: dynamic, manual, Total EQ 10/31 bands, presets, saved profiles, preamp, limiter, parametric page | static |
-| Settings | `RebirthSettings` home → the app's own groups, filtered to the opened one | static |
-| Song actions from Home | `RebirthSongActions` + the app's action list | static |
-| Output drawer, cast, pipeline | themed per player via `LocalPlayerStyle`: glass = dark pane of glass, expressive = opaque editorial page, original = unchanged | static |
-| Google Expressive+ / Liquid Glass+ | separate compositions in library, player, mini player, navigation, settings, equalizer, song menu, and now the shared sheets | static |
-| Original theme | `PlayerVisualStyle.ORIGINAL` never enters the rebirth layer; `LocalPlayerStyle` defaults to it | static |
+Two of the ten were found by a static check written after the fact. The other
+eight are why **compiling is not optional**: a parser, a symbol grep and a
+signature check between them still cannot see overloads, composable
+context or resource *kinds*.
 
 ## Unit tests
 
 `app/src/test/java/com/music/bitchord/ui/rebirth/RebirthLibraryTest.kt` — 12
-tests over the pure model: album order across discs, search matching, track
-order vs scan order, date order, selection pruned by a query, the reorder guard,
-the sort cycle returning to manual and covering every entry, favourites
-filtering, an open collection overriding the category, saved playlists keeping
-their own order, and gallery rows staying paired. **Not executed here** — there
-is no JVM test runner in the sandbox. They are plain JUnit 4 tests with no
-Android dependency, so `./gradlew :app:testDebugUnitTest` runs them anywhere.
+tests over the pure model. **All 12 pass on CI** (commit `2882ae2b`).
+
+One of them was red on the first run, and the test was right: the model
+sorted a track with no disc tag after every disc, so disc 2 of a set whose
+first disc is untagged came out first. The rule already exists in
+`com.music.bitchord.data.model.AlbumOrdering` (`List<Song>.inAlbumOrder()`:
+missing disc means disc one, a track with no number goes last), and the album
+screen uses it. `rebirthAlbumOrder` now delegates to it instead of keeping a
+near-copy, and the tests pin the shared answer.
+
+## The APK
+
+From the same run:
+
+```
+app-prod-universal-debug.apk
+sha256  909bfe59c9e6cdeb96adc63bbb0d0f8f61c8f86b6d440ff67c5ba708af8451ba
+```
+
+**Signature: the Android debug certificate** — `CN=Android Debug`,
+cert SHA-256 `ce5dbc1f99cca2ea2add43846e72bbda6cd307d080b19b8c0c5e593003c7d368`.
+
+It is a `prodDebug` build: debuggable, not minified, not a release, and **not
+installable over a build signed with the release key** — the signatures differ,
+so Android will refuse to update and the app has to be uninstalled first. It is
+not a compatible update to an installed Total Music, and it is not presented as
+one. The release keystore is untouched by all of this; this workflow has no
+access to it and asks for none.
+
+Artifact: `total-music-180-test-apk-<sha>` on the run page, which also carries
+`ci-logs/` (the Gradle logs, the signature block above) and the JUnit reports.
+
+## Static gate (a supplement, not a substitute)
+
+```
+$ python3 scripts/verify/rebirth_check.py --base main
+Kotlin parse: 568 file(s) checked, 0 broken, 15 pre-existing gap(s).
+R references: 1614 checked.
+Resource XML references: 164 checked.
+Translation format arguments: 18578 translated string(s) compared.
+Compose resource references: 242 checked.
+Compose resource imports: 37 property use(s) checked.
+Compose translations: 3230 translated string(s) compared.
+Symbol resolution proxy: 32 file(s), 0 unresolved name(s).
+Call signatures: 126 named-argument call(s) checked.
+Import packages: 784 import(s) checked against the tree.
+Hardcoded rebirth text: 0 literal(s) found.
+Manifest components checked against declared classes.
+Protected paths checked against main (109 changed file(s)).
+OK: every static check passed.
+```
+
+It is still worth running before every push — it takes two seconds and the
+import check has already earned its keep — but everything in the previous
+paragraphs is what proves the branch builds.
+
+## Acceptance criteria
+
+"Built" means the check above compiled the code; none of it has been *run*.
+
+| Requirement | Where it lives | Status |
+| --- | --- | --- |
+| Playback from the library | `RebirthLocalExperience` → `onPlay` | built, unit-tested model |
+| Search inside the library | `rebirthMatches`, `RebirthSearchField` | built, unit-tested |
+| Filtered multi-select | `rebirthFilteredSelection` | built, unit-tested |
+| Selection → playlist | `DevicePlaylistPickerDialog` | built |
+| Create / rename / delete playlist | `RebirthDialog` + `DevicePlaylistStore` | built |
+| Library ordering | `rebirthSortedLibrary` + shared `inAlbumOrder()` | built, unit-tested |
+| Favourites | `RebirthCategory.FAVORITES` + `rebirthVisibleSongs` | built, unit-tested |
+| Playlist reorder by drag | `RebirthPlaylistDrag` (one move on drop) + row menu | built, not exercised |
+| Queue reorder by drag | `RebirthQueueReorder` + `RebirthQueuePage` | built, not exercised |
+| Queue locked in a party | drag and menu items disabled, reason on screen | built |
+| Lyrics: tap to seek, translate, romanize | `RebirthLyricsPage` | built |
+| Lyrics: offset, provider, sync state | offset sheet, provider sheet, read-only sync note | built |
+| Equalizer | `RebirthEqualizer` (dynamic, manual, 10/31 bands, presets, preamp, limiter, parametric) | built |
+| Settings | `RebirthSettings` → the app's own groups, filtered | built |
+| Song actions from Home | `RebirthSongActions` + the app's action list | built |
+| Output drawer, cast, pipeline | themed per player via `LocalPlayerStyle` | built |
+| Google Expressive+ / Liquid Glass+ | separate compositions in library, player, mini player, navigation, settings, equalizer, song menu, sheets | built |
+| Original theme | never enters the rebirth layer | built |
 
 ## Known gaps
 
-1. **No compiler.** 6 400 lines of Kotlin that no type checker has seen. This is
-   the branch's largest risk and the first thing to fix elsewhere.
-2. **No device pass.** All of these are unverified on hardware: narrow screens,
-   200 % font scale, both Plus themes, Original, glass sampling, frame timing,
-   low-memory behaviour, RTL (`values-he`).
-3. **The player's own sheets are themed by one local, not redesigned.** The
-   output drawer, the lyric provider sheet and the lyric offset sheet change
-   material, corner and ink per style, and reuse the app's real controls — that
-   was deliberate, since rewriting four sheets would have been four chances to
-   lose a control. Their *internal layout* is still the original's.
-4. **Narrow screens and large fonts were reviewed by reading, not by running.**
-   What was fixed for them: the lyric control strip scrolls instead of clipping,
-   the player-style chips scroll, the equaliser bands widen with the font scale
-   (they were 44 dp of label space and wrapped), and the queue row's three
-   30 dp action targets became one 42 dp menu whose items are full width.
-5. **Queue drag is a second implementation**, not a refactor of the original's
-   private one, which is welded to its tiered rows. Both use the same edge-scroll
-   ramp (`edgeScrollSpeed`), so the pace matches; the gesture code is not shared.
-6. **Playlists reorder with arrows only.** Drag on playlist rows is the next
-   parity item; the arrows are a real path, not a placeholder.
-7. **Second-level settings.** Accent picker, artwork colours and adaptive
+1. **No device pass.** Nothing has been seen running: narrow screens, 200 %
+   font scale, both Plus themes, Original, RTL (`values-he`), glass sampling,
+   frame timing, install-and-update behaviour.
+2. **The two drags are compiled, not exercised.** Neither has a test that moves
+   a finger. The playlist drag writes nothing until the drop, so a bug there
+   cannot corrupt a playlist; the queue drag sends each swap as it happens,
+   which is what the player's queue needs.
+3. **Player sheets share material, not layout.** `AudioOutputSheet`,
+   `LyricsProviderSheet`, `LyricsOffsetSheet`, `CastDialog` and
+   `AudioPipelineDialog` draw in the material of the player that opened them;
+   their internal layout is still the original's. The pipeline graph now takes
+   its ink from the theme, which it needed to be visible on the expressive
+   page at all.
+4. **App-side rebirth strings are English and Spanish only.** The 18 strings
+   the *player* uses live in Compose resources and are translated into all 17
+   locales. The library/settings/equalizer strings live in
+   `res/values/total_music_180.xml` with `values-es` only; the other locales
+   fall back to English, as the file's header says.
+5. **Second-level settings.** Accent picker, artwork colours and adaptive
    navigation rows are still legacy widgets inside a rebirth frame.
-
-## Reproducing the gate
-
-```
-python3 -m venv /tmp/venv_ts
-/tmp/venv_ts/bin/pip install tree-sitter tree-sitter-kotlin
-/tmp/venv_ts/bin/python scripts/verify/rebirth_check.py --base main
-```
-
-Without tree-sitter the script still runs the resource, translation, signature,
-manifest and protected-path checks; only the parse step is skipped, with a note
-saying so.

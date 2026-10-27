@@ -1,6 +1,13 @@
-# Why this branch has no build — and what was tried, exactly
+# Why this sandbox cannot build — and where the branch is built instead
 
-Recorded so the next person does not repeat it.
+The branch **is** compiled: in GitHub Actions, by
+`.github/workflows/total-music-180-compile.yml`, which runs
+`:app:compileProdDebugKotlin`, the rebirth unit tests and
+`:app:assembleProdDebug` and uploads the APK. See
+[VALIDATION.md](VALIDATION.md) for the run and its results.
+
+This page is the record of why that has to happen elsewhere, so nobody repeats
+the search.
 
 ## The blocker in one line
 
@@ -117,7 +124,18 @@ and workflows. It is a compile *proxy*, not a compiler, and
 [VALIDATION.md](VALIDATION.md) is explicit about which errors each part can and
 cannot catch.
 
-## To build this branch elsewhere
+## To build this branch yourself
+
+Either push to the branch (the validation workflow runs on the pull request) or
+run the same three tasks locally with a JDK, the Android SDK and Maven access:
+
+```
+./gradlew :app:compileProdDebugKotlin
+./gradlew :app:testProdDebugUnitTest --tests 'com.music.bitchord.ui.rebirth.*'
+./gradlew :app:assembleProdDebug
+```
+
+## Or, historically, what the sandbox offered
 
 ```
 git fetch origin arena/3b36059c-total-music

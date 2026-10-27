@@ -121,23 +121,45 @@ foot of the tools sheet, labelled as such, not the contents of the button.
   `EqualizerPreset` imported from a package that does not declare it, and a
   `Notes` icon taken from the non-mirrored Material package.
 
+## Third pass: compiled on Actions, tests green
+
+The branch is now built and tested in CI (`.github/workflows/total-music-180-compile.yml`),
+because this sandbox cannot reach Gradle, Google or Maven. On commit `2882ae2b`:
+
+* `:app:compileProdDebugKotlin` — success. Ten defects fixed to get there; the
+  list is in [VALIDATION.md](VALIDATION.md), and eight of the ten were invisible
+  to every static check.
+* `:app:testProdDebugUnitTest` — 12/12 rebirth tests pass. One had been red and
+  the test was right: the model sorted a track with no disc tag after every
+  disc, so disc 2 of an untagged set came first. `rebirthAlbumOrder` now
+  delegates to the shared `List<Song>.inAlbumOrder()`.
+* `:app:assembleProdDebug` — APK produced, debug-signed, uploaded as an
+  artifact. Not a release and not an installable update over the release build.
+
+Also in this pass:
+
+* **Playlist rows drag.** `RebirthPlaylistDrag` writes nothing until the drop:
+  a playlist is persisted on every move, so live swaps would write orders
+  nobody asked for and a cancelled drag would leave a half-way list. The two
+  arrows and the close button became one row menu (up, down, remove), which is
+  both narrower and reachable with a screen reader.
+* **Playback tools** still open the real surfaces; the sheets now draw in the
+  player's own material (see the third-pass note in the table above).
+
 ## Remaining work, in the order it should be done
 
-1. **Compile.** `./gradlew :app:compileDebugKotlin` on a machine with a JDK,
-   the Android SDK and Maven access. The parse, symbol and signature gates have
-   been through every file; what they cannot see is types and overloads, so
-   expect *type* errors rather than syntax or missing-import ones.
-2. **Drag for playlist rows.** The queue has it; the library's playlist page
-   still moves tracks with the two arrows. The engine in
-   `RebirthQueueReorder.kt` is list-shaped and can be reused, but the playlist
-   write path (`DevicePlaylistStore.move`) has to be settled against a filtered
-   view first — see the guard in `rebirthCanReorder`.
-3. **Sheet internals.** The player's sheets now match their player's material;
-   their *layouts* are still the original's. The larger one is the pipeline
-   readout, whose signal graph is drawn for a dark pane.
+1. **Device pass.** The checklist below. This is now the only way to learn what
+   the compiler cannot: whether the two drags feel right, whether the glass
+   samples, whether 200 % text still fits.
+2. **Sheet internals.** The player's sheets match their player's material; their
+   *layouts* are still the original's. The larger one is the pipeline readout,
+   whose signal graph is still drawn for a dark pane even though its ink now
+   follows the theme.
+3. **Localisation scope.** The 18 player strings are in all 17 locales. The
+   library, settings and equalizer strings in `res/values/total_music_180.xml`
+   are English and Spanish only; the file says so at the top.
 4. **Second-level settings.** Accent picker, artwork colours and adaptive
    navigation rows are still legacy widgets inside a rebirth frame.
-5. **Device pass.** The checklist below.
 
 ## Device checklist (nothing here has been run)
 
@@ -146,8 +168,11 @@ foot of the tools sheet, labelled as such, not the contents of the button.
 - [ ] Search inside the library; select three rows; clear the search — the
       count drops with the hidden rows.
 - [ ] Add the selection to a playlist; create, rename and delete one.
-- [ ] Open a playlist, reorder two tracks, then type in search: the arrows
-      disappear and the reason is shown.
+- [ ] Open a playlist, drag a row by its handle: the row follows the finger and
+      lands once on release; the menu (up, down, remove) does the same three
+      things without a drag.
+- [ ] Open a playlist, reorder two tracks, then type in search: the handle
+      disappears, the menu's moves go disabled, and the reason is shown.
 - [ ] Play from Home; the mini player follows the queue; expanding opens the
       sound system you selected.
 - [ ] Playback tools → output, pipeline, cast, lyrics provider, equalizer,
