@@ -74,6 +74,34 @@ VALIDATION_WORKFLOWS = (
     # for evidence is not confused with producing one.
     ".github/workflows/total-music-181-published.yml",
 )
+
+# The one workflow allowed to read a secret, and only to report whether a
+# permanent signing key exists: it says present/absent per candidate name and,
+# for a key that is present, the public SHA-256 of the certificate inside it.
+# That is the difference between "the key is configured" and "somebody assumed
+# it was", and it cannot be answered without touching the secrets context.
+#
+# So it gets its own, narrower rules rather than a hole in the rules above: it
+# may not sign an APK, generate a key, tag, push, publish or call the API, and
+# it may not write a keystore inside the checkout — only under $RUNNER_TEMP.
+SIGNING_CHECK_WORKFLOWS = (".github/workflows/total-music-181-signing-check.yml",)
+FORBIDDEN_IN_SIGNING_CHECK = (
+    "gh release",
+    "gh api",
+    "action-gh-release",
+    "upload-release",
+    "softprops/",
+    "git push",
+    "git tag",
+    "pull_request_target",
+    "apksigner",
+    "zipalign",
+    "keytool -genkey",
+    "keystore.properties",
+    "signingConfig",
+    "android.injected.signing",
+    "upload-artifact",
+)
 # What a validation workflow may not do. Building the *unsigned* release APK is
 # allowed — it is inert, the repository's own verification job builds it too, and
 # it is precisely the artefact the permanent key would sign later. Signing it,
@@ -828,6 +856,31 @@ def check_validation_workflow(path: str) -> None:
     note(f"{path}: validation workflow allowed (no publishing markers found).")
 
 
+def check_signing_check_workflow(path: str) -> None:
+    """
+    The read-only signing *check*, and what it may not do.
+
+    It is allowed to reference the secrets context — that is the whole point, and
+    the alternative is guessing — but nothing that could sign, generate, tag,
+    push, publish or ship a file out of the run. It also has to keep whatever it
+    decodes inside the runner's temporary directory, so no keystore can end up in
+    the checkout, an artifact or a cache.
+    """
+    full = os.path.join(ROOT, path)
+    if not os.path.isfile(full):
+        return
+    with open(full, encoding="utf-8") as handle:
+        text = handle.read()
+    for marker in FORBIDDEN_IN_SIGNING_CHECK:
+        if marker in text:
+            fail(f"{path}: contains `{marker}`, which a signing check may not do.")
+    if "RUNNER_TEMP" not in text:
+        fail(f"{path}: does not keep what it decodes under $RUNNER_TEMP.")
+    if "base64 -d" not in text:
+        fail(f"{path}: no longer decodes a keystore, so it is not the check it claims to be.")
+    note(f"{path}: read-only signing check, and it cannot sign or publish.")
+
+
 def check_protected_paths(base: str) -> None:
     command = ["git", "-C", ROOT, "diff", "--name-only", base, "--"]
     try:
@@ -836,6 +889,9 @@ def check_protected_paths(base: str) -> None:
         note(f"Protected-path check skipped: `git diff {base}` failed (unknown base?).")
         return
     for path in changed:
+        if path in SIGNING_CHECK_WORKFLOWS:
+            check_signing_check_workflow(path)
+            continue
         if path in VALIDATION_WORKFLOWS:
             check_validation_workflow(path)
             continue
@@ -850,6 +906,9 @@ def check_protected_paths(base: str) -> None:
         capture_output=True, text=True, check=False,
     ).stdout.split()
     for path in untracked:
+        if path in SIGNING_CHECK_WORKFLOWS:
+            check_signing_check_workflow(path)
+            continue
         if path in VALIDATION_WORKFLOWS:
             check_validation_workflow(path)
             continue

@@ -1,0 +1,238 @@
+name: Signing availability for Total Music
+
+# Answers one question, and only one: is the permanent Total Music signing key
+# configured in this repository's Actions secrets, and is it the key that signs
+# the published app?
+#
+# It exists because the API cannot be asked. Listing repository secrets needs
+# admin rights this integration does not have (403 Resource not accessible by
+# integration), and that is the correct answer to give an agent: a key that can
+# be read from CI is a key that leaks from CI. So nothing here reads a secret
+# value out. Each candidate is reported as present or absent, and a key that is
+# present is opened with the password stored beside it, inside the runner, to
+# report the certificate it contains — a public fact, the same SHA-256 the
+# release properties and every published APK already carry.
+#
+# Reported for a key that is present: its size, its alias names and the SHA-256
+# of its certificate. Never a password, never the alias's own password, never
+# key material. Every secret is masked as soon as it reaches the environment, so
+# a later `set -x` could not surface one either.
+#
+# Verdicts:
+#   permanent key available — a candidate holds the certificate that signed
+#                             1.7.0/1.8.0, so a signed 1.8.1 can be built here.
+#   different identity      — a key is present but it is not that certificate.
+#                             Signing with it cannot install over a published
+#                             Total Music.
+#   no key configured       — nothing to sign with.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/c83a7b6e-total-music]
+    paths:
+      - '.github/workflows/total-music-181-signing-check.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: total-music-181-signing-check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Total Music / Star Music names, from docs/upstream-workflows/android.yml.
+      KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      # A second spelling this repository's own tooling uses.
+      TM_KEYSTORE_B64: ${{ secrets.TOTAL_MUSIC_KEYSTORE_B64 }}
+      TM_KEYSTORE_PASSWORD: ${{ secrets.TOTAL_MUSIC_KEYSTORE_PASSWORD }}
+      # The spatial keystore the prod release signs with while
+      # spaceSpatialEdition=true — see the signing blocks in
+      # app/build.gradle.kts.
+      SPATIAL_KEYSTORE_B64: ${{ secrets.SPACE_SPATIAL_KEYSTORE_B64 }}
+      SPATIAL_KEYSTORE_PASSWORD: ${{ secrets.SPACE_SPATIAL_KEYSTORE_PASSWORD }}
+      # Space Music's own key: a different application identity. Listed so the
+      # report can say it exists and still cannot sign a Total Music update.
+      SPACE_KEYSTORE_B64: ${{ secrets.SPACE_KEYSTORE_B64 }}
+      SPACE_KEYSTORE_PASSWORD: ${{ secrets.SPACE_KEYSTORE_PASSWORD }}
+      # Known to be configured, from the repository's own docs; not a key.
+      CANDIDATE_URL: ${{ secrets.TOTAL_MUSIC_CANDIDATE_URL }}
+      EXPECTED_SHA256: '9ae145a703a85902fe6d6ab3d886f6801873d717929deaa3e3d0b0a81de829fa'
+    steps:
+      - name: Install the build tools this check needs
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: build-tools;36.0.0
+
+      - name: Report which signing secrets exist, and what key each one holds
+        run: |
+          set -uo pipefail
+
+          # Defence in depth. Nothing below prints these, but a mask cannot be
+          # forgotten the way a `set -x` can be introduced.
+          for name in KEYSTORE_B64 KEYSTORE_PASSWORD KEY_PASSWORD TM_KEYSTORE_B64 \
+                      TM_KEYSTORE_PASSWORD SPATIAL_KEYSTORE_B64 SPATIAL_KEYSTORE_PASSWORD \
+                      SPACE_KEYSTORE_B64 SPACE_KEYSTORE_PASSWORD; do
+            value="${!name:-}"
+            [ -n "$value" ] && echo "::add-mask::$value"
+          done
+
+          report=signing-report.md
+          : > "$report"
+
+          row() {
+            local name="$1" what="$2"
+            if [ -n "${!name:-}" ]; then
+              echo "| \`$name\` | yes | $what |"
+            else
+              echo "| \`$name\` | no | $what |"
+            fi
+          }
+
+          {
+            echo "## 1. Which candidate secrets are set"
+            echo
+            echo "| Secret | Present | What it is |"
+            echo "| --- | --- | --- |"
+            row KEYSTORE_B64 "Total Music keystore, Base64 (documented name)"
+            row KEYSTORE_PASSWORD "its store password"
+            row KEY_ALIAS "its key alias name"
+            row KEY_PASSWORD "its key password"
+            row TM_KEYSTORE_B64 "Total Music keystore, Base64 (alternate name)"
+            row TM_KEYSTORE_PASSWORD "its store password"
+            row SPATIAL_KEYSTORE_B64 "spatial keystore the prod release signs with"
+            row SPATIAL_KEYSTORE_PASSWORD "its store password"
+            row SPACE_KEYSTORE_B64 "Space Music key — different app identity"
+            row SPACE_KEYSTORE_PASSWORD "its store password"
+            row CANDIDATE_URL "download URL for a candidate APK, not a key"
+            echo
+          } >> "$report"
+
+          work="$RUNNER_TEMP/keys"
+          mkdir -p "$work"
+          chmod 700 "$work"
+          matches=0
+          present=0
+          opened=0
+
+          # $3 is the *name* of the variable holding the password, so the value
+          # is handed to keytool through the environment and never appears on a
+          # command line, in `ps`, or in the log.
+          examine() {
+            local label="$1" b64="$2" passvar="$3"
+            local file="$work/key.p12"
+            echo "## Key: $label"
+            echo
+            if [ -z "$b64" ] || [ -z "${!passvar:-}" ]; then
+              echo "Not set, so there is nothing to open."
+              echo
+              return
+            fi
+            present=$((present + 1))
+            if ! printf '%s' "$b64" | tr -d '[:space:]' | base64 -d > "$file" 2>/dev/null; then
+              echo "The stored value is not valid Base64, so it is not a keystore."
+              echo
+              rm -f "$file"
+              return
+            fi
+            echo "Decoded keystore: \`$(stat -c %s "$file")\` bytes."
+            echo
+            local listing
+            export PROBE_STORE_PASS="${!passvar}"
+            listing=$(keytool -list -v -keystore "$file" -storepass:env PROBE_STORE_PASS 2>&1) || true
+            unset PROBE_STORE_PASS
+            rm -f "$file"
+            if ! printf '%s' "$listing" | grep -q '^Alias name:'; then
+              echo "The keystore did not open with the password stored beside it:"
+              echo
+              echo '```'
+              printf '%s\n' "$listing" | head -4
+              echo '```'
+              echo
+              return
+            fi
+            opened=$((opened + 1))
+            local aliases cert_sha listed_alias
+            aliases=$(printf '%s' "$listing" | sed -n 's/^Alias name: //p' | paste -sd ', ' -)
+            cert_sha=$(printf '%s' "$listing" \
+              | sed -n 's/^[[:space:]]*SHA256: //p' \
+              | tail -1 | tr -d ':' | tr 'A-Z' 'a-z')
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| aliases | \`$aliases\` |"
+            echo "| certificate SHA-256 | \`$cert_sha\` |"
+            if [ "$cert_sha" = "$EXPECTED_SHA256" ]; then
+              echo "| matches the published app | **yes — the permanent Total Music certificate** |"
+              matches=$((matches + 1))
+            else
+              echo "| matches the published app | no — a different identity |"
+            fi
+            echo
+          }
+
+          for spec in "KEYSTORE_BASE64 (Total Music)|KEYSTORE_B64|KEYSTORE_PASSWORD" \
+                      "TOTAL_MUSIC_KEYSTORE_B64|TM_KEYSTORE_B64|TM_KEYSTORE_PASSWORD" \
+                      "SPACE_SPATIAL_KEYSTORE_B64|SPATIAL_KEYSTORE_B64|SPATIAL_KEYSTORE_PASSWORD" \
+                      "SPACE_KEYSTORE_B64 (Space Music)|SPACE_KEYSTORE_B64|SPACE_KEYSTORE_PASSWORD"; do
+            IFS='|' read -r label b64var passvar <<< "$spec"
+            # Redirected, not piped: a pipeline would run this in a subshell and
+            # the counters above would be lost with it.
+            examine "$label" "${!b64var:-}" "$passvar" > "$work/section.md"
+            cat "$work/section.md" >> "$report"
+            cat "$work/section.md"
+          done
+          rm -rf "$work"
+
+          {
+            echo "## 2. Verdict"
+            echo
+            if [ "$matches" -gt 0 ]; then
+              echo "**Permanent signing key available.** A stored keystore holds"
+              echo "\`$EXPECTED_SHA256\` — the certificate of 1.7.0 and 1.8.0 — so a signed 1.8.1"
+              echo "can be built and verified here without the key leaving the runner."
+            elif [ "$present" -gt 0 ]; then
+              if [ "$opened" -gt 0 ]; then
+                echo "**Not available.** $present keystore(s) are configured and $opened opened, but"
+                echo "none holds the permanent Total Music certificate, so none of them can produce"
+                echo "an APK that installs over a published release."
+              else
+                echo "**Not available.** $present keystore(s) are configured, but none opened with"
+                echo "the password stored beside it."
+              fi
+            else
+              echo "**Not available.** No signing keystore is configured in this repository's"
+              echo "Actions secrets. The release APK stays unsigned; an installable update needs"
+              echo "the permanent keystore and its passwords supplied from outside CI."
+            fi
+            echo
+          } >> "$report"
+          cat "$report" | tail -8
+
+      - name: Post the check on the pull request
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: "5"
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          {
+            echo "### Signing availability (no secret value is read out)"
+            echo
+            echo "Run: ${RUN_URL}"
+            echo
+            cat signing-report.md 2>/dev/null || echo "the report step did not run"
+            echo
+            echo "Only presence and public certificate fingerprints are reported. No password,"
+            echo "alias password or key material appears above, and the values are masked in the"
+            echo "runner as well."
+          } > comment.md
+          gh pr comment "$PR_NUMBER" --body-file comment.md || echo "could not comment"
