@@ -2,6 +2,8 @@ package com.music.bitchord.ui.player
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,12 +25,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DragHandle
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -38,6 +38,8 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -350,8 +352,9 @@ internal fun RebirthQueuePage(
     // something — can take the held row away. Dropped here rather than inside
     // the engine's own bookkeeping, which runs during composition.
     LaunchedEffect(keys) { if (!drag.holdsAnyOf(keys)) drag.end() }
-    // The player reads this to keep its own swipe gestures out of the way
-    // while a row is being carried.
+    // The player forwards this to its media session, which parks the party
+    // sync until the row lands: a drag is one reorder, not one per neighbour
+    // crossed.
     val dragging = drag.heldKey != null
     LaunchedEffect(dragging) { onDragActiveChange(dragging) }
     DisposableEffect(Unit) { onDispose { onDragActiveChange(false) } }
@@ -502,30 +505,50 @@ private fun RebirthQueueRowView(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (draggable) {
-                Column {
-                    IconButton(onClick = onMoveUp, enabled = !locked, modifier = Modifier.size(30.dp)) {
-                        Icon(
-                            Icons.Rounded.KeyboardArrowUp,
-                            contentDescription = stringResource(Res.string.rebirth_queue_move_up),
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                    IconButton(onClick = onMoveDown, enabled = !locked, modifier = Modifier.size(30.dp)) {
-                        Icon(
-                            Icons.Rounded.KeyboardArrowDown,
-                            contentDescription = stringResource(Res.string.rebirth_queue_move_down),
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
+            // One target instead of three. The arrows used to sit stacked to
+            // the right of the row and the remove button beside them: three
+            // 30dp targets in a row 56dp tall, which is smaller than a finger
+            // and pushed the title into three lines on a narrow screen. The
+            // same three actions live here, at full width, and the row keeps
+            // its space for the song.
+            // Not on the copy the finger is carrying: it is on its way
+            // somewhere and has nothing to open.
+            var actionsOpen by remember { mutableStateOf(false) }
+            if (!lifted) Box {
+                IconButton(onClick = { actionsOpen = true }, modifier = Modifier.size(42.dp)) {
+                    Icon(
+                        Icons.Rounded.MoreVert,
+                        contentDescription = stringResource(Res.string.more),
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-            }
-            IconButton(onClick = onRemove, enabled = !locked && !current, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Rounded.Close,
-                    contentDescription = stringResource(Res.string.remove_from_queue),
-                    modifier = Modifier.size(18.dp),
-                )
+                DropdownMenu(expanded = actionsOpen, onDismissRequest = { actionsOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.rebirth_queue_move_up)) },
+                        enabled = draggable && !locked,
+                        onClick = {
+                            actionsOpen = false
+                            onMoveUp()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.rebirth_queue_move_down)) },
+                        enabled = draggable && !locked,
+                        onClick = {
+                            actionsOpen = false
+                            onMoveDown()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.remove_from_queue)) },
+                        enabled = !locked && !current,
+                        onClick = {
+                            actionsOpen = false
+                            onRemove()
+                        },
+                    )
+                }
             }
         }
     }
@@ -598,7 +621,13 @@ internal fun RebirthLyricsPage(
         // clock, and where they came from. All three are the app's own
         // settings and pickers — nothing here re-implements them.
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = spec.gutter, vertical = 2.dp),
+            // Scrolls rather than clips: at a 200 % font scale three chips and
+            // a status line do not fit on a narrow phone, and a control that
+            // is off the edge is a control that does not exist.
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = spec.gutter, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {

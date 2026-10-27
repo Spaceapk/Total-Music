@@ -720,7 +720,12 @@ fun SettingsScreen(
 
         SearchableSettingsGroup(search, header = stringResource(R.string.appearance)) {
             val expressive by com.music.bitchord.data.settings.TotalMusicSettings.expressive.collectAsStateWithLifecycle()
-            row("Google Expressive", "Material You", "Material 3") {
+            // The keyword list carries the *localized* title as well as the
+            // English and Spanish aliases: the search reads these strings and
+            // nothing else, so a row that omits its own visible label cannot
+            // be found by typing it.
+            val appearanceTitle = stringResource(R.string.total_appearance_style)
+            row(appearanceTitle, "Google Expressive", "Material You", "Material 3", "Estilo") {
                 SettingsRow(icon = Icons.Rounded.Brightness4, title = stringResource(R.string.total_appearance_style))
                 SegmentedControl(
                     options = listOf(stringResource(R.string.total_original_theme), "Google Expressive"),
@@ -729,7 +734,7 @@ fun SettingsScreen(
                     modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
                 )
             }
-            row("Reproductor", "player style", "Liquid Glass+", "Google Expressive+", "visual experience") {
+            row(stringResource(R.string.rebirth_visual_experience), "Reproductor", "player style", "Liquid Glass+", "Google Expressive+", "visual experience") {
                 SettingsRow(icon = Icons.Rounded.LibraryMusic, title = stringResource(R.string.rebirth_visual_experience))
                 SegmentedControl(
                     options = listOf("Original", "Google Expressive+", "Liquid Glass+"),
@@ -738,7 +743,7 @@ fun SettingsScreen(
                     modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
                 )
             }
-            row("Fondo dinámico", "player background", "artwork") {
+            row(stringResource(R.string.rebirth_effect_background), "Fondo dinámico", "player background", "artwork", "fondo") {
                 SettingsRow(
                     icon = Icons.Rounded.Gradient,
                     title = stringResource(R.string.rebirth_effect_background),
@@ -747,7 +752,7 @@ fun SettingsScreen(
                     onClick = { AppSettings.setPlayerDynamicBackground(!playerDynamicBackground) },
                 )
             }
-            row("Efectos de cristal", "glass effects", "Liquid Glass+") {
+            row(stringResource(R.string.rebirth_effect_glass), "Efectos de cristal", "glass effects", "Liquid Glass+", "cristal") {
                 SettingsRow(
                     icon = Icons.Rounded.BlurOn,
                     title = stringResource(R.string.rebirth_effect_glass),
@@ -756,7 +761,7 @@ fun SettingsScreen(
                     onClick = { AppSettings.setPlayerGlassEffects(!playerGlassEffects) },
                 )
             }
-            row("Controles alternativos", "alternative controls", "player") {
+            row(stringResource(R.string.rebirth_effect_controls), "Controles alternativos", "alternative controls", "player") {
                 SettingsRow(
                     icon = Icons.Rounded.Animation,
                     title = stringResource(R.string.rebirth_effect_controls),
@@ -765,7 +770,7 @@ fun SettingsScreen(
                     onClick = { AppSettings.setPlayerAlternativeControls(!playerAlternativeControls) },
                 )
             }
-            row("Transiciones animadas", "player motion", "animation") {
+            row(stringResource(R.string.rebirth_effect_motion), "Transiciones animadas", "player motion", "animation", "animación") {
                 SettingsRow(
                     icon = Icons.Rounded.MotionPhotosOff,
                     title = stringResource(R.string.rebirth_effect_motion),
@@ -774,8 +779,11 @@ fun SettingsScreen(
                     onClick = { AppSettings.setPlayerAnimatedTransitions(!playerAnimatedTransitions) },
                 )
             }
-            if (expressive) row("Color", "Accent", "Acento") { GoogleAccentPicker() }
-            if (expressive) row("Colores de carátula", "Google", "artwork colors") {
+            if (expressive) {
+                val accentTitle = stringResource(R.string.total_accent)
+                row(accentTitle, "Color", "Accent", "Acento", "tema") { GoogleAccentPicker() }
+            }
+            if (expressive) row(stringResource(R.string.total_artwork_colors), "Colores de carátula", "Google", "artwork colors") {
                 val enabled by com.music.bitchord.data.settings.TotalMusicSettings.artworkColors.collectAsStateWithLifecycle()
                 SettingsRow(
                     icon = Icons.Rounded.AutoAwesome,
@@ -785,11 +793,11 @@ fun SettingsScreen(
                     onClick = { com.music.bitchord.data.settings.TotalMusicSettings.setArtworkColors(!enabled) },
                 )
             }
-            row("Novedades", "What's new", "version history") {
+            row(stringResource(R.string.release_history), "Novedades", "What's new", "version history") {
                 SettingsRow(icon = Icons.Rounded.History, title = stringResource(R.string.release_history),
                     onClick = { showReleaseHistory = true })
             }
-            row("Navegación adaptable", "Liquid Glass", "adaptive navigation") {
+            row(stringResource(R.string.total_adaptive_glass), "Navegación adaptable", "Liquid Glass", "adaptive navigation") {
                 val enabled by com.music.bitchord.data.settings.TotalMusicSettings.adaptiveGlass.collectAsStateWithLifecycle()
                 SettingsRow(
                     icon = Icons.Rounded.AutoAwesome,

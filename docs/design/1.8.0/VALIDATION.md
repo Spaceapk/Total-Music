@@ -69,8 +69,8 @@ mean observed running.
 | Library ordering | `rebirthSortedLibrary` + `LocalMusicSort` (all five, including track number) | unit-tested |
 | Favourites | `RebirthCategory.FAVORITES` + `rebirthVisibleSongs` | unit-tested |
 | Playlist reorder by drag | `RebirthQueueDrag` is for the queue; playlists move with the two arrows, which stay reachable under a screen reader | static |
-| Queue reorder by drag | `RebirthQueueReorder.kt` + `RebirthQueuePage` — long-press a handle, carry, live swaps, edge auto-scroll; arrows kept as the accessible path | static |
-| Queue locked in a party | drag and buttons disabled, with the reason shown (`rebirth_queue_locked`) | static |
+| Queue reorder by drag | `RebirthQueueReorder.kt` + `RebirthQueuePage` — long-press a handle, carry, live swaps, edge auto-scroll; a per-row menu keeps the same moves reachable without a drag | static |
+| Queue locked in a party | drag and menu items disabled, with the reason shown (`rebirth_queue_locked`) | static |
 | Lyrics: tap to seek | `RebirthLyricsPage` | static |
 | Lyrics: translate / romanize | `rememberLyricsTranslation` toggles | static |
 | Lyrics: offset | `LyricsOffsetSheet`, opened from the lyric page; signed value shown when it is not zero | static |
@@ -106,12 +106,17 @@ Android dependency, so `./gradlew :app:testDebugUnitTest` runs them anywhere.
    material, corner and ink per style, and reuse the app's real controls — that
    was deliberate, since rewriting four sheets would have been four chances to
    lose a control. Their *internal layout* is still the original's.
-4. **Queue drag is a second implementation**, not a refactor of the original's
+4. **Narrow screens and large fonts were reviewed by reading, not by running.**
+   What was fixed for them: the lyric control strip scrolls instead of clipping,
+   the player-style chips scroll, the equaliser bands widen with the font scale
+   (they were 44 dp of label space and wrapped), and the queue row's three
+   30 dp action targets became one 42 dp menu whose items are full width.
+5. **Queue drag is a second implementation**, not a refactor of the original's
    private one, which is welded to its tiered rows. Both use the same edge-scroll
    ramp (`edgeScrollSpeed`), so the pace matches; the gesture code is not shared.
-5. **Playlists reorder with arrows only.** Drag on playlist rows is the next
+6. **Playlists reorder with arrows only.** Drag on playlist rows is the next
    parity item; the arrows are a real path, not a placeholder.
-6. **Second-level settings.** Accent picker, artwork colours and adaptive
+7. **Second-level settings.** Accent picker, artwork colours and adaptive
    navigation rows are still legacy widgets inside a rebirth frame.
 
 ## Reproducing the gate

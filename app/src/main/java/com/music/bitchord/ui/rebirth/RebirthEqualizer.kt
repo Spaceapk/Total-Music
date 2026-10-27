@@ -34,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -473,6 +474,13 @@ private fun TotalCard(
 private fun BandStrip(config: TotalEqConfig, enabled: Boolean, glass: Boolean) {
     val sampleRate by TotalMusicSettings.sampleRate.collectAsStateWithLifecycle()
     val latest by remember(config) { mutableStateOf(config) }
+    // "+12.0" and "60" have to fit above and below a fader. At the default
+    // font scale 44dp does; at 200 % it does not, so the strip is widened by
+    // the same factor the text grew. The row scrolls anyway, so the extra
+    // width costs nothing but finger travel.
+    val bandWidth = (
+        (if (glass) 44f else 48f) * LocalDensity.current.fontScale.coerceIn(1f, 2f)
+    ).dp
     Surface(
         shape = RoundedCornerShape(if (glass) 20.dp else 30.dp),
         color = if (glass) {
@@ -505,18 +513,20 @@ private fun BandStrip(config: TotalEqConfig, enabled: Boolean, glass: Boolean) {
                     )
                 }
                 Column(
-                    Modifier.width(if (glass) 44.dp else 48.dp),
+                    Modifier.width(bandWidth),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
                         text = String.format(Locale.getDefault(), "%+.1f", gain),
                         style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        softWrap = false,
                     )
                     BandFader(
                         value = gain,
                         enabled = active,
                         modifier = Modifier
-                            .width(if (glass) 44.dp else 48.dp)
+                            .width(bandWidth)
                             .height(if (glass) 170.dp else 190.dp)
                             .semantics {
                                 contentDescription = "${hz.toInt()} Hz"
@@ -538,6 +548,8 @@ private fun BandStrip(config: TotalEqConfig, enabled: Boolean, glass: Boolean) {
                         text = if (hz >= 1000f) "${(hz / 1000f).toInt()}k" else hz.toInt().toString(),
                         style = MaterialTheme.typography.labelSmall,
                         textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        softWrap = false,
                     )
                 }
             }

@@ -93,8 +93,9 @@ foot of the tools sheet, labelled as such, not the contents of the button.
   crosses half a neighbour, the held row is drawn over the list from the
   engine's own top so nothing jumps, and holding near an edge scrolls the list
   at the same ramp the original queue uses (`edgeScrollSpeed`). The up/down
-  arrows stay, because a drag is not reachable by a screen reader. The party
-  lock disables both and says why.
+  actions stay reachable without a drag through a per-row menu (move up, move
+  down, remove), because a drag is not reachable by a screen reader. The party
+  lock disables the menu's items and says why.
 * **Lyric controls.** The lyric page now carries the rest of the original
   panel's controls: the offset sheet (signed value shown on the chip), the
   provider picker, and whether the player follows the words at all — read-only,
@@ -107,6 +108,12 @@ foot of the tools sheet, labelled as such, not the contents of the button.
   defaults to `ORIGINAL` and every branch falls through to the old values.
 * **Localization.** The 18 `rebirth_*` string keys exist in the default locale
   and in all 17 translations, with matching format arguments (checked).
+* **Large fonts and narrow screens.** Reviewed by reading, and four things
+  changed: the lyric control strip and the player-style chips scroll rather
+  than clip; the equaliser's band labels widen with the font scale instead of
+  wrapping into the fader; and the queue row's three 30 dp action targets
+  became one 42 dp menu (the settings search keywords also learned the
+  *localized* titles, since the search reads nothing else).
 * **Static gate.** `scripts/verify/rebirth_check.py` grew compose-translation
   parity, a symbol-resolution proxy and a call-signature check. The last two
   found and fixed two real defects (a missing `Spacer` import and a lost
@@ -148,8 +155,8 @@ foot of the tools sheet, labelled as such, not the contents of the button.
 - [ ] Lyrics page → provider chip opens the picker; tools sheet → same picker.
 - [ ] Queue page: drag a row by its handle to a new position; the row follows
       the finger, edges auto-scroll, and the party hears one reorder on drop.
-- [ ] Queue page: the up/down arrows move the same row; both are disabled in a
-      party, and the reason is on screen.
+- [ ] Queue page: the row menu moves the same row up and down; its items are
+      disabled in a party, and the reason is on screen.
 - [ ] Queue page: jump, remove, clear added.
 - [ ] Equalizer: dynamic, manual, Total EQ 10/31 bands, a saved profile, the
       advanced page.

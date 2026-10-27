@@ -2,6 +2,7 @@ package com.music.bitchord.ui.rebirth
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -257,8 +258,14 @@ private fun PlayerStylePicker(glass: Boolean = false) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 6.dp),
         )
+        // Three chips whose names are fixed product words. At a 200 % font
+        // scale they do not fit a narrow phone side by side, so the unweighted
+        // row scrolls; the weighted one (glass) truncates instead, because a
+        // weighted child inside a scrollable row would measure at infinity.
         Row(
-            Modifier.fillMaxWidth(),
+            Modifier.fillMaxWidth().then(
+                if (glass) Modifier else Modifier.horizontalScroll(rememberScrollState()),
+            ),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PlayerVisualStyle.entries.forEach { entry ->
