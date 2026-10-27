@@ -1,7 +1,7 @@
 name: Verify signed APK installation and upgrade
 on:
   push:
-    branches: [main]
+    branches: [arena/3b36059c-total-music]
     paths: ['.github/workflows/total-music-install-check.yml']
   workflow_dispatch:
 permissions:
@@ -14,12 +14,15 @@ jobs:
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
         with:
           packages: platform-tools emulator system-images;android-33;google_apis;x86_64
-      - name: Download and verify exact published APK
+      - name: Download exact signed 1.7.0 and 1.8.0 APKs
         run: |
+          set -euo pipefail
           mkdir -p results
-          curl --fail --location --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.4.1/Total-Music-1.4.1-universal.apk -o published.apk
-          echo '71363fb313d58685b3632a6889bb82712ad68d16e1d0fbbef9ad155dd0f78607  published.apk' | sha256sum -c - | tee results/checksum.txt
-      - name: Boot Android 13 and install
+          curl -fL --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.7.0/Total-Music-1.7.0-universal.apk -o previous.apk
+          curl -fL --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.8.0-preview.1/Total-Music-1.8.0-universal.apk -o published.apk
+          echo '2f06be1aca0452d9a19a45195863d7b68a44d4c42be71dc09cb6353236e1bc2c  previous.apk' | sha256sum -c -
+          echo '0c757220666a28724c128f40284102c96e6049eb0f8eea121798fb66e90877e3  published.apk' | sha256sum -c -
+      - name: Boot Android 13
         run: |
           set -euo pipefail
           adb start-server
@@ -28,25 +31,38 @@ jobs:
           mkdir -p "$ANDROID_AVD_HOME"
           echo no | avdmanager create avd -n installcheck -k 'system-images;android-33;google_apis;x86_64' --force
           "$ANDROID_HOME/emulator/emulator" -avd installcheck -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -gpu swiftshader_indirect -feature -Vulkan -cores 2 -memory 2048 > results/emulator.log 2>&1 &
-          "$ANDROID_HOME/emulator/emulator" -list-avds | tee results/avds.txt
           timeout 120 adb wait-for-device
           timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
-          timeout 20 adb shell getprop > results/device-properties.txt
-          curl --fail --location --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.4.0/Total-Music-1.4.0-universal.apk -o previous.apk
-          echo '63c55c8c7944ecff0c3fab54337abc40d56862b2e6cd65c541b0640018a08af0  previous.apk' | sha256sum -c -
-          timeout 120 adb install --no-streaming previous.apk 2>&1 | tee results/install-previous.txt
-          timeout 20 adb shell pm grant org.nexlibre.totalmusic android.permission.READ_MEDIA_AUDIO
-          timeout 120 adb install --no-streaming -r published.apk 2>&1 | tee results/install-upgrade.txt
-          timeout 20 adb shell dumpsys package org.nexlibre.totalmusic > results/package.txt
-          grep 'versionCode=9' results/package.txt
-          adb logcat -v threadtime > results/logcat.txt 2>&1 &
-          timeout 40 adb shell monkey -p org.nexlibre.totalmusic -c android.intent.category.LAUNCHER 1 > results/launch.txt 2>&1
-          sleep 10
-          timeout 20 adb shell pidof org.nexlibre.totalmusic > results/process.txt
-          timeout 20 adb exec-out screencap -p > results/installed.png
+          adb shell input keyevent 82
+          adb shell getprop > results/device-properties.txt
+      - name: Reproduce upgrade and clean-launch failures
+        run: |
+          set -uo pipefail
+          launch() {
+            adb logcat -c
+            adb shell am force-stop org.nexlibre.totalmusic
+            adb shell am start -W -n org.nexlibre.totalmusic/com.music.bitchord.MainActivity > "results/$1-launch.txt" 2>&1
+            sleep 15
+            adb logcat -d -v threadtime > "results/$1-logcat.txt"
+            adb logcat -d -b crash > "results/$1-crash.txt"
+            adb shell pidof org.nexlibre.totalmusic > "results/$1-process.txt" || true
+            adb exec-out screencap -p > "results/$1-screen.png"
+            cat "results/$1-crash.txt"
+          }
+          timeout 120 adb install --no-streaming previous.apk || exit 1
+          adb shell pm grant org.nexlibre.totalmusic android.permission.READ_MEDIA_AUDIO
+          launch baseline170
+          timeout 120 adb install --no-streaming -r published.apk || exit 1
+          launch upgrade180
+          adb shell dumpsys activity exit-info org.nexlibre.totalmusic > results/exit-info.txt
+          adb uninstall org.nexlibre.totalmusic
+          timeout 120 adb install --no-streaming published.apk || exit 1
+          adb shell pm grant org.nexlibre.totalmusic android.permission.READ_MEDIA_AUDIO
+          launch clean180
+          test -s results/upgrade180-process.txt && test -s results/clean180-process.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: signed-141-install-upgrade-android13
+          name: signed-180-startup-android13
           path: results/
-          retention-days: 7
+          retention-days: 14
