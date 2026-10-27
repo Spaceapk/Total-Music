@@ -55,7 +55,7 @@ on:
     inputs:
       pr:
         description: Pull request to report on
-        default: "4"
+        default: "5"
       published_probe:
         description: Reproduce the published 1.8.0 startup crash on an emulator
         type: boolean
@@ -250,7 +250,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '4' }}
+          PR_NUMBER: ${{ inputs.pr || '5' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           JOB_STATUS: ${{ job.status }}
         run: |
@@ -380,7 +380,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '4' }}
+          PR_NUMBER: ${{ inputs.pr || '5' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           LINT_OUTCOME: ${{ steps.lint.outcome }}
         run: |
@@ -469,7 +469,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '4' }}
+          PR_NUMBER: ${{ inputs.pr || '5' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -uo pipefail
@@ -491,11 +491,13 @@ jobs:
                       inside = True
                   if inside:
                       verdict.append(line)
-              keep = [line for line in lines
-                      if line.startswith(("==", "::", "style file", "launch", "Installing", "Success", "Failure", "DEAD"))
-                      or "crash=" in line or "pid=" in line or "FATAL" in line or "Exception" in line]
-              if len(keep) > 200:
-                  keep = keep[:200] + ["… truncated"]
+              # The whole transcript, not a filtered view of it: the previous
+              # version dropped the probe's own notes and the traceback the
+              # emulator reports when a step dies half way, which left a
+              # successful-looking summary with no verdict in it.
+              keep = lines[:160]
+              if len(lines) > len(keep):
+                  keep = keep + [f"… {len(lines) - len(keep)} more lines in the artifact"]
               parts += [f"<details><summary>{title}</summary>", ""]
               if verdict:
                   parts += ["**Verdict**", "", "```", *verdict[:40], "```", ""]
@@ -620,7 +622,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '4' }}
+          PR_NUMBER: ${{ inputs.pr || '5' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUTCOME: ${{ steps.uitest.outcome }}
         run: |

@@ -18,8 +18,10 @@
   medido de esos controles para no quedar debajo.
 - versionCode 15 sobre el 14 de 1.8.0; mismo paquete y misma firma permanente para actualizar
   sobre una instalación existente.
-- Estado de compilación, pruebas, lint y dispositivo en `docs/verification-1.8.1.md`. No se
-  presenta como versión verificada en teléfono hasta que exista esa prueba.
+- Verificado en CI (run 40591890427): compila, 1.079 pruebas unitarias sin fallos, lint sin
+  errores y dos pruebas de interfaz del shell en Android 13, una de ellas abriendo y cerrando
+  Ajustes sobre Liquid Glass+. Detalles, traza del cierre y límites en
+  `docs/verification-1.8.1.md`. No se presenta como versión verificada en un teléfono real.
 
 ## Total Music 1.8.0 — renacimiento visual (preliminar, retirado)
 
