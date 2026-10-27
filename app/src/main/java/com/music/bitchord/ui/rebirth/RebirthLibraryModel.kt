@@ -3,6 +3,7 @@ package com.music.bitchord.ui.rebirth
 import com.music.bitchord.data.DevicePlaylist
 import com.music.bitchord.data.PlaylistSort
 import com.music.bitchord.data.model.Song
+import com.music.bitchord.data.model.inAlbumOrder
 import com.music.bitchord.data.settings.LocalMusicSort
 import com.music.bitchord.ui.player.PlayerVisualStyle
 
@@ -104,14 +105,11 @@ internal class RebirthLibraryActions(
  *
  * Discs first, then track numbers, then whatever says neither last: a
  * compilation whose tags were never filled in would otherwise sort to the top
- * by nothing at all. Ties keep the scanner's order, and are therefore stable.
+ * by nothing at all. The rule itself lives in `AlbumOrdering`, shared with the
+ * album screen, so the library and an album cannot disagree about disc 2 of a
+ * set whose first disc has no tag: a missing disc number is disc one.
  */
-internal fun rebirthAlbumOrder(songs: List<Song>): List<Song> = songs.sortedWith(
-    compareBy<Song>(
-        { it.localDiscNumber ?: Int.MAX_VALUE },
-        { it.localTrackNumber ?: Int.MAX_VALUE },
-    ),
-)
+internal fun rebirthAlbumOrder(songs: List<Song>): List<Song> = songs.inAlbumOrder()
 
 /** Whether a song answers a query, ignoring case and outer whitespace. */
 internal fun rebirthMatches(song: Song, query: String): Boolean {
