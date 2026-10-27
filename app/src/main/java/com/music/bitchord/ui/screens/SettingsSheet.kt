@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Animation
@@ -431,7 +432,7 @@ fun SettingsScreen(
                 onClick = { rebirthSection = null },
                 modifier = Modifier.padding(horizontal = 12.dp),
             ) {
-                Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.rebirth_back_to_customization))
             }

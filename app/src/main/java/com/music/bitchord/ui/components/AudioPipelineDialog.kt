@@ -220,6 +220,9 @@ fun AudioPipelineDialog(
         onDismiss = onDismiss,
         modifier = modifier,
     ) {
+        // Read here, in the composition the card provides the ink in; the draw
+        // scope below only receives it.
+        val ink = LocalAudioPopupInk.current
         // The signal flow redraws every frame while playing. On its own
         // layer, each frame re-records just these lines rather than every
         // stage row and the frosted card they sit on.
@@ -228,7 +231,7 @@ fun AudioPipelineDialog(
                 .matchParentSize()
                 .graphicsLayer {}
                 .drawBehind {
-                    drawSignalFlow(stageCenters, flowAlpha, pulseProgress, interactionRadiusPx)
+                    drawSignalFlow(stageCenters, flowAlpha, pulseProgress, interactionRadiusPx, ink)
                 },
         )
         Column(
@@ -537,6 +540,11 @@ private fun DrawScope.drawSignalFlow(
     flowAlpha: Float,
     pulseProgress: Float,
     interactionRadiusPx: Float,
+    /**
+     * Read by the caller, not here: a CompositionLocal cannot be read from a
+     * draw scope, and the compiler says so precisely enough.
+     */
+    ink: AudioPopupInk,
 ) {
     if (stageCenters.size < 5) return
 
@@ -566,7 +574,7 @@ private fun DrawScope.drawSignalFlow(
         val yEnd = stagePoints[i + 1].y - nodeRadius
         if (yEnd > yStart) {
             drawLine(
-                color = LocalAudioPopupInk.current.at(busAlpha),
+                color = ink.at(busAlpha),
                 start = Offset(xCenter, yStart),
                 end = Offset(xCenter, yEnd),
                 strokeWidth = busStroke,
@@ -576,7 +584,7 @@ private fun DrawScope.drawSignalFlow(
             // Subtle ambient under-glow along the bus when powered
             if (currentFlowAlpha > 0f) {
                 drawLine(
-                    color = LocalAudioPopupInk.current.at(0.05f * currentFlowAlpha),
+                    color = ink.at(0.05f * currentFlowAlpha),
                     start = Offset(xCenter, yStart),
                     end = Offset(xCenter, yEnd),
                     strokeWidth = 4.5.dp.toPx(),
@@ -614,8 +622,8 @@ private fun DrawScope.drawSignalFlow(
                     val haloBrush = Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Transparent,
-                            0.60f to LocalAudioPopupInk.current.at(0.14f * pulseVisibility),
-                            0.88f to LocalAudioPopupInk.current.at(0.28f * pulseVisibility),
+                            0.60f to ink.at(0.14f * pulseVisibility),
+                            0.88f to ink.at(0.28f * pulseVisibility),
                             1.0f to Color.Transparent,
                         ),
                         startY = yPulse - tailLength,
@@ -633,8 +641,8 @@ private fun DrawScope.drawSignalFlow(
                     val coreBrush = Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Transparent,
-                            0.50f to LocalAudioPopupInk.current.at(0.45f * pulseVisibility),
-                            0.86f to LocalAudioPopupInk.current.at(0.98f * pulseVisibility),
+                            0.50f to ink.at(0.45f * pulseVisibility),
+                            0.86f to ink.at(0.98f * pulseVisibility),
                             1.0f to Color.Transparent,
                         ),
                         startY = yPulse - tailLength,
@@ -654,7 +662,7 @@ private fun DrawScope.drawSignalFlow(
                         drawCircle(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    LocalAudioPopupInk.current.at(0.35f * pulseVisibility),
+                                    ink.at(0.35f * pulseVisibility),
                                     Color.Transparent,
                                 ),
                                 center = headCenter,
@@ -664,7 +672,7 @@ private fun DrawScope.drawSignalFlow(
                             center = headCenter,
                         )
                         drawCircle(
-                            color = LocalAudioPopupInk.current.at(0.98f * pulseVisibility),
+                            color = ink.at(0.98f * pulseVisibility),
                             radius = 1.75.dp.toPx(),
                             center = headCenter,
                         )
@@ -691,8 +699,8 @@ private fun DrawScope.drawSignalFlow(
         drawCircle(
             brush = Brush.radialGradient(
                 colorStops = arrayOf(
-                    0.0f to LocalAudioPopupInk.current.at(haloAlpha * 0.40f),
-                    0.45f to LocalAudioPopupInk.current.at(haloAlpha),
+                    0.0f to ink.at(haloAlpha * 0.40f),
+                    0.45f to ink.at(haloAlpha),
                     1.0f to Color.Transparent,
                 ),
                 center = stageCenter,
@@ -705,7 +713,7 @@ private fun DrawScope.drawSignalFlow(
         // C. Active Outer Luminous Flare Ring (When pulse arrives)
         if (currentFlowAlpha > 0f && act > 0.02f) {
             drawCircle(
-                color = LocalAudioPopupInk.current.at(0.20f * act * currentFlowAlpha),
+                color = ink.at(0.20f * act * currentFlowAlpha),
                 radius = nodeRadius + 1.2.dp.toPx(),
                 center = stageCenter,
                 style = Stroke(width = 2.dp.toPx()),
@@ -715,7 +723,7 @@ private fun DrawScope.drawSignalFlow(
         // D. Precision White Outline Micro-Ring (Crisp hardware boundary)
         val ringAlpha = (0.35f + 0.55f * act * currentFlowAlpha).coerceIn(0f, 1f)
         drawCircle(
-            color = LocalAudioPopupInk.current.at(ringAlpha),
+            color = ink.at(ringAlpha),
             radius = nodeRadius,
             center = stageCenter,
             style = Stroke(width = 1.dp.toPx()),
@@ -724,7 +732,7 @@ private fun DrawScope.drawSignalFlow(
         // E. High-Luminance Core Edge (When peak active)
         if (currentFlowAlpha > 0f && act > 0.05f) {
             drawCircle(
-                color = LocalAudioPopupInk.current.at(0.60f * act * currentFlowAlpha),
+                color = ink.at(0.60f * act * currentFlowAlpha),
                 radius = nodeRadius,
                 center = stageCenter,
                 style = Stroke(width = 1.5.dp.toPx()),
