@@ -242,4 +242,8 @@ jobs:
           } > comment.md
           # Not swallowed: the comment is the only channel this run has, so a
           # failure to post has to be visible in the run's own conclusion.
-          gh pr comment "$PR_NUMBER" --body-file comment.md
+          # The repository is named explicitly: this job deliberately has no
+          # checkout (it needs nothing from the tree), and without a git remote
+          # `gh` cannot infer owner/repo — which is the other half of why the
+          # first two versions of this step posted nothing.
+          gh pr comment "$PR_NUMBER" --repo Spaceapk/Total-Music --body-file comment.md
