@@ -2280,6 +2280,13 @@ private fun BitChordApp(
         NowPlayingScreen(
             song = displayedSong,
             onDismissRebirth = dismissPlayer,
+            // The equalizer is a page behind the player, not a sheet over it:
+            // leaving the player first is what makes the page visible when the
+            // tool row is tapped from inside it.
+            onOpenEqualizer = {
+                dismissPlayer()
+                showEqualizer = true
+            },
             playedBy = playedBy,
             accountName = account?.name,
             windowWidth = windowWidth,
@@ -3055,6 +3062,22 @@ private fun BitChordApp(
                                     onNext = { if (!controlsLocked) controller?.seekToNextMediaItem() else showHostOnlyNotice() },
                                     onExpandPlayer = { showNowPlaying = true },
                                     emptyMessage = (deviceState as? UiState.Error)?.message,
+                                    // The shell owns the bottom of the screen while it is up, so
+                                    // the two routes it does not contain have to be reachable
+                                    // from its own bar. Leaving the tab is enough: the legacy
+                                    // chrome comes back for whichever tab is now selected.
+                                    onOpenGlobalSearch = {
+                                        viewModel.clearDetail()
+                                        viewModel.closeMoodGenre()
+                                        viewModel.onQueryChange("")
+                                        searchFocusRequested = true
+                                        selectedTab = TAB_SEARCH
+                                    },
+                                    onOpenExplore = {
+                                        viewModel.clearDetail()
+                                        viewModel.closeMoodGenre()
+                                        selectedTab = TAB_EXPLORE
+                                    },
                                 ) else LocalMusicScreen(
                                     songs = deviceSongs,
                                     navigationTab = spaceLibraryTab,

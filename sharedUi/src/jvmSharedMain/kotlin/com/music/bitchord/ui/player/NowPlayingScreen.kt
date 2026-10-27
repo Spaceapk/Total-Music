@@ -61,9 +61,15 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.Cast
+import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -724,6 +730,8 @@ fun NowPlayingScreen(
      * the sheet is the caller's business.
      */
     onListenTogether: () -> Unit,
+    /** Opens the equalizer, where this build has one to open. */
+    onOpenEqualizer: (() -> Unit)? = null,
     lyrics: List<LyricLine>?,
     lyricsSource: LyricsSource?,
     lyricsProviderStates: Map<LyricsSource, LyricsProviderState>,
@@ -786,9 +794,42 @@ fun NowPlayingScreen(
     // Listening in a party whose host has taken the controls: the transport
     // keeps only play/pause, which from here moves this device alone.
     val controlsLocked = rememberControlsLocked()
+    // The classic player is still reachable, but no longer *is* the tools: it is
+    // one row at the foot of a sheet that opens the app's own surfaces. Porting
+    // the lyric card picker is what closes the last gap — see the handoff.
     var advancedRebirth by remember(selectedVisualStyle) { mutableStateOf(false) }
     if (selectedVisualStyle != PlayerVisualStyle.ORIGINAL && !advancedRebirth) {
-        RebirthPlayer(style = selectedVisualStyle, song = song, playing = isPlaying, loading = isLoading,
+        val rebirthTools = listOfNotNull(
+            RebirthTool(
+                label = stringResource(Res.string.audio_output),
+                icon = Icons.Rounded.Cast,
+            ) { openAudioOutput() },
+            RebirthTool(
+                label = stringResource(Res.string.audio_pipeline),
+                icon = Icons.Rounded.GraphicEq,
+            ) { showAudioPipeline = true },
+            RebirthTool(
+                label = stringResource(Res.string.cast),
+                icon = Icons.Rounded.Tv,
+                enabled = PlayerPlatform.host.castState.value.supported,
+            ) { showCast = true },
+            RebirthTool(
+                label = stringResource(Res.string.choose_lyrics_provider),
+                icon = Icons.Rounded.Translate,
+            ) { showLyricsProviders = true },
+            onOpenEqualizer?.let { openEqualizer ->
+                RebirthTool(
+                    label = stringResource(Res.string.rebirth_equalizer),
+                    icon = Icons.Rounded.Equalizer,
+                ) { openEqualizer() }
+            },
+            RebirthTool(
+                label = stringResource(Res.string.rebirth_classic_player),
+                icon = Icons.Rounded.PlayCircle,
+                caption = stringResource(Res.string.rebirth_classic_player_caption),
+            ) { advancedRebirth = true },
+        )
+        RebirthPlayer(style = selectedVisualStyle, song = song, playing = isPlaying, loading = isLoading || audioVersionSwitching,
             position = position, duration = durationMs, queue = queue, queueIndex = queueIndex,
             previousEnabled = hasPrevious, nextEnabled = hasNext, locked = controlsLocked,
             shuffled = shuffleEnabled, repeatMode = repeatMode, liked = likeStatus == LikeStatus.LIKE,
@@ -799,16 +840,29 @@ fun NowPlayingScreen(
             onJump = onJumpTo, onRemove = onRemoveFromQueue, onMove = onMoveInQueue,
             onClear = onClearQueue, onAlbum = { onOpenAlbum(song.albumId.orEmpty()) },
             onArtist = { onOpenArtist(song.artistId, song.artist) },
-            onAdvanced = { advancedRebirth = true }, lyrics = lyrics, lyricsUnavailable = lyricsUnavailable,
+            lyrics = lyrics, lyricsSource = lyricsSource, lyricsUnavailable = lyricsUnavailable,
             onSeekLine = { time -> onSeek(adjustedLyricsSeekTarget(time, PlayerSettings.lyricsOffsetMs.value)) },
-            onOutput = openAudioOutput, onListenTogether = onListenTogether, modifier = modifier)
-        PlayerBackHandler(enabled = showAudioOutput || showAudioPipeline || showCast) {
-            showAudioOutput = false; showAudioPipeline = false; showCast = false
+            onOutput = openAudioOutput, onListenTogether = onListenTogether,
+            tools = rebirthTools, hazeState = playerHaze, modifier = modifier)
+        PlayerBackHandler(
+            enabled = showAudioOutput || showAudioPipeline || showCast || showLyricsProviders,
+        ) {
+            showAudioOutput = false
+            showAudioPipeline = false
+            showCast = false
+            showLyricsProviders = false
         }
         if (showAudioOutput) AudioOutputSheet(playerHaze, accountName,
             onDismiss = { showAudioOutput = false }, onOpenPipeline = { showAudioPipeline = true }, onOpenCast = { showCast = true })
         if (showAudioPipeline) AudioPipelineDialog(hazeState = playerHaze, isPlaying = isPlaying, onDismiss = { showAudioPipeline = false })
         if (showCast) PlayerPlatform.host.CastDialog(hazeState = playerHaze, onDismiss = { showCast = false })
+        if (showLyricsProviders) LyricsProviderSheet(
+            hazeState = playerHaze,
+            currentSource = lyricsSource,
+            states = lyricsProviderStates,
+            onSelect = onSelectLyricsProvider,
+            onDismiss = { showLyricsProviders = false },
+        )
         return
     }
     PlayerBackHandler(enabled = advancedRebirth && selectedVisualStyle != PlayerVisualStyle.ORIGINAL) { advancedRebirth = false }

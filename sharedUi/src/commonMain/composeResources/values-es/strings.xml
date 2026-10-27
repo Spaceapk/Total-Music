@@ -200,4 +200,16 @@
     <string name="search_library_empty">Busca las canciones de tu carpeta de Música local.</string>
     <string name="search_library_hint">Canciones, artistas y álbumes</string>
     <string name="search_library_no_results">Nada en Música local coincide con “%1$s”.</string>
+    <string name="rebirth_playback_tools">Herramientas de reproducción</string>
+    <string name="rebirth_lyrics_page">Letra</string>
+    <string name="rebirth_output">Salida</string>
+    <string name="rebirth_tools_short">Herramientas</string>
+    <string name="rebirth_translate">Traducir</string>
+    <string name="rebirth_romanize">Romanizar</string>
+    <string name="rebirth_queue_tracks">%1$d en la cola</string>
+    <string name="rebirth_clear_added">Limpiar añadidas</string>
+    <string name="rebirth_next_up_empty">No hay nada después de esta canción</string>
+    <string name="rebirth_equalizer">Ecualizador</string>
+    <string name="rebirth_classic_player">Reproductor clásico</string>
+    <string name="rebirth_classic_player_caption">Compartir letra en imagen y controles de letra avanzados</string>
 </resources>
