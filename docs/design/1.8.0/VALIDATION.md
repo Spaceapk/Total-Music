@@ -10,8 +10,10 @@ The sandbox this work was written in has no JDK, no Android SDK and no route to
 Gradle, Google or Maven ([BUILD_ENVIRONMENT.md](BUILD_ENVIRONMENT.md)), so the
 first compile happens in CI:
 
-**Run:** https://github.com/Spaceapk/Total-Music/actions/runs/40448078644
-**Commit:** `2882ae2b`
+**Runs:** https://github.com/Spaceapk/Total-Music/actions/runs/40448078644
+(commit `2882ae2b`, first green compile) and
+https://github.com/Spaceapk/Total-Music/actions/runs/40448673493 (commit
+`d4ed8cd0`, 12/12 tests, APK below).
 **Workflow:** `.github/workflows/total-music-180-compile.yml` (validation only;
 publishes nothing)
 
@@ -65,12 +67,18 @@ near-copy, and the tests pin the shared answer.
 From the same run:
 
 ```
-app-prod-universal-debug.apk
-sha256  909bfe59c9e6cdeb96adc63bbb0d0f8f61c8f86b6d440ff67c5ba708af8451ba
+app-prod-universal-debug.apk      (run 40448673493, commit d4ed8cd0)
+sha256  92718f19bd623e608700198901d88a05a7a4be9caf78b140af345afb1cc32ba5
 ```
 
-**Signature: the Android debug certificate** — `CN=Android Debug`,
-cert SHA-256 `ce5dbc1f99cca2ea2add43846e72bbda6cd307d080b19b8c0c5e593003c7d368`.
+The runner generates a **fresh debug keystore per run**, so every run's APK has
+a different certificate and a different hash — two APKs from two runs will not
+update each other, and the hash above is only valid for that run's artifact.
+That is another reason this is a test build and not a distribution.
+
+**Signature: the Android debug certificate** — `CN=Android Debug` (cert
+SHA-256 `9b0cb9316d998b73a8ecf58e59976d11a303ba4e75766dd9e4cd62369f8e92c9` for
+the run above; see the note on the per-run keystore below).
 
 It is a `prodDebug` build: debuggable, not minified, not a release, and **not
 installable over a build signed with the release key** — the signatures differ,
