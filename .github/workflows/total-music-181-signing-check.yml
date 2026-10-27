@@ -35,6 +35,11 @@ on:
 
 permissions:
   contents: read
+  # A PR comment is created through the issues API, and a permissions block that
+  # omits a scope sets it to none: without `issues: write` the comment is refused
+  # and the run still looks green. The first version of this file did exactly
+  # that.
+  issues: write
   pull-requests: write
 
 concurrency:
@@ -235,4 +240,6 @@ jobs:
             echo "alias password or key material appears above, and the values are masked in the"
             echo "runner as well."
           } > comment.md
-          gh pr comment "$PR_NUMBER" --body-file comment.md || echo "could not comment"
+          # Not swallowed: the comment is the only channel this run has, so a
+          # failure to post has to be visible in the run's own conclusion.
+          gh pr comment "$PR_NUMBER" --body-file comment.md
