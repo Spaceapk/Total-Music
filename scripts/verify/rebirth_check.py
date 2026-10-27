@@ -25,6 +25,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from functools import lru_cache
 import os
 import re
 import subprocess
@@ -396,27 +397,20 @@ def _file_package(text: str) -> str:
     return match.group(1) if match else ""
 
 
-def check_symbol_resolution() -> None:
+def _rebirth_target_files() -> list[str]:
     """
-    A resolution proxy, not a type checker.
+    The files this change wrote or edited, as a fixed list.
 
-    For the rebirth layer and the files it touched, every capitalised name that
-    is *used* has to be imported, declared in the same file, or declared in the
-    same package. That is the class of mistake a compiler catches first once the
-    syntax is right — a missing import — and the one thing the parser cannot
-    see. It says nothing about types, overloads or receivers.
+    Deliberately not `git diff main`: the recovery patch also carried widget and
+    player files this change did not write, and holding their private constants
+    and import styles to these rules would report work nobody did.
     """
-    declared = _declared_names()
     targets = set(walk("app/src/main/java/com/music/bitchord/ui/rebirth", ".kt"))
+    player = "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/"
     targets |= {
         path for path in walk("sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player", ".kt")
         if "Rebirth" in os.path.basename(path)
     }
-    # The shared files the rebirth work edits. Deliberately a list rather than
-    # `git diff main`: the recovery patch also carried widget and player files
-    # this change did not write, and their private constants are not what this
-    # proxy is for.
-    player = "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/"
     targets |= {
         os.path.join(ROOT, player + name) for name in (
             "PlayerDrawer.kt", "AudioOutputSheet.kt", "LyricsProviderSheet.kt",
@@ -434,7 +428,21 @@ def check_symbol_resolution() -> None:
             "ui/components/AudioPipelineDialog.kt",
         )
     }
-    targets = sorted(path for path in targets if os.path.isfile(path))
+    return sorted(path for path in targets if os.path.isfile(path))
+
+
+def check_symbol_resolution() -> None:
+    """
+    A resolution proxy, not a type checker.
+
+    For the rebirth layer and the files it touched, every capitalised name that
+    is *used* has to be imported, declared in the same file, or declared in the
+    same package. That is the class of mistake a compiler catches first once the
+    syntax is right — a missing import — and the one thing the parser cannot
+    see. It says nothing about types, overloads or receivers.
+    """
+    declared = _declared_names()
+    targets = _rebirth_target_files()
     problems = 0
     for path in targets:
         with open(path, encoding="utf-8") as handle:
@@ -618,7 +626,27 @@ def check_call_signatures() -> None:
 
 
 
-def check_import_packages() -> None:
+@lru_cache(maxsize=None)
+def _imports_at_base(path: str, base: str) -> frozenset[tuple[str, str]]:
+    """
+    The import name/package pairs [path] already had at `--base`.
+
+    A file that did not exist there has none, so a new file is judged whole.
+    """
+    relative = os.path.relpath(path, ROOT)
+    result = subprocess.run(
+        ["git", "show", f"{base}:{relative}"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return frozenset()
+    pattern = re.compile(r"^import\s+([\w.]+)\.(\w+)\s*$", re.M)
+    return frozenset(pattern.findall(result.stdout))
+
+
+def check_import_packages(base: str) -> None:
     """
     Imports whose package the rest of the tree does not use for that name.
 
@@ -630,22 +658,26 @@ def check_import_packages() -> None:
     """
     tree: dict[str, dict[str, list[str]]] = {}
     pattern = re.compile(r"^import\s+([\w.]+)\.(\w+)\s*$", re.M)
+    # Only imports this change introduces are judged. The tree predates it and
+    # has a few of its own odd-looking ones (`ui.unit.offset` beside the
+    # foundation one, the mirrored volume icons beside the plain ones); those
+    # are not this branch's to change, and reporting them every run would train
+    # the reader to ignore the check.
     for path in walk("app/src", ".kt") + walk("sharedUi/src", ".kt"):
         with open(path, encoding="utf-8") as handle:
             text = handle.read()
         for package, name in pattern.findall(text):
             tree.setdefault(name, {}).setdefault(package, []).append(path)
 
-    targets = set(
-        walk("app/src/main/java/com/music/bitchord/ui/rebirth", ".kt")
-        + [path for path in walk("sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player", ".kt")
-           if "Rebirth" in os.path.basename(path)]
-    )
+    targets = _rebirth_target_files()
     checked = 0
-    for path in sorted(targets):
+    for path in targets:
         with open(path, encoding="utf-8") as handle:
             text = handle.read()
+        inherited = _imports_at_base(path, base)
         for package, name in pattern.findall(text):
+            if (package, name) in inherited:
+                continue
             packages = tree.get(name)
             if not packages or package not in packages:
                 continue
@@ -741,7 +773,7 @@ def main() -> int:
     check_compose_translations()
     check_symbol_resolution()
     check_call_signatures()
-    check_import_packages()
+    check_import_packages(arguments.base)
     check_hardcoded_text()
     if not arguments.skip_manifest:
         check_manifest_components()

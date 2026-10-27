@@ -27,7 +27,7 @@ note: Compose resource references: 242 checked.
 note: Compose translations: 3230 translated string(s) compared.
 note: Symbol resolution proxy: 31 file(s), 0 unresolved name(s).
 note: Call signatures: 123 named-argument call(s) checked.
-note: Import packages: 731 import(s) checked against the tree.
+note: Import packages: 746 import(s) checked against the tree.
 note: Hardcoded rebirth text: 0 literal(s) found.
 note: Manifest components checked against declared classes.
 note: Protected paths checked against main (105 changed file(s)).
@@ -46,7 +46,7 @@ What each check can and cannot catch:
 | Compose translations | argument mismatch per locale; missing keys | tone and grammar of 18 locales |
 | Symbol resolution proxy | a capitalised name that is neither imported nor declared in its package — the missing-import class of error | types, overload resolution, receivers, generics |
 | Call signatures | a named argument a function does not declare, or a required one omitted (including calls from `MainActivity`, `SettingsSheet`, `EqualizerScreen`, `SongActionsSheet`, `NowPlayingScreen`) | positional-argument type errors |
-| Import packages | an import taken from a package no other file in the tree uses for that name — a wrong package is a hard error and invisible to every other check | a name genuinely imported from two packages |
+| Import packages | an import taken from a package no other file in the tree uses for that name — a wrong package is a hard error and invisible to every other check. Only imports this branch introduces are judged, so the tree's own odd-looking ones are not re-reported | a name genuinely imported from two packages |
 | Hardcoded text | a literal passed to `Text()`, `label =`, `title =` in the rebirth layer | literals inside resources |
 | Manifest components | an `android:name` no class declares | runtime contract of the component |
 | Protected paths | changes to `.github/workflows/`, `signing/`, `.signing/`, any `keystore` | — |
