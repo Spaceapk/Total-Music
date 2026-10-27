@@ -15,7 +15,9 @@ este entorno ni en CI, y no se ha generado ninguna en su lugar.
 
 ## El cierre de Liquid Glass+, causa y corrección
 
-Reproducción, con el APK publicado:
+Reproducción, con el APK publicado
+([run 40580679112](https://github.com/Spaceapk/Total-Music/actions/runs/40580679112):
+las dos APK se descargan por SHA-256, sin recompilar nada):
 
 - `v1.8.0-preview.1` instalado sobre 1.7.0 en Android 13 (API 33, `google_apis`, x86_64), estilo
   **Original**: `am start -W` responde `Status: ok`, `LaunchState: COLD`, el proceso sigue vivo
@@ -33,10 +35,16 @@ F/DEBUG ( 7480): Process uptime: 2s
 
 - En **Google Expressive+** el mismo APK arranca y sigue vivo.
 
-La misma prueba sobre una compilación release-like de esta rama (R8, `versionName=1.8.1`) da el
-mismo resultado antes y después del cambio: `c8bc0c4f` → `launch LIQUID_GLASS_PLUS: pid=DEAD
-crash=yes`; `9c200c69` → `pid=alive crash=no`. No es, por tanto, algo que solo tenga el binario
-publicado.
+La misma prueba sobre una compilación release-like de esta rama (R8, `versionName=1.8.1`, paquete
+publicado) da el mismo resultado antes y después del cambio, con la misma imagen de emulador, la
+misma sonda y la misma configuración:
+
+| Build | Sonda Liquid Glass+ | Run |
+| --- | --- | --- |
+| `c8bc0c4f`, sin el arreglo | `launch LIQUID_GLASS_PLUS: pid=DEAD crash=yes` | [40578895170](https://github.com/Spaceapk/Total-Music/actions/runs/40578895170) |
+| `9c200c69`, con el arreglo | `launch LIQUID_GLASS_PLUS: pid=alive crash=no` | [40582557419](https://github.com/Spaceapk/Total-Music/actions/runs/40582557419) |
+
+No es, por tanto, algo que solo tenga el binario publicado.
 
 Causa: en el código publicado (`3fa7c1f0`) la página del renacimiento se grababa en la capa de
 fondo y la cápsula flotante —que toma esa capa como fondo— quedaba **dentro** de la grabación,
@@ -131,11 +139,14 @@ Del run 40591890427, artefacto `total-music-181-apks`:
 ## Límites
 
 - No hay teléfono real en este entorno: todo lo anterior es emulador (API 33, x86_64) y CI.
-- La sonda por `adb` no consigue leer la jerarquía de accesibilidad en algunas pantallas del shell,
-  así que sus notas de flujo (qué botón encontró) no son prueba de que Ajustes se abriera; la prueba
-  de Compose sí lo hace de forma explícita.
 - El cierre se ha reproducido en Liquid Glass+ y no en Original ni en Google Expressive+; si en el
   teléfono del informe aparece también con otros estilos, hace falta el `logcat -b crash` de ese
   arranque, porque sería otra causa.
 - Lint deja 655 avisos heredados; no se han silenciado ni se ha tocado el baseline.
 - Los hashes de APK son de esta ejecución: una recompilación produce otros distintos.
+- Una repetición posterior de la sonda del APK publicado
+  ([run 40600190808](https://github.com/Spaceapk/Total-Music/actions/runs/40600190808)) no llegó a
+  ejecutar los dos estilos y no aporta nada: el control publicado válido es el run 40580679112.
+- La sonda por `adb` no consigue leer siempre la jerarquía de accesibilidad del shell, así que sus
+  notas de flujo («qué botón encontró») no son prueba de que Ajustes se abriera; la prueba de
+  Compose sí lo hace de forma explícita.
