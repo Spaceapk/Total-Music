@@ -49,6 +49,11 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     private val main = Handler(Looper.getMainLooper())
 
     override val settings: PlayerSettingsSource = object : PlayerSettingsSource {
+        override val visualStyle get() = AppSettings.playerVisualStyle
+        override val dynamicBackground get() = AppSettings.playerDynamicBackground
+        override val glassEffects get() = AppSettings.playerGlassEffects
+        override val alternativeControls get() = AppSettings.playerAlternativeControls
+        override val animatedTransitions get() = AppSettings.playerAnimatedTransitions
         override val animatedCanvas get() = AppSettings.animatedCanvas
         override val audioQualityCellular get() = AppSettings.audioQualityCellular
         override val audioQualityWifi get() = AppSettings.audioQualityWifi

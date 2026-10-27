@@ -200,4 +200,22 @@
     <string name="member_since">Member since</string>
     <string name="import_spotify">Import Spotify</string>
     <string name="import_spotify_subtitle">From a playlist link</string>
+    <string name="rebirth_playback_tools">Playback tools</string>
+    <string name="rebirth_lyrics_page">Lyrics</string>
+    <string name="rebirth_output">Output</string>
+    <string name="rebirth_tools_short">Tools</string>
+    <string name="rebirth_translate">Translate</string>
+    <string name="rebirth_romanize">Romanize</string>
+    <string name="rebirth_queue_tracks">%1$d in the queue</string>
+    <string name="rebirth_clear_added">Clear added</string>
+    <string name="rebirth_next_up_empty">Nothing after this track</string>
+    <string name="rebirth_equalizer">Equalizer</string>
+    <string name="rebirth_classic_player">Classic player</string>
+    <string name="rebirth_classic_player_caption">Lyric card sharing and the advanced lyric controls</string>
+    <string name="rebirth_queue_locked">The queue follows the host in this session</string>
+    <string name="rebirth_queue_move_up">Move up</string>
+    <string name="rebirth_queue_move_down">Move down</string>
+    <string name="rebirth_lyrics_sync_off">Synced lyrics are off in Settings</string>
+    <string name="rebirth_lyrics_offset">Lyric offset</string>
+    <string name="rebirth_lyrics_offset_value">Offset %1$s</string>
 </resources>

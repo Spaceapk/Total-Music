@@ -200,4 +200,22 @@
     <string name="search_library_empty">Recherche les titres de votre dossier Musique locale.</string>
     <string name="search_library_hint">Titres, artistes et albums</string>
     <string name="search_library_no_results">Rien dans Musique locale ne correspond à « %1$s ».</string>
+    <string name="rebirth_playback_tools">Outils de lecture</string>
+    <string name="rebirth_lyrics_page">Paroles</string>
+    <string name="rebirth_output">Sortie</string>
+    <string name="rebirth_tools_short">Outils</string>
+    <string name="rebirth_translate">Traduire</string>
+    <string name="rebirth_romanize">Romaniser</string>
+    <string name="rebirth_queue_tracks">%1$d dans la file</string>
+    <string name="rebirth_clear_added">Vider les ajouts</string>
+    <string name="rebirth_next_up_empty">Rien après ce titre</string>
+    <string name="rebirth_equalizer">Égaliseur</string>
+    <string name="rebirth_classic_player">Lecteur classique</string>
+    <string name="rebirth_classic_player_caption">Partage de carte de paroles et contrôles de paroles avancés</string>
+    <string name="rebirth_queue_locked">La file suit l'hôte pendant cette session</string>
+    <string name="rebirth_queue_move_up">Monter</string>
+    <string name="rebirth_queue_move_down">Descendre</string>
+    <string name="rebirth_lyrics_sync_off">Les paroles synchronisées sont désactivées dans les réglages</string>
+    <string name="rebirth_lyrics_offset">Décalage des paroles</string>
+    <string name="rebirth_lyrics_offset_value">Décalage %1$s</string>
 </resources>
