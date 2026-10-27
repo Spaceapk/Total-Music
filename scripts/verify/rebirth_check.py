@@ -617,6 +617,51 @@ def check_call_signatures() -> None:
     note(f"Call signatures: {checked} named-argument call(s) checked.")
 
 
+
+def check_import_packages() -> None:
+    """
+    Imports whose package the rest of the tree does not use for that name.
+
+    A wrong package on an import is a hard compile error and invisible to every
+    other check here: the name is spelled right, it is imported, and nobody
+    resolves packages. The tree itself is the reference — if every other file
+    that imports `withFrameNanos` takes it from `androidx.compose.runtime`, a
+    file that takes it from `kotlinx.coroutines` is a typo, not an opinion.
+    """
+    tree: dict[str, dict[str, list[str]]] = {}
+    pattern = re.compile(r"^import\s+([\w.]+)\.(\w+)\s*$", re.M)
+    for path in walk("app/src", ".kt") + walk("sharedUi/src", ".kt"):
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+        for package, name in pattern.findall(text):
+            tree.setdefault(name, {}).setdefault(package, []).append(path)
+
+    targets = set(
+        walk("app/src/main/java/com/music/bitchord/ui/rebirth", ".kt")
+        + [path for path in walk("sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player", ".kt")
+           if "Rebirth" in os.path.basename(path)]
+    )
+    checked = 0
+    for path in sorted(targets):
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+        for package, name in pattern.findall(text):
+            packages = tree.get(name)
+            if not packages or package not in packages:
+                continue
+            checked += 1
+            others = sum(len(paths) for other, paths in packages.items() if other != package)
+            if others == 0 or len(packages[package]) > 1:
+                continue
+            majority = max(packages.items(), key=lambda item: len(item[1]))
+            if len(majority[1]) >= others:
+                fail(
+                    f"{os.path.relpath(path, ROOT)}: imports {package}.{name}, "
+                    f"but {len(majority[1])} other file(s) import it from {majority[0]}"
+                )
+    note(f"Import packages: {checked} import(s) checked against the tree.")
+
+
 def check_manifest_components() -> None:
     path = os.path.join(ROOT, APP_MANIFEST)
     if not os.path.isfile(path):
@@ -696,6 +741,7 @@ def main() -> int:
     check_compose_translations()
     check_symbol_resolution()
     check_call_signatures()
+    check_import_packages()
     check_hardcoded_text()
     if not arguments.skip_manifest:
         check_manifest_components()

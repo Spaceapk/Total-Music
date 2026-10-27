@@ -29,7 +29,7 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.Notes
+import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
@@ -367,7 +367,7 @@ private fun ExpressiveActionBar(
             modifier = Modifier.weight(1f),
         )
         ExpressivePill(
-            icon = Icons.Rounded.Notes,
+            icon = Icons.AutoMirrored.Rounded.Notes,
             label = stringResource(Res.string.rebirth_lyrics_page),
             onClick = onLyrics,
             modifier = Modifier.weight(1f),

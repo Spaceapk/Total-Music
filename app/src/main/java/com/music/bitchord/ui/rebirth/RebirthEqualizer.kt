@@ -51,7 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.R
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.EqualizerMode
-import com.music.bitchord.data.settings.EqualizerPreset
+import com.music.bitchord.playback.EqualizerPreset
 import com.music.bitchord.data.settings.TotalMusicSettings
 import com.music.bitchord.playback.TotalEqConfig
 import com.music.bitchord.playback.TotalEqDesign

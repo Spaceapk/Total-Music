@@ -115,9 +115,11 @@ foot of the tools sheet, labelled as such, not the contents of the button.
   became one 42 dp menu (the settings search keywords also learned the
   *localized* titles, since the search reads nothing else).
 * **Static gate.** `scripts/verify/rebirth_check.py` grew compose-translation
-  parity, a symbol-resolution proxy and a call-signature check. The last two
-  found and fixed two real defects (a missing `Spacer` import and a lost
-  `enabled` argument).
+  parity, a symbol-resolution proxy, a call-signature check and an
+  import-package check. Between them they found and this branch fixes four real
+  defects: a missing `Spacer` import, a lost `enabled` argument, an
+  `EqualizerPreset` imported from a package that does not declare it, and a
+  `Notes` icon taken from the non-mirrored Material package.
 
 ## Remaining work, in the order it should be done
 
