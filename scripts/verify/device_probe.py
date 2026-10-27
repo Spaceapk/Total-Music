@@ -94,6 +94,13 @@ class Device:
             self.failures.append(f"{label}: the process is gone (was {pid_before})")
         if fresh.strip():
             self.failures.append(f"{label}: crash log written")
+            exits = self.shell(
+                f"dumpsys activity exit-info {self.package} 2>/dev/null | head -30", timeout=60
+            ).strip()
+            if exits:
+                print("---- exit-info ----")
+                print(exits[:4000])
+                print("-------------------")
             print("---- new crash log ----")
             print(fresh.strip()[:8000])
             print("-----------------------")
@@ -206,6 +213,15 @@ class Device:
             timeout=60,
         )
         time.sleep(3)
+        indexed = self.shell(
+            "content query --uri content://media/external/audio/media "
+            "--projection _display_name --where \"_display_name LIKE 'Probe%'\"",
+            timeout=60,
+        ).strip()
+        self.notes.append(
+            "media store row for the tone: "
+            + (indexed.splitlines()[-1] if indexed.strip() else "NONE")
+        )
 
     def set_style(self, style: str) -> bool:
         """Write the player presentation straight into the app's preferences.
@@ -237,6 +253,8 @@ class Device:
         self.adb("root", timeout=60)
         time.sleep(3)
         self.adb("wait-for-device", timeout=120)
+        who = self.shell("id").strip()
+        self.notes.append(f"shell identity: {who}")
         self.shell(f"mkdir -p /data/data/{self.package}/shared_prefs")
         written = self.adb(
             "shell",
