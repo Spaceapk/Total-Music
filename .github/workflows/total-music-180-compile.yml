@@ -1,0 +1,138 @@
+name: 1.8.0 compile, unit tests and test APK (no release)
+
+# Exists because the agent's sandbox cannot reach Gradle, Google or Maven, so
+# the only place this branch can be compiled is here. It builds a **debug**
+# APK for testing and never publishes anything: no release, no tag, no push,
+# no signing key of its own. The publishing workflows are untouched and keep
+# their own triggers.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: total-music-180-compile-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    # Only the 1.8.0 rebirth branch (and manual runs). Other pull requests keep
+    # the repository's existing verification job and nothing more.
+    if: startsWith(github.head_ref, 'arena/') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ORG_GRADLE_PROJECT_spaceNdkVersion: '27.0.12077973'
+      GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx6144m -Dfile.encoding=UTF-8 -Djava.net.preferIPv4Stack=true'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+
+      - name: Install required Android SDK
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+
+      - name: Compile the Kotlin of the app and its shared UI
+        run: |
+          set -o pipefail
+          mkdir -p ci-logs
+          chmod +x gradlew
+          ./gradlew :app:compileProdDebugKotlin --max-workers=2 --build-cache --stacktrace \
+            -PspaceSpatialEdition=true 2>&1 | tee ci-logs/compile.log
+
+      - name: Run the rebirth unit tests that had never run
+        run: |
+          set -o pipefail
+          ./gradlew :app:testProdDebugUnitTest --tests 'com.music.bitchord.ui.rebirth.*' \
+            --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true 2>&1 | tee ci-logs/test.log
+
+      - name: Assemble the debug test APK
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleProdDebug --max-workers=2 --build-cache --stacktrace \
+            -PspaceSpatialEdition=true 2>&1 | tee ci-logs/assemble.log
+
+      - name: Record the APK's signature and checksum
+        if: success()
+        run: |
+          set -euo pipefail
+          APK=$(find app/build/outputs/apk/prod/debug -name '*.apk' | head -1)
+          echo "APK=$APK"
+          sha256sum "$APK" > ci-logs/apk-sha256.txt
+          cat ci-logs/apk-sha256.txt
+          {
+            echo "### Test APK (debug signature)"
+            echo
+            echo '```'
+            sha256sum "$APK"
+            "$ANDROID_HOME"/build-tools/36.0.0/apksigner verify --print-certs --verbose "$APK" || true
+            echo '```'
+          } > ci-logs/apk-signature.txt
+          cat ci-logs/apk-signature.txt
+
+      - name: Report the outcome on the pull request
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -uo pipefail
+          python3 - "$JOB_STATUS" "$RUN_URL" <<'PY' > ci-logs/comment.md
+          import os, re, sys
+          status, run_url = sys.argv[1], sys.argv[2]
+          wanted = re.compile(
+              r"^e: |^w: .*deprecat"          # Kotlin errors and warnings
+              r"|FAILURE:|What went wrong|Caused by:"
+              r"|> Task .* FAILED"
+              r"|^error:|^ERROR"
+              r"|FAILED$|AssertionError|expected:<"
+          )
+          parts = [f"### 1.8.0 compile: **{status}**", "", f"Run: {run_url}", ""]
+          for name in ("compile", "test", "assemble"):
+              path = f"ci-logs/{name}.log"
+              if not os.path.isfile(path):
+                  continue
+              lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
+              hits = [line for line in lines if wanted.search(line)][:40]
+              if not hits and status == "success":
+                  continue
+              parts += [f"<details><summary>{name}.log — {len(lines)} lines</summary>", "", "```"]
+              parts += hits or lines[-40:]
+              parts += ["```", "</details>", ""]
+          body = "\n".join(parts)
+          if len(body) > 60000:
+              body = body[:60000] + "\n… truncated"
+          sys.stdout.write(body)
+          PY
+          gh pr comment "$PR_NUMBER" --body-file ci-logs/comment.md || echo "could not comment"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-180-test-apk-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/prod/debug/*.apk
+            ci-logs/
+            app/build/test-results/testProdDebugUnitTest/
+            app/build/reports/tests/testProdDebugUnitTest/
+          if-no-files-found: warn
+          retention-days: 14

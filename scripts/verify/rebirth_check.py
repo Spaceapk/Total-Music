@@ -55,6 +55,26 @@ PROTECTED_PATHS = (
     "keystore",
 )
 
+# One workflow is allowed to be added: a validation-and-compile job for this
+# branch, because the sandbox cannot reach Gradle, Google or Maven and a
+# compiler is the one check no static proxy replaces. It is allowed by *name*,
+# and its content is then checked for anything that could publish: a release
+# action, a tag, a push, or a build of a release variant. The publishing
+# workflows stay refused even if their content is innocuous.
+VALIDATION_WORKFLOWS = (".github/workflows/total-music-180-compile.yml",)
+FORBIDDEN_IN_VALIDATION = (
+    "gh release",
+    "action-gh-release",
+    "upload-release",
+    "softprops/",
+    "git push",
+    "git tag",
+    "assembleProdRelease",
+    "bundleProdRelease",
+    "publishProd",
+    "pull_request_target",
+)
+
 # Version metadata is expected to move on a release branch; it is reported
 # rather than refused, so that a deliberate bump is visible in the log.
 REPORTED_PATHS = ("total-music-release.properties",)
@@ -730,6 +750,27 @@ def check_manifest_components() -> None:
     note("Manifest components checked against declared classes.")
 
 
+def check_validation_workflow(path: str) -> None:
+    """
+    The one workflow this branch may add, and what it may not contain.
+
+    Compiling is in scope; publishing is not. Each forbidden marker is a way a
+    workflow could produce a release or move a branch without anybody asking,
+    so their absence is checked rather than trusted.
+    """
+    full = os.path.join(ROOT, path)
+    if not os.path.isfile(full):
+        return
+    with open(full, encoding="utf-8") as handle:
+        text = handle.read()
+    for marker in FORBIDDEN_IN_VALIDATION:
+        if marker in text:
+            fail(f"{path}: contains `{marker}`, which a validation workflow may not do.")
+    if re.search(r"^\s*push:\s*$", text, re.M) and "branches: [main]" not in text:
+        note(f"{path}: runs on push; it must not build a release from it.")
+    note(f"{path}: validation workflow allowed (no publishing markers found).")
+
+
 def check_protected_paths(base: str) -> None:
     command = ["git", "-C", ROOT, "diff", "--name-only", base, "--"]
     try:
@@ -738,6 +779,9 @@ def check_protected_paths(base: str) -> None:
         note(f"Protected-path check skipped: `git diff {base}` failed (unknown base?).")
         return
     for path in changed:
+        if path in VALIDATION_WORKFLOWS:
+            check_validation_workflow(path)
+            continue
         for protected in PROTECTED_PATHS:
             if path.startswith(protected) or protected in path:
                 fail(f"{path} changed: signing and publication are out of scope for this branch.")
@@ -749,6 +793,9 @@ def check_protected_paths(base: str) -> None:
         capture_output=True, text=True, check=False,
     ).stdout.split()
     for path in untracked:
+        if path in VALIDATION_WORKFLOWS:
+            check_validation_workflow(path)
+            continue
         for protected in PROTECTED_PATHS:
             if path.startswith(protected) or protected in path:
                 fail(f"{path} is a new file under a protected path.")
