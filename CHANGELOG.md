@@ -5,6 +5,17 @@
   Álbumes, Artistas, Listas, Favoritos) y el Reproductor.
 - Una sesión guardada en Explorar vuelve a Inicio, y el acceso «abrir origen» de una canción
   encolada desde Explorar lleva a la biblioteca de la que salió.
+- Se corrige el cierre inesperado de Liquid Glass+ al volver a Biblioteca desde Ajustes o el
+  Reproductor. La causa no era la navegación: la página se grababa en una capa de fondo y la
+  cápsula flotante que la navega tomaba esa misma capa como fondo, así que la capa se dibujaba
+  a sí misma. RenderThread recorría ese árbol hasta agotar la pila (SIGSEGV en
+  `RenderNode::prepareTreeImpl`, «stack pointer is not in a rw map; likely due to stack
+  overflow») y el proceso moría. Ahora la página se graba sola y la cápsula se dibuja encima,
+  fuera de la grabación; la biblioteca además se niega a muestrear la capa que está grabando,
+  de modo que un fallo así pierda el desenfoque en vez de matar la aplicación.
+- La página de Liquid Glass+ ocupa ahora la ventana completa y el minirreproductor y la cápsula
+  flotan sobre ella, que es lo que les da algo real que refractar; las listas reservan el alto
+  medido de esos controles para no quedar debajo.
 - versionCode 15 sobre el 14 de 1.8.0; mismo paquete y misma firma permanente para actualizar
   sobre una instalación existente.
 - Estado de compilación, pruebas, lint y dispositivo en `docs/verification-1.8.1.md`. No se

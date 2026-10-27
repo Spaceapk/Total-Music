@@ -54,7 +54,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -63,6 +66,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -70,7 +75,21 @@ import androidx.compose.ui.unit.dp
 import com.music.bitchord.R
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.LocalMusicSort
+import com.music.bitchord.ui.components.LocalAppBackdrop
+import com.music.bitchord.ui.components.backdrop.backdrops.LayerBackdrop
+import com.music.bitchord.ui.components.backdrop.backdrops.layerBackdrop
 import com.music.bitchord.ui.components.liquidGlass
+
+/**
+ * Space the floating chrome covers at the bottom of the page.
+ *
+ * The page runs the full height of the window and the chrome floats over it —
+ * that is what gives the capsule something to refract — so a list has to carry
+ * this much extra bottom padding or its last row would sit under the capsule.
+ * Measured rather than guessed: the mini player only joins the chrome while
+ * something is playing, and the capsule is as tall as its own content.
+ */
+private val LocalChromeInset = compositionLocalOf { 0.dp }
 
 /**
  * Liquid Glass+ Reimagined, app side.
@@ -85,103 +104,151 @@ import com.music.bitchord.ui.components.liquidGlass
 @Composable
 internal fun RebirthGlassLibrary(data: RebirthLibraryData, actions: RebirthLibraryActions) {
     var sortOpen by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 24.dp, end = 8.dp, top = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = data.opened?.title ?: data.destination.label(),
-                    style = MaterialTheme.typography.headlineLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = when {
-                        data.opened != null -> collectionCaption(data.opened.songs.size)
-                        data.destination == RebirthDestination.HOME -> stringResource(R.string.rebirth_home_subtitle)
-                        else -> data.category.label()
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-            }
-            Box {
-                IconButton(onClick = { sortOpen = true }) {
-                    Icon(Icons.Rounded.MusicNote, contentDescription = stringResource(R.string.sort_library))
-                }
-                DropdownMenu(sortOpen, onDismissRequest = { sortOpen = false }) {
-                    LocalMusicSort.entries.forEach { sort ->
-                        DropdownMenuItem(
-                            text = { Text(sort.rebirthLabel()) },
-                            onClick = {
-                                actions.onSort(sort)
-                                sortOpen = false
-                            },
-                        )
-                    }
-                }
-            }
-            IconButton(onClick = actions.onSettings) {
-                Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.settings))
-            }
-        }
-        if (data.selection.isNotEmpty()) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.rebirth_selected_count, data.selection.size),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                TextButton(onClick = { actions.onSelectAll(data.visible) }) {
-                    Text(stringResource(R.string.select_all))
-                }
-                IconButton(onClick = { actions.onAddSelectionToPlaylist(data.visible.filter { it.videoId in data.selection }) }) {
-                    Icon(Icons.Rounded.PlaylistAdd, contentDescription = stringResource(R.string.add_to_playlist))
-                }
-                IconButton(onClick = actions.onClearSelection) {
-                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cancel))
-                }
-            }
-        }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            when {
-                data.opened != null -> GlassCollection(data, actions)
-                data.destination == RebirthDestination.HOME -> GlassHome(data, actions)
-                data.destination == RebirthDestination.SEARCH -> GlassSearch(data, actions)
-                else -> BoxWithConstraints(Modifier.fillMaxSize()) {
-                    if (maxWidth >= 520.dp) {
-                        Row(Modifier.fillMaxSize()) {
-                            GlassRail(data, actions)
-                            GlassBody(data, actions, Modifier.weight(1f).fillMaxHeight())
-                        }
+    // Measured, not guessed: the mini player only joins the chrome while
+    // something is playing, and the capsule is as tall as its content.
+    var chromeHeight by remember { mutableIntStateOf(0) }
+    // A cast, not an assumption: only a layer can be recorded, and the shell
+    // provides one. If it ever provides a different backdrop the page simply
+    // stops being recorded and the chrome falls back to its flat surface.
+    val backdrop = LocalAppBackdrop.current as? LayerBackdrop
+    Box(Modifier.fillMaxSize()) {
+        // The page that is recorded and the glass that samples it are siblings.
+        //
+        // In 1.8.0 they were not. The recording node wrapped this whole shell,
+        // the floating capsule included, so the capsule's backdrop sampled the
+        // very layer it was being drawn into: a layer containing a draw of
+        // itself. RenderThread walks that tree until the stack is gone —
+        // "Fatal signal 11 (SIGSEGV) ... in RenderNode::prepareTreeImpl", with
+        // "stack pointer is not in a rw map; likely due to stack overflow" — and
+        // the process died about two seconds into a Liquid Glass+ launch. That
+        // is also why coming back from Settings or the player closed the app:
+        // both redraw this page.
+        //
+        // So the page is recorded here on its own and the chrome is drawn over
+        // it afterwards, outside the recording. That is the arrangement the
+        // classic screens already use for their glass bar, and the only one
+        // where the capsule has a page behind it to refract.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .then(
+                    if (data.backdropRecording && backdrop != null) {
+                        Modifier.layerBackdrop(backdrop)
                     } else {
-                        Column(Modifier.fillMaxSize()) {
-                            GroupingChips(data, actions)
-                            GlassBody(data, actions, Modifier.weight(1f).fillMaxWidth())
+                        Modifier
+                    },
+                ),
+        ) {
+            CompositionLocalProvider(
+                LocalChromeInset provides with(LocalDensity.current) { chromeHeight.toDp() },
+            ) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = 24.dp, end = 8.dp, top = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = data.opened?.title ?: data.destination.label(),
+                                style = MaterialTheme.typography.headlineLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = when {
+                                    data.opened != null -> collectionCaption(data.opened.songs.size)
+                                    data.destination == RebirthDestination.HOME -> stringResource(R.string.rebirth_home_subtitle)
+                                    else -> data.category.label()
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        }
+                        Box {
+                            IconButton(onClick = { sortOpen = true }) {
+                                Icon(Icons.Rounded.MusicNote, contentDescription = stringResource(R.string.sort_library))
+                            }
+                            DropdownMenu(sortOpen, onDismissRequest = { sortOpen = false }) {
+                                LocalMusicSort.entries.forEach { sort ->
+                                    DropdownMenuItem(
+                                        text = { Text(sort.rebirthLabel()) },
+                                        onClick = {
+                                            actions.onSort(sort)
+                                            sortOpen = false
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                        IconButton(onClick = actions.onSettings) {
+                            Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.settings))
+                        }
+                    }
+                    if (data.selection.isNotEmpty()) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.rebirth_selected_count, data.selection.size),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            TextButton(onClick = { actions.onSelectAll(data.visible) }) {
+                                Text(stringResource(R.string.select_all))
+                            }
+                            IconButton(onClick = { actions.onAddSelectionToPlaylist(data.visible.filter { it.videoId in data.selection }) }) {
+                                Icon(Icons.Rounded.PlaylistAdd, contentDescription = stringResource(R.string.add_to_playlist))
+                            }
+                            IconButton(onClick = actions.onClearSelection) {
+                                Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cancel))
+                            }
+                        }
+                    }
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        when {
+                            data.opened != null -> GlassCollection(data, actions)
+                            data.destination == RebirthDestination.HOME -> GlassHome(data, actions)
+                            data.destination == RebirthDestination.SEARCH -> GlassSearch(data, actions)
+                            else -> BoxWithConstraints(Modifier.fillMaxSize()) {
+                                if (maxWidth >= 520.dp) {
+                                    Row(Modifier.fillMaxSize()) {
+                                        GlassRail(data, actions)
+                                        GlassBody(data, actions, Modifier.weight(1f).fillMaxHeight())
+                                    }
+                                } else {
+                                    Column(Modifier.fillMaxSize()) {
+                                        GroupingChips(data, actions)
+                                        GlassBody(data, actions, Modifier.weight(1f).fillMaxWidth())
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        RebirthGlassMiniPlayer(
-            song = data.currentSong,
-            playing = data.isPlaying,
-            loading = data.loading,
-            onPlayPause = actions.onPlayPause,
-            onNext = actions.onNext,
-            onExpand = actions.onExpandPlayer,
-        )
-        RebirthGlassNav(
-            current = data.destination,
-            onDestination = actions.onDestination,
-            glassEffects = data.glassEffects && data.backdropRecording,
-        )
+        Column(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .onSizeChanged { chromeHeight = it.height },
+        ) {
+            RebirthGlassMiniPlayer(
+                song = data.currentSong,
+                playing = data.isPlaying,
+                loading = data.loading,
+                onPlayPause = actions.onPlayPause,
+                onNext = actions.onNext,
+                onExpand = actions.onExpandPlayer,
+            )
+            RebirthGlassNav(
+                current = data.destination,
+                onDestination = actions.onDestination,
+                glassEffects = data.glassEffects && data.backdropRecording,
+            )
+        }
     }
 }
 
@@ -257,7 +324,7 @@ private fun GlassHome(data: RebirthLibraryData, actions: RebirthLibraryActions) 
     }
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 16.dp),
+        contentPadding = PaddingValues(bottom = 16.dp + LocalChromeInset.current),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
@@ -385,9 +452,12 @@ private fun GlassSearch(data: RebirthLibraryData, actions: RebirthLibraryActions
                 GlassRows(data, actions, Modifier.fillMaxSize())
             }
         }
+        // Above the floating chrome, not under it.
         TextButton(
             onClick = actions.onOpenGlobalSearch,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .padding(bottom = LocalChromeInset.current),
         ) {
             Icon(Icons.Rounded.Search, contentDescription = null)
             Spacer(Modifier.width(8.dp))
@@ -412,7 +482,12 @@ private fun GlassRows(data: RebirthLibraryData, actions: RebirthLibraryActions, 
     }
     LazyColumn(
         modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        contentPadding = PaddingValues(
+            start = 12.dp,
+            end = 12.dp,
+            top = 4.dp,
+            bottom = 4.dp + LocalChromeInset.current,
+        ),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         itemsIndexed(data.visible, key = { _, song -> song.videoId }) { index, song ->
@@ -507,7 +582,12 @@ private fun GlassGallery(data: RebirthLibraryData, actions: RebirthLibraryAction
     }
     LazyColumn(
         modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+        contentPadding = PaddingValues(
+            start = 14.dp,
+            end = 14.dp,
+            top = 6.dp,
+            bottom = 6.dp + LocalChromeInset.current,
+        ),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         items(data.collectionRows, key = { row -> row.joinToString("|") { it.id } }) { row ->
@@ -585,7 +665,12 @@ private fun GlassCollection(data: RebirthLibraryData, actions: RebirthLibraryAct
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
             state = listState,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            contentPadding = PaddingValues(
+                start = 8.dp,
+                end = 8.dp,
+                top = 4.dp,
+                bottom = 4.dp + LocalChromeInset.current,
+            ),
         ) {
             itemsIndexed(data.visible, key = { _, song -> song.videoId }) { index, song ->
                 val reorderable = collection.isPlaylist && data.canReorder

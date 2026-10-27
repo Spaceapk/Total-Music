@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -26,7 +27,6 @@ import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.TotalMusicSettings
 import com.music.bitchord.ui.components.LocalAppBackdrop
-import com.music.bitchord.ui.components.backdrop.backdrops.layerBackdrop
 import com.music.bitchord.ui.components.backdrop.backdrops.rememberLayerBackdrop
 import com.music.bitchord.ui.components.isGlassSupported
 import com.music.bitchord.ui.player.PlayerVisualStyle
@@ -131,9 +131,21 @@ fun RebirthLocalExperience(
     }
 
     val glass = style == PlayerVisualStyle.LIQUID_GLASS_PLUS
-    val backdrop = rememberLayerBackdrop()
-    val recordBackdrop = glass && glassEffects && !reduceBlur && isGlassSupported()
     val colors = rebirthColors(style, MaterialTheme.colorScheme)
+    // The style's own background goes into the recording, for the reason
+    // MainActivity paints the window's into the app-level layer: a page that
+    // paints nothing records transparent pixels, and glass sampling those has
+    // nothing to blur. It is this palette's background, not the theme's — the
+    // rebirth styles bring their own.
+    val layerBackground = colors.background
+    val paintBackdrop: ContentDrawScope.() -> Unit = remember(layerBackground) {
+        {
+            drawRect(layerBackground)
+            drawContent()
+        }
+    }
+    val backdrop = rememberLayerBackdrop(onDraw = paintBackdrop)
+    val recordBackdrop = glass && glassEffects && !reduceBlur && isGlassSupported()
 
     val data = RebirthLibraryData(
         style = style,
@@ -206,12 +218,15 @@ fun RebirthLocalExperience(
         Surface(color = colors.background) {
             Box(Modifier.fillMaxSize()) {
                 CompositionLocalProvider(LocalAppBackdrop provides backdrop) {
+                    // No recording node here. The layer is recorded inside
+                    // [RebirthGlassLibrary], around the page only: the chrome
+                    // samples that layer, and a surface inside the layer it
+                    // samples is the 1.8.0 crash. See the comment there.
                     Box(
                         Modifier
                             .fillMaxSize()
                             .statusBarsPadding()
-                            .navigationBarsPadding()
-                            .then(if (recordBackdrop) Modifier.layerBackdrop(backdrop) else Modifier),
+                            .navigationBarsPadding(),
                     ) {
                         if (glass) {
                             RebirthGlassLibrary(actions = actions, data = data)
