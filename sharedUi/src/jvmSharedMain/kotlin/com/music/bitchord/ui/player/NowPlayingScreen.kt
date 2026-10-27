@@ -639,6 +639,7 @@ private fun SlidingPlayerDeck(
 @OptIn(ExperimentalHazeApi::class, ExperimentalHazeMaterialsApi::class)
 fun NowPlayingScreen(
     song: Song,
+    onDismissRebirth: () -> Unit = {},
     /** Who selected this track in the active Listen Together session. */
     playedBy: String? = null,
     isPlaying: Boolean,
@@ -741,7 +742,18 @@ fun NowPlayingScreen(
     windowHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val expressive = com.music.bitchord.ui.theme.LocalGoogleExpressive.current
+    val selectedVisualStyle by PlayerSettings.visualStyle.collectAsStateWithLifecycle()
+    val dynamicPlayerBackground by PlayerSettings.dynamicBackground.collectAsStateWithLifecycle()
+    val playerGlassEffects by PlayerSettings.glassEffects.collectAsStateWithLifecycle()
+    val alternativePlayerControls by PlayerSettings.alternativeControls.collectAsStateWithLifecycle()
+    val playerAnimatedTransitions by PlayerSettings.animatedTransitions.collectAsStateWithLifecycle()
+    val appExpressive = com.music.bitchord.ui.theme.LocalGoogleExpressive.current
+    val expressive = when (selectedVisualStyle) {
+        PlayerVisualStyle.ORIGINAL -> appExpressive
+        PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS -> true
+        PlayerVisualStyle.LIQUID_GLASS_PLUS -> false
+    }
+    val useAlternativeControls = selectedVisualStyle != PlayerVisualStyle.ORIGINAL && alternativePlayerControls
     val playerForeground = if (expressive) MaterialTheme.colorScheme.onSurface else Color.White
     val density = LocalDensity.current
     val haptics = rememberHaptics()
@@ -774,6 +786,32 @@ fun NowPlayingScreen(
     // Listening in a party whose host has taken the controls: the transport
     // keeps only play/pause, which from here moves this device alone.
     val controlsLocked = rememberControlsLocked()
+    var advancedRebirth by remember(selectedVisualStyle) { mutableStateOf(false) }
+    if (selectedVisualStyle != PlayerVisualStyle.ORIGINAL && !advancedRebirth) {
+        RebirthPlayer(style = selectedVisualStyle, song = song, playing = isPlaying, loading = isLoading,
+            position = position, duration = durationMs, queue = queue, queueIndex = queueIndex,
+            previousEnabled = hasPrevious, nextEnabled = hasNext, locked = controlsLocked,
+            shuffled = shuffleEnabled, repeatMode = repeatMode, liked = likeStatus == LikeStatus.LIKE,
+            glassEffects = playerGlassEffects, dynamicBackground = dynamicPlayerBackground,
+            alternativeControls = alternativePlayerControls,
+            transport = RebirthTransport(onPlayPause, onPrevious, onNext, onToggleShuffle, onCycleRepeat, onSeekFraction),
+            onLike = onToggleLike, onMenu = onOpenMenu, onDismiss = onDismissRebirth,
+            onJump = onJumpTo, onRemove = onRemoveFromQueue, onMove = onMoveInQueue,
+            onClear = onClearQueue, onAlbum = { onOpenAlbum(song.albumId.orEmpty()) },
+            onArtist = { onOpenArtist(song.artistId, song.artist) },
+            onAdvanced = { advancedRebirth = true }, lyrics = lyrics, lyricsUnavailable = lyricsUnavailable,
+            onSeekLine = { time -> onSeek(adjustedLyricsSeekTarget(time, PlayerSettings.lyricsOffsetMs.value)) },
+            onOutput = openAudioOutput, onListenTogether = onListenTogether, modifier = modifier)
+        PlayerBackHandler(enabled = showAudioOutput || showAudioPipeline || showCast) {
+            showAudioOutput = false; showAudioPipeline = false; showCast = false
+        }
+        if (showAudioOutput) AudioOutputSheet(playerHaze, accountName,
+            onDismiss = { showAudioOutput = false }, onOpenPipeline = { showAudioPipeline = true }, onOpenCast = { showCast = true })
+        if (showAudioPipeline) AudioPipelineDialog(hazeState = playerHaze, isPlaying = isPlaying, onDismiss = { showAudioPipeline = false })
+        if (showCast) PlayerPlatform.host.CastDialog(hazeState = playerHaze, onDismiss = { showCast = false })
+        return
+    }
+    PlayerBackHandler(enabled = advancedRebirth && selectedVisualStyle != PlayerVisualStyle.ORIGINAL) { advancedRebirth = false }
     var showListenTogetherMembers by remember { mutableStateOf(false) }
     // Who's actually in the party is worth a look before the settings page —
     // see [ListenTogetherMembersSheet]. Only meaningful once there is a party
@@ -827,7 +865,8 @@ fun NowPlayingScreen(
     // request is rebuilt on each pass and so would not be skipped.
     val canvasCover = remember(canvas?.url) { mutableFloatStateOf(0f) }
     // v1.5's backdrop, kept behind a switch — see [PlayerSettings.legacyMeshGradient].
-    val ambientMode by PlayerSettings.ambientMode.collectAsStateWithLifecycle()
+    val legacyAmbientMode by PlayerSettings.ambientMode.collectAsStateWithLifecycle()
+    val ambientMode = dynamicPlayerBackground || (!expressive && legacyAmbientMode)
     val ambientLifecycle by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
     val legacyMesh by PlayerSettings.legacyMeshGradient.collectAsStateWithLifecycle()
     // The backdrop's colours, taken off the artwork's own arrangement rather
@@ -1134,7 +1173,7 @@ fun NowPlayingScreen(
     // ease for the queue and the lyrics both.
     val animatedCollapse = animateFloatAsState(
         targetValue = if (lyricsOpen || queueOpen) 1f else 0f,
-        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = if (playerAnimatedTransitions) 420 else 0, easing = FastOutSlowInEasing),
         label = "sleeveCollapse",
     )
     // A queue tap/drag already owns a 420ms progress value. Reusing it avoids
@@ -1342,7 +1381,7 @@ fun NowPlayingScreen(
             // once the banner has settled — see [heroSettled].
             heroMode && (heroSettled || art.loaded || canvasRendered)
         ) 1f else 0f,
-        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = if (playerAnimatedTransitions) 420 else 0, easing = FastOutSlowInEasing),
         label = "heroCanvas",
     )
     val spotifyChromeAlpha by animateFloatAsState(
@@ -1927,6 +1966,8 @@ fun NowPlayingScreen(
                                 onPlayPause = onPlayPause,
                                 onNext = onNext,
                                 compact = compact,
+                                alternativeControls = useAlternativeControls,
+                                expressiveControls = expressive,
                             )
                         },
                         volume = if (hideVolumeBar) {
@@ -2226,7 +2267,7 @@ fun NowPlayingScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(
-                        if (reduceDynamicBlur || !renderEffectBlurSupported) {
+                        if (reduceDynamicBlur || !playerGlassEffects || !renderEffectBlurSupported) {
                             // A real backdrop RenderEffect is unavailable on
                             // older Android versions and intentionally skipped
                             // when dynamic blur is reduced. Retain the deck's
@@ -3559,6 +3600,8 @@ fun NowPlayingScreen(
                 onPrevious = onPrevious,
                 onPlayPause = onPlayPause,
                 onNext = onNext,
+                alternativeControls = useAlternativeControls,
+                expressiveControls = expressive,
             )
 
             // Keep the volume slot's full footprint when its contents are

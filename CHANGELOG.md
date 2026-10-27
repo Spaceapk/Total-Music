@@ -1,3 +1,12 @@
+## Total Music 1.7.0 — Visual Experience
+
+- Reproductores Original, Google Expressive+ y Liquid Glass+; Original conserva el aspecto de las instalaciones existentes.
+- Efectos de fondo dinámico, cristal, controles alternativos y transiciones animadas configurables por separado.
+- Seis widgets: Compacto 2×2, Clásico 4×2, Inmersivo 4×4, Minimal 4×1, Carátula dinámica y Panel de cristal.
+- Apariencia automática, clara u oscura configurable para cada widget.
+- Actualizaciones de controles y metadatos conectadas a la sesión multimedia Media3 existente.
+- Pendiente de validación completa en Android; los límites de compilación se documentan en el informe de verificación.
+
 ## 1.4.1 — Corrección de numeración y prueba de instalación
 
 - Aumenta versionCode a 9. Los APK 1.3.0 y 1.4.0 usaban el código 8.

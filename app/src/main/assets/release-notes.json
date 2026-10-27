@@ -1,5 +1,15 @@
 [
   {
+    "versionCode": 14,
+    "versionName": "1.8.0",
+    "notes": "Vista previa en desarrollo de Google Expressive+ y Liquid Glass+ con nuevas composiciones de inicio, biblioteca, reproductor y personalización. Original conserva su interfaz. Las pantallas avanzadas y la validación visual completa siguen pendientes; esta compilación interna no es una publicación oficial."
+  },
+  {
+    "versionCode": 13,
+    "versionName": "1.7.0",
+    "notes": "Experiencia visual con reproductores Original, Google Expressive+ y Liquid Glass+, efectos opcionales y seis widgets personalizables. Tema automático, claro u oscuro por widget. Los controles y metadatos se actualizan desde la sesión multimedia Media3 existente."
+  },
+  {
     "versionCode": 12,
     "versionName": "1.6.0",
     "notes": "Reutilización conservadora de colas locales ya instaladas para cambiar de canción sin recrear todas las fuentes, conservando historial, orden y colas manuales. Preparación de colas en el despachador de entrada y salida, escaneo local con lectura única de la carpeta elegida, índice de álbumes durante búsquedas y colores de carátula durante animaciones. Se conservan los temas y controles de audio."

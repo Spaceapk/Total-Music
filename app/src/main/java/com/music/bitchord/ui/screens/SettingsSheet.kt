@@ -92,6 +92,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -149,6 +150,7 @@ import com.music.bitchord.data.settings.ThemeMode
 import com.music.bitchord.data.stats.Backup
 import com.music.bitchord.playback.AudioCache
 import com.music.bitchord.ui.player.fullBleedArtworkAvailable
+import com.music.bitchord.ui.player.PlayerVisualStyle
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
@@ -182,6 +184,12 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val rebirthStyle by AppSettings.playerVisualStyle.collectAsStateWithLifecycle()
+    var allRebirthSettings by remember(rebirthStyle) { mutableStateOf(false) }
+    if (rebirthStyle != PlayerVisualStyle.ORIGINAL && !allRebirthSettings) {
+        com.music.bitchord.ui.rebirth.RebirthSettings(rebirthStyle, contentPadding, onEqualizer) { allRebirthSettings = true }
+        return
+    }
 
     var showReleaseHistory by remember { mutableStateOf(false) }
     if (showReleaseHistory) AlertDialog(
@@ -219,6 +227,11 @@ fun SettingsScreen(
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
+    val playerVisualStyle by AppSettings.playerVisualStyle.collectAsStateWithLifecycle()
+    val playerDynamicBackground by AppSettings.playerDynamicBackground.collectAsStateWithLifecycle()
+    val playerGlassEffects by AppSettings.playerGlassEffects.collectAsStateWithLifecycle()
+    val playerAlternativeControls by AppSettings.playerAlternativeControls.collectAsStateWithLifecycle()
+    val playerAnimatedTransitions by AppSettings.playerAnimatedTransitions.collectAsStateWithLifecycle()
     val liquidGlassSupported = isGlassSupported()
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
@@ -373,13 +386,18 @@ fun SettingsScreen(
     // Made fresh on every pass rather than remembered: it tallies the rows
     // that answered to the query, and that tally has to start from zero each
     // time the query changes.
-    val search = SettingsSearch(searchQuery)
+    val rebirthCategories = listOf(R.string.audio_quality, R.string.playback, R.string.appearance, R.string.performance,
+        R.string.local_music, R.string.storage, R.string.your_data, R.string.miscellaneous, R.string.language, R.string.advanced_options)
+    var rebirthCategory by rememberSaveable { mutableIntStateOf(R.string.playback) }
+    var rebirthCategoryMenu by remember { mutableStateOf(false) }
+    val activeRebirthSection = if (rebirthStyle != PlayerVisualStyle.ORIGINAL && searchQuery.isBlank()) stringResource(rebirthCategory) else null
+    val search = SettingsSearch(searchQuery, activeRebirthSection)
 
     // What is left after a keystroke is a different list, and the offset the
     // last one was scrolled to means nothing in it.
     val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     var isFirstSearchComposition by remember { mutableStateOf(true) }
-    LaunchedEffect(searchQuery) {
+    LaunchedEffect(searchQuery, rebirthCategory) {
         if (isFirstSearchComposition && searchQuery.isEmpty()) {
             // Skip the initial composition during Activity recreation:
             // rememberSaveable already restored the scroll position.
@@ -397,11 +415,25 @@ fun SettingsScreen(
             .padding(contentPadding),
     ) {
         Text(
-            text = stringResource(R.string.settings),
-            style = MaterialTheme.typography.displayLarge,
+            text = if (rebirthStyle == PlayerVisualStyle.ORIGINAL) stringResource(R.string.settings) else if (rebirthStyle == PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS) "Cada detalle, a tu gusto" else "Panel de control",
+            style = if (rebirthStyle == PlayerVisualStyle.LIQUID_GLASS_PLUS) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.displayLarge,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp),
         )
+        if (rebirthStyle != PlayerVisualStyle.ORIGINAL) {
+            androidx.compose.material3.TextButton(onClick = { allRebirthSettings = false }, modifier = Modifier.padding(horizontal = 12.dp)) { Text("Volver a personalización") }
+            if (rebirthStyle == PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS) {
+                androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(rebirthCategories.size) { index -> val category = rebirthCategories[index]
+                        androidx.compose.material3.FilterChip(selected = rebirthCategory == category, onClick = { rebirthCategory = category }, label = { Text(stringResource(category)) }) }
+                }
+            } else Box(Modifier.padding(horizontal = 20.dp)) {
+                androidx.compose.material3.OutlinedButton(onClick = { rebirthCategoryMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(rebirthCategory)) }
+                androidx.compose.material3.DropdownMenu(rebirthCategoryMenu, onDismissRequest = { rebirthCategoryMenu = false }) {
+                    rebirthCategories.forEach { category -> androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(category)) }, onClick = { rebirthCategory = category; rebirthCategoryMenu = false }) }
+                }
+            }
+        }
         SearchField(
             query = searchQuery,
             onQueryChange = { searchQuery = it },
@@ -681,6 +713,51 @@ fun SettingsScreen(
                     selectedIndex = if (expressive) 1 else 0,
                     onSelect = { com.music.bitchord.data.settings.TotalMusicSettings.setExpressive(it == 1) },
                     modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                )
+            }
+            row("Reproductor", "player style", "Liquid Glass+", "Google Expressive+") {
+                SettingsRow(icon = Icons.Rounded.LibraryMusic, title = "Experiencia visual completa")
+                SegmentedControl(
+                    options = listOf("Original", "Google Expressive+", "Liquid Glass+"),
+                    selectedIndex = PlayerVisualStyle.entries.indexOf(playerVisualStyle).coerceAtLeast(0),
+                    onSelect = { AppSettings.setPlayerVisualStyle(PlayerVisualStyle.entries[it]) },
+                    modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                )
+            }
+            row("Fondo dinámico", "player background", "artwork") {
+                SettingsRow(
+                    icon = Icons.Rounded.Gradient,
+                    title = "Fondo dinámico",
+                    subtitle = "Colores de la carátula con movimiento suave",
+                    trailing = { Switch(checked = playerDynamicBackground, onCheckedChange = AppSettings::setPlayerDynamicBackground) },
+                    onClick = { AppSettings.setPlayerDynamicBackground(!playerDynamicBackground) },
+                )
+            }
+            row("Efectos de cristal", "glass effects", "Liquid Glass+") {
+                SettingsRow(
+                    icon = Icons.Rounded.BlurOn,
+                    title = "Efectos de cristal",
+                    subtitle = "Superficies translúcidas del reproductor",
+                    trailing = { Switch(checked = playerGlassEffects, onCheckedChange = AppSettings::setPlayerGlassEffects) },
+                    onClick = { AppSettings.setPlayerGlassEffects(!playerGlassEffects) },
+                )
+            }
+            row("Controles alternativos", "alternative controls", "player") {
+                SettingsRow(
+                    icon = Icons.Rounded.Animation,
+                    title = "Controles alternativos",
+                    subtitle = "Botón de reproducción con estilo expresivo",
+                    trailing = { Switch(checked = playerAlternativeControls, onCheckedChange = AppSettings::setPlayerAlternativeControls) },
+                    onClick = { AppSettings.setPlayerAlternativeControls(!playerAlternativeControls) },
+                )
+            }
+            row("Transiciones animadas", "player motion", "animation") {
+                SettingsRow(
+                    icon = Icons.Rounded.MotionPhotosOff,
+                    title = "Transiciones animadas",
+                    subtitle = "Animaciones entre pantallas del reproductor",
+                    trailing = { Switch(checked = playerAnimatedTransitions, onCheckedChange = AppSettings::setPlayerAnimatedTransitions) },
+                    onClick = { AppSettings.setPlayerAnimatedTransitions(!playerAnimatedTransitions) },
                 )
             }
             if (expressive) row("Color", "Accent", "Acento") { GoogleAccentPicker() }
@@ -1953,7 +2030,7 @@ internal val TEXT_INSET = ROW_INSET + ICON_SIZE + ICON_GAP
  * every group has had its turn, which is why this is made fresh on each pass
  * rather than remembered.
  */
-private class SettingsSearch(query: String) {
+private class SettingsSearch(query: String, val section: String? = null) {
     // Trimmed, because a trailing space is a typo rather than a search for
     // something ending in one — and on a phone keyboard it is one keystroke
     // away from every word typed.
@@ -2014,6 +2091,7 @@ private fun SearchableSettingsGroup(
     topSpacing: Dp = 26.dp,
     content: @Composable SettingsGroupScope.() -> Unit,
 ) {
+    if (search.section != null && search.section != header) return
     val scope = SettingsGroupScope(search, header)
     scope.content()
     if (scope.entries.isEmpty()) return
