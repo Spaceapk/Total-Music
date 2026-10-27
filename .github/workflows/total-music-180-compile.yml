@@ -196,7 +196,12 @@ jobs:
                   index += 1
               if not hits:
                   continue
-              parts += [f"<details><summary>{name}.log — {len(lines)} lines</summary>", "", "```"]
+              # On a green run these lines did not fail the build: Gradle's
+              # toolchain prints some `e:`-prefixed diagnostics (metadata
+              # versions, for one) and carries on. Say so, rather than letting
+              # them read as errors that were ignored.
+              marker = "step succeeded; matches below did not fail the build" if status == "success" else name
+              parts += [f"<details><summary>{marker} — {name}.log, {len(lines)} lines</summary>", "", "```"]
               parts += hits
               parts += ["```", "</details>", ""]
           body = "\n".join(parts)

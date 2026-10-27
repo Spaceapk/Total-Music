@@ -20,15 +20,19 @@ checkout that was never pushed).
 no release, no tag, no push, no signing key, and the static gate fails it if it
 ever grows one.
 
-**Run:** https://github.com/Spaceapk/Total-Music/actions/runs/40491761559
-**Commit:** `be1778b`
+**Reference run:** https://github.com/Spaceapk/Total-Music/actions/runs/40492223594
+**Commit:** `430ff55` (the first green run of this shape was `be1778b`;
+earlier runs in the same series found the ten defects listed below)
+
+Every push to this branch starts it again; the run page for the exact commit
+always carries the artifact built from that commit.
 
 | Step | What it covers |
 | --- | --- |
 | `:app:compileProdDebugKotlin` | every module's Kotlin, the resource merger and the Compose compiler plugin — the whole app |
 | `:app:assembleProdDebug` | the installable test APK |
 | `:app:assembleProdRelease` | the minified release build (R8), left unsigned |
-| `:shared:jvmTest` + `:app:testProdDebugUnitTest` | every unit test in the repository |
+| `:shared:jvmTest` + `:app:testProdDebugUnitTest` | every unit test in the repository — **1079 tests in 106 classes, all passing** |
 | `scripts/release/package_ci.py` | identity of both APKs against `total-music-release.properties`, certificate check, test counts, `SHA256SUMS`, `build-verification.json` |
 
 The repository's own `Total Music Android verification` workflow runs on the
@@ -112,9 +116,10 @@ or resource *kinds*.
   untagged set came first. `rebirthAlbumOrder` now delegates to the shared
   `List<Song>.inAlbumOrder()` (`AlbumOrdering`), the rule the album screen
   already used.
-* The rest of the repository's unit tests run in the same job. The counts, per
-  class, are in `build-verification.json` and `ci-logs/tests-summary.md` of the
-  run's artifact.
+* The rest of the repository's unit tests run in the same job: **1079 tests in
+  106 classes, none failing**, on `430ff55`. The per-class counts are in
+  `build-verification.json` and `ci-logs/tests-summary.md` of the run's
+  artifact.
 * `AlbumOrderingTest` in `shared/src/commonTest` is run by `:shared:jvmTest`.
 
 Nothing has run on a device.
