@@ -1,122 +1,120 @@
 # 1.8.0 validation
 
-Written 2026-10-27 in the recovery sandbox that applied
-`recuperacion-1.8.0.patch`. It replaces the previous VALIDATION.md, whose
-figures (1018 tests, four APKs, SDK 37) belong to a checkout that was never
-pushed and cannot be reproduced here. Nothing in this file is quoted from that
-one.
+Rewritten 2026-10-27, after the second pass on this branch. It replaces both the
+checkpoint file that shipped in the recovery patch (whose figures — 1018 tests,
+four APKs, SDK 37 — describe a checkout that was never pushed) and the earlier
+draft of this page.
 
-## What the sandbox could and could not do
+**Nothing on this branch has been compiled or run.** What follows says exactly
+what was executed, what it proves, and what it does not.
 
-| Tool | State | Evidence |
-| --- | --- | --- |
-| JDK | absent | `java`, `javac`, `kotlinc`: `command not found`; no `/usr/lib/jvm` |
-| Android SDK | absent | no `sdkmanager`, `adb`; no `ANDROID_HOME`; `apt-get download android-sdk` finds no package |
-| Gradle | unusable | wrapper is 8.11.1 and needs a distribution; `services.gradle.org` and the GitHub mirror are unreachable |
-| Maven Central | unreachable | `repo1.maven.org` fails TLS (`curl (35) SSL_ERROR_SYSCALL`) |
-| Google Maven | unreachable | `dl.google.com` fails the same way; without it there is no AGP and no Compose artifact |
-| PyPI | reachable | `pip download jdk4py` succeeded (a JDK is obtainable, an Android SDK is not) |
-| npm | reachable | `kotlin-compiler` on npm is Kotlin/JS, not the JVM compiler |
-| GitHub | reachable | clone/fetch/`gh` work; release *assets* do not (`release-assets.githubusercontent.com`) |
+## Why there is no compile or device run
 
-So: **`./gradlew` has never been run on this tree**, no APK exists, and no
-emulator or device has booted. That is a fact about the sandbox, not a choice,
-and no result below is offered as a substitute for it.
+No JDK, no Android SDK, and no route to a Gradle distribution or a Maven
+repository in this sandbox. A JDK *was* fetched from PyPI (Temurin 25) and given
+to the wrapper, which then failed downloading Gradle itself. Exact commands,
+hosts and stack traces: [BUILD_ENVIRONMENT.md](BUILD_ENVIRONMENT.md).
 
-## What was actually run
+## What was executed
 
 ```
-$ /tmp/venv_ts/bin/python scripts/verify/rebirth_check.py --base main
-note: Kotlin parse: 565 file(s) checked, 0 broken, 15 pre-existing gap(s).
+$ python3 scripts/verify/rebirth_check.py --base main
+note: Kotlin parse: 567 file(s) checked, 0 broken, 15 pre-existing gap(s).
 note: R references: 1604 checked.
 note: Resource XML references: 164 checked.
 note: Translation format arguments: 18577 translated string(s) compared.
-note: Compose resource references: 234 checked.
+note: Compose resource references: 242 checked.
+note: Compose translations: 3230 translated string(s) compared.
+note: Symbol resolution proxy: 31 file(s), 0 unresolved name(s).
+note: Call signatures: 123 named-argument call(s) checked.
 note: Hardcoded rebirth text: 0 literal(s) found.
 note: Manifest components checked against declared classes.
-note: Protected paths checked against main (68 changed file(s)).
+note: Protected paths checked against main (105 changed file(s)).
 OK: every static check passed.
 ```
 
-What each line does:
+What each check can and cannot catch:
 
-* **Kotlin parse** — every `.kt` under `app/src`, `shared/src` and
-  `sharedUi/src` is parsed with tree-sitter-kotlin. The 15 files that fail are
-  the ones that already fail at `main`: the grammar does not read some of the
-  advanced syntax this codebase uses (multi-interface `by` delegations,
-  context receivers, some annotation targets). The check compares against the
-  base, so only a file that *newly* fails is reported.
-* **R references** — every `R.string.*`, `R.drawable.*`, `R.font.*`, … in the
-  app module resolves to a resource in `app/src/main/res` (including binary
-  directories such as `font/`, which is why the check is not XML-only).
-  `android.R.string.*` is excluded.
-* **Resource XML references** — `@string/…`, `@drawable/…`, `@font/…` inside
-  `res/` resolve, including the four widget layouts.
-* **Translation format arguments** — for all 18 577 translated strings, the
-  set of `%1$s`-style specifiers matches the default. A translation that drops
-  an argument crashes at runtime, and this is the only way to see that without
-  a phone.
-* **Compose resources** — every `Res.string.*` in `sharedUi` has a key in
-  `composeResources/values`. The twelve `rebirth_*` keys added by this branch
-  are reported as untranslated outside the default locale; that is deliberate
-  (see "Known gaps").
-* **Hardcoded text** — no string literal in `ui/rebirth/*.kt` or
-  `ui/player/Rebirth*.kt` is passed to `Text(`, `text =`, `label =`, `title =`
-  or `message =`.
-* **Manifest components** — every activity/service/receiver/provider declared
-  with an app-relative `android:name` maps to a class some Kotlin file
-  declares. Vendored `androidx.*` components are skipped.
-* **Protected paths** — nothing under `.github/workflows/`, `signing/`,
-  `.signing/` or any `keystore` path changed. `total-music-release.properties`
-  is reported rather than refused: it carries the 1.8.0 version number, which
-  the patch legitimately bumps, and it is printed as a note.
+| Check | Catches | Cannot catch |
+| --- | --- | --- |
+| Kotlin parse (tree-sitter) | unbalanced braces, malformed declarations, a file that stops parsing | everything semantic; 15 files already fail this grammar at `main` and are reported, not failed |
+| R references | `R.string.x` with no resource | a wrong-but-existing resource |
+| Resource XML references | `@font/x` in a layout with no font | attribute-level validity |
+| Translation format arguments | a locale that drops `%1$s` (a runtime crash) | awkward translations |
+| Compose resources | `Res.string.x` with no key | missing *usages* |
+| Compose translations | argument mismatch per locale; missing keys | tone and grammar of 18 locales |
+| Symbol resolution proxy | a capitalised name that is neither imported nor declared in its package — the missing-import class of error | types, overload resolution, receivers, generics |
+| Call signatures | a named argument a function does not declare, or a required one omitted (including calls from `MainActivity`, `SettingsSheet`, `EqualizerScreen`, `SongActionsSheet`, `NowPlayingScreen`) | positional-argument type errors |
+| Hardcoded text | a literal passed to `Text()`, `label =`, `title =` in the rebirth layer | literals inside resources |
+| Manifest components | an `android:name` no class declares | runtime contract of the component |
+| Protected paths | changes to `.github/workflows/`, `signing/`, `.signing/`, any `keystore` | — |
+
+The symbol and signature proxies found two real defects on this pass: a missing
+`Spacer` import in `RebirthPlayerAtoms.kt`, and a `DynamicCard`/`ManualCard`
+call that had lost its `enabled` argument. Both are fixed; the checks that
+found them now run on every commit.
 
 ## Acceptance criteria, one by one
 
-"Static" means the code path was read and the static gate covers its
-resources; it does **not** mean the behaviour was observed.
+"Static" = written, reviewed and covered by the gate above. It does **not**
+mean observed running.
 
-| Requirement | Where it lives now | Status |
+| Requirement | Where it lives | Status |
 | --- | --- | --- |
-| Playback from the library | `RebirthLocalExperience` → `onPlay` → `MainActivity.playFrom` | wired, uncompiled |
-| Search inside the library | `rebirthMatches`, `RebirthSearchField`, both scenes | unit-tested (`RebirthLibraryTest`) |
-| Filtered multi-select | `rebirthFilteredSelection`, selection caps in `RebirthLibraryModel` | unit-tested |
-| Multi-select → add to playlist | `DevicePlaylistPickerDialog` from the selection bar | wired, uncompiled |
-| Create / rename / delete playlist | `RebirthDialog` + `DevicePlaylistStore.create/rename/delete` | wired, uncompiled |
-| Track ordering (library) | `rebirthSortedLibrary` + `LocalMusicSort` | unit-tested |
+| Playback from the library | `RebirthLocalExperience` → `onPlay` → `MainActivity.playFrom` | static |
+| Search inside the library | `rebirthMatches`, `RebirthSearchField`, both scenes | unit-tested |
+| Filtered multi-select | `rebirthFilteredSelection` | unit-tested |
+| Selection → playlist | `DevicePlaylistPickerDialog` from the selection bar | static |
+| Create / rename / delete playlist | `RebirthDialog` + `DevicePlaylistStore` | static |
+| Library ordering | `rebirthSortedLibrary` + `LocalMusicSort` (all five, including track number) | unit-tested |
 | Favourites | `RebirthCategory.FAVORITES` + `rebirthVisibleSongs` | unit-tested |
-| Playlist reorder | `onMoveInPlaylist` → `DevicePlaylistStore.move`; `rebirthCanReorder` blocks it under a query and says why | unit-tested (guard), device pending |
-| Lyrics | `RebirthLyricsPage` (tap-to-seek, translation/romanisation via `rememberLyricsTranslation`) | static |
-| Queue | `RebirthQueuePage` (jump, move, remove, clear) | static |
-| Equalizer | `RebirthEqualizer` (`dynamic`, `manual`, Total EQ with 10/31 bands, parametric page) | static, resource-checked |
-| Settings | `RebirthSettings` home → the app's own groups, filtered by section | static |
-| Song actions from Home | `RebirthSongActions` header + the app's action list | static |
-| Google Expressive+ and Liquid Glass+ | separate compositions in library, player, mini player, navigation, settings, equalizer, song menu | static |
-| Original theme | never routed through the rebirth layer (`PlayerVisualStyle.ORIGINAL` early-returns) | unchanged from `main` |
+| Playlist reorder by drag | `RebirthQueueDrag` is for the queue; playlists move with the two arrows, which stay reachable under a screen reader | static |
+| Queue reorder by drag | `RebirthQueueReorder.kt` + `RebirthQueuePage` — long-press a handle, carry, live swaps, edge auto-scroll; arrows kept as the accessible path | static |
+| Queue locked in a party | drag and buttons disabled, with the reason shown (`rebirth_queue_locked`) | static |
+| Lyrics: tap to seek | `RebirthLyricsPage` | static |
+| Lyrics: translate / romanize | `rememberLyricsTranslation` toggles | static |
+| Lyrics: offset | `LyricsOffsetSheet`, opened from the lyric page; signed value shown when it is not zero | static |
+| Lyrics: provider | `LyricsProviderSheet`, opened from the lyric page and from the tools sheet | static |
+| Lyrics: sync state | reported on the lyric page (read-only: the player's settings interface has no setter) | static |
+| Equalizer | `RebirthEqualizer`: dynamic, manual, Total EQ 10/31 bands, presets, saved profiles, preamp, limiter, parametric page | static |
+| Settings | `RebirthSettings` home → the app's own groups, filtered to the opened one | static |
+| Song actions from Home | `RebirthSongActions` + the app's action list | static |
+| Output drawer, cast, pipeline | themed per player via `LocalPlayerStyle`: glass = dark pane of glass, expressive = opaque editorial page, original = unchanged | static |
+| Google Expressive+ / Liquid Glass+ | separate compositions in library, player, mini player, navigation, settings, equalizer, song menu, and now the shared sheets | static |
+| Original theme | `PlayerVisualStyle.ORIGINAL` never enters the rebirth layer; `LocalPlayerStyle` defaults to it | static |
 
-## Known gaps, with what would close them
+## Unit tests
 
-1. **No compilation.** Highest risk in this branch: 5 900 lines of Kotlin that
-   no compiler has seen. The parse gate proves syntax, not types.
-   *Next step:* run `./gradlew :app:compileDebugKotlin` on a machine with a
-   JDK, the Android SDK and Maven access. Expect “unresolved reference”
-   errors, not syntax errors; the parser has already been through everything.
-2. **No device run.** Narrow screens, large font scales and the two Plus
-   themes in motion are unverified. *Next step:* the device checklist in
-   IMPLEMENTATION_HANDOFF.md.
-3. **Twelve `rebirth_*` strings only exist in the default Compose locale.**
-   English is the fallback, so nothing is broken; it is untranslated, not
-   wrong.
-4. **Player panes are re-implementations.** The rebirth queue uses up/down
-   arrows rather than the original's drag reorder, and the rebirth lyric page
-   does not yet offer the original's line picker or the offset sheet. Both are
-   listed in the handoff as the next porting step rather than hidden behind
-   the "classic player" row.
-5. **Output, cast and pipeline sheets are still the legacy `PlayerDrawer`.**
-   They are frosted and shaped like the glass style and look out of place in
-   the expressive one.
+`app/src/test/java/com/music/bitchord/ui/rebirth/RebirthLibraryTest.kt` — 12
+tests over the pure model: album order across discs, search matching, track
+order vs scan order, date order, selection pruned by a query, the reorder guard,
+the sort cycle returning to manual and covering every entry, favourites
+filtering, an open collection overriding the category, saved playlists keeping
+their own order, and gallery rows staying paired. **Not executed here** — there
+is no JVM test runner in the sandbox. They are plain JUnit 4 tests with no
+Android dependency, so `./gradlew :app:testDebugUnitTest` runs them anywhere.
 
-## Reproducing the static gate
+## Known gaps
+
+1. **No compiler.** 6 400 lines of Kotlin that no type checker has seen. This is
+   the branch's largest risk and the first thing to fix elsewhere.
+2. **No device pass.** All of these are unverified on hardware: narrow screens,
+   200 % font scale, both Plus themes, Original, glass sampling, frame timing,
+   low-memory behaviour, RTL (`values-he`).
+3. **The player's own sheets are themed by one local, not redesigned.** The
+   output drawer, the lyric provider sheet and the lyric offset sheet change
+   material, corner and ink per style, and reuse the app's real controls — that
+   was deliberate, since rewriting four sheets would have been four chances to
+   lose a control. Their *internal layout* is still the original's.
+4. **Queue drag is a second implementation**, not a refactor of the original's
+   private one, which is welded to its tiered rows. Both use the same edge-scroll
+   ramp (`edgeScrollSpeed`), so the pace matches; the gesture code is not shared.
+5. **Playlists reorder with arrows only.** Drag on playlist rows is the next
+   parity item; the arrows are a real path, not a placeholder.
+6. **Second-level settings.** Accent picker, artwork colours and adaptive
+   navigation rows are still legacy widgets inside a rebirth frame.
+
+## Reproducing the gate
 
 ```
 python3 -m venv /tmp/venv_ts
@@ -124,6 +122,6 @@ python3 -m venv /tmp/venv_ts
 /tmp/venv_ts/bin/python scripts/verify/rebirth_check.py --base main
 ```
 
-Without the two packages the script still runs and reports the resource,
-translation, manifest and protected-path checks; only the parse step is
-skipped, with a note saying so.
+Without tree-sitter the script still runs the resource, translation, signature,
+manifest and protected-path checks; only the parse step is skipped, with a note
+saying so.

@@ -29,12 +29,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.data.settings.AppSettings
+import com.music.bitchord.ui.player.LocalPlayerStyle
+import com.music.bitchord.ui.player.PlayerVisualStyle
 import com.music.bitchord.ui.utils.containSheetGestures
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 
 private val POPUP_CARD_SHAPE = RoundedCornerShape(ALERT_CORNER)
+
+/**
+ * The ink the popup's rows are drawn in.
+ *
+ * The original player's popups are white alphas over a dark pane. The
+ * expressive rebirth player's are the opposite, and the rows inside them —
+ * the cast list, the pipeline readout — were written against `Color.White`
+ * directly. One local, installed by [AudioPopupCard], is what lets those rows
+ * keep their own alphas and simply change hue with the player they belong to.
+ */
+internal class AudioPopupInk(val primary: Color) {
+    /** [primary] at [alpha] — the shape most of these rows already ask for. */
+    fun at(alpha: Float): Color = primary.copy(alpha = alpha)
+}
+
+internal val LocalAudioPopupInk = androidx.compose.runtime.compositionLocalOf { AudioPopupInk(Color.White) }
 private val POPUP_SCRIM_COLOR = Color.Black.copy(alpha = 0.4f)
 private val POPUP_WIDTH = 320.dp
 private val POPUP_CONTENT_MAX_HEIGHT = 420.dp
@@ -65,6 +83,15 @@ internal fun AudioPopupCard(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    // These two popups — the cast picker and the pipeline readout — belong to
+    // whichever player opened them. In a rebirth player they take its material
+    // rather than the original's fixed dark pane, which is what made them look
+    // like a piece of the old player inside the new one.
+    val playerStyle = LocalPlayerStyle.current
+    val expressive = playerStyle == PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS
+    val glass = playerStyle == PlayerVisualStyle.LIQUID_GLASS_PLUS
+    val ink = if (expressive) MaterialTheme.colorScheme.onSurface else Color.White
+    val inkMuted = if (expressive) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.7f)
 
     Box(
         modifier = modifier
@@ -78,15 +105,36 @@ internal fun AudioPopupCard(
             ),
         contentAlignment = Alignment.Center,
     ) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalAudioPopupInk provides AudioPopupInk(primary = ink),
+        ) {
         Column(
             modifier = Modifier
                 .width(POPUP_WIDTH)
-                .clip(POPUP_CARD_SHAPE)
+                .clip(
+                    when {
+                        // A printed page in the expressive player, a pane of
+                        // glass in the glass one, the original card otherwise.
+                        expressive -> RoundedCornerShape(28.dp)
+                        glass -> RoundedCornerShape(24.dp)
+                        else -> POPUP_CARD_SHAPE
+                    },
+                )
                 .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(Color(0xFF121212))
-                    } else {
-                        Modifier
+                    when {
+                        expressive -> Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        glass -> if (reduceDynamicBlur) {
+                            Modifier.background(Color(0xFF0B1622))
+                        } else {
+                            Modifier
+                                .optimizedHazeEffect(
+                                    state = hazeState,
+                                    style = HazeMaterials.regular(Color(0xFF0B1622)),
+                                )
+                                .background(Color(0xFF0B1622).copy(alpha = 0.86f))
+                        }
+                        reduceDynamicBlur -> Modifier.background(Color(0xFF121212))
+                        else -> Modifier
                             .optimizedHazeEffect(
                                 state = hazeState,
                                 style = HazeMaterials.regular(Color(0xFF141414)),
@@ -110,11 +158,11 @@ internal fun AudioPopupCard(
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyLarge.copy(
+                    style = if (expressive) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.bodyLarge.copy(
                         fontSize = 17.sp,
                         fontWeight = FontWeight.W600,
                     ),
-                    color = Color.White,
+                    color = ink,
                     textAlign = TextAlign.Center,
                 )
                 Text(
@@ -124,7 +172,7 @@ internal fun AudioPopupCard(
                         fontSize = 13.sp,
                         lineHeight = 17.sp,
                     ),
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = inkMuted,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -140,6 +188,7 @@ internal fun AudioPopupCard(
             // icon lane, which left this one sitting right of centre.
             PipelineRule(Modifier)
             PipelineDoneAction(label = doneLabel, onClick = onDismiss)
+        }
         }
     }
 }

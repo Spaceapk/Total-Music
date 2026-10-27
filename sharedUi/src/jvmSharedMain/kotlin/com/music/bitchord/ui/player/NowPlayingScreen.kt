@@ -843,6 +843,8 @@ fun NowPlayingScreen(
             lyrics = lyrics, lyricsSource = lyricsSource, lyricsUnavailable = lyricsUnavailable,
             onSeekLine = { time -> onSeek(adjustedLyricsSeekTarget(time, PlayerSettings.lyricsOffsetMs.value)) },
             onOutput = openAudioOutput, onListenTogether = onListenTogether,
+            onOpenLyricsProviders = { showLyricsProviders = true },
+            onQueueDragActiveChange = onQueueDragActiveChange,
             tools = rebirthTools, hazeState = playerHaze, modifier = modifier)
         PlayerBackHandler(
             enabled = showAudioOutput || showAudioPipeline || showCast || showLyricsProviders,

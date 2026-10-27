@@ -212,4 +212,10 @@
     <string name="rebirth_equalizer">Equalizer</string>
     <string name="rebirth_classic_player">Classic player</string>
     <string name="rebirth_classic_player_caption">Lyric card sharing and the advanced lyric controls</string>
+    <string name="rebirth_queue_locked">The queue follows the host in this session</string>
+    <string name="rebirth_queue_move_up">Move up</string>
+    <string name="rebirth_queue_move_down">Move down</string>
+    <string name="rebirth_lyrics_sync_off">Synced lyrics are off in Settings</string>
+    <string name="rebirth_lyrics_offset">Lyric offset</string>
+    <string name="rebirth_lyrics_offset_value">Offset %1$s</string>
 </resources>

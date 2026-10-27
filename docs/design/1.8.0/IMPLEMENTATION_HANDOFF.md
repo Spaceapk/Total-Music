@@ -36,6 +36,8 @@ is not shared is layout.
 | `RebirthGlassPlayer.kt` | the glass player: status row, segmented pages, centred sleeve ≤360 dp, capsule transport, three glass tiles, Listen Together pill |
 | `RebirthPlayerAtoms.kt` | everything both need but neither should draw twice: `RebirthSeekBar`, `RebirthTransportRow`, `RebirthVolumeRow`, `RebirthSleeve`, `RebirthQueuePage`, `RebirthLyricsPage`, `RebirthUpNext` |
 | `RebirthPlayerTools.kt` | "Playback tools" as a themed sheet: full-width rows in expressive, a two-column grid in glass. This is the surface that used to open the *legacy* player |
+| `RebirthQueueReorder.kt` | drag-to-reorder for the queue: long-press a handle, carry the row, live swaps read off the layout, edge auto-scroll at the original's pace, and the arrows kept as the accessible path |
+| `PlayerStyleLocal.kt` | `LocalPlayerStyle` — how the shared sheets (output, lyric providers, lyric offset, party members, cast and pipeline popups) learn which player opened them, and the per-style sheet ink, background, corner and title scale |
 
 `NowPlayingScreen.kt` routes to it before the original player is composed and
 keeps the ownership of the sheets that are still the app's: audio output,
@@ -84,29 +86,49 @@ foot of the tools sheet, labelled as such, not the contents of the button.
 * `scripts/verify/rebirth_check.py` — the static gate this work was verified
   with, and the reason the next person does not have to guess what passed.
 
+## Second pass (this branch, commits after `b4df136a`)
+
+* **Queue drag.** `RebirthQueueReorder.kt` implements the gesture for the
+  rebirth queue: the finger holds the row's centre, swaps are sent as it
+  crosses half a neighbour, the held row is drawn over the list from the
+  engine's own top so nothing jumps, and holding near an edge scrolls the list
+  at the same ramp the original queue uses (`edgeScrollSpeed`). The up/down
+  arrows stay, because a drag is not reachable by a screen reader. The party
+  lock disables both and says why.
+* **Lyric controls.** The lyric page now carries the rest of the original
+  panel's controls: the offset sheet (signed value shown on the chip), the
+  provider picker, and whether the player follows the words at all — read-only,
+  because the player's settings interface exposes no setter for that one.
+* **Themed sheets.** `AudioOutputSheet`, `LyricsProviderSheet`,
+  `LyricsOffsetSheet` and `ListenTogetherMembersSheet` draw in the material of
+  the player that opened them; `AudioPopupCard` (cast picker, pipeline readout)
+  does the same, and its rows now take their ink from a local instead of
+  `Color.White`. Original is untouched by all of it: `LocalPlayerStyle`
+  defaults to `ORIGINAL` and every branch falls through to the old values.
+* **Localization.** The 18 `rebirth_*` string keys exist in the default locale
+  and in all 17 translations, with matching format arguments (checked).
+* **Static gate.** `scripts/verify/rebirth_check.py` grew compose-translation
+  parity, a symbol-resolution proxy and a call-signature check. The last two
+  found and fixed two real defects (a missing `Spacer` import and a lost
+  `enabled` argument).
+
 ## Remaining work, in the order it should be done
 
 1. **Compile.** `./gradlew :app:compileDebugKotlin` on a machine with a JDK,
-   the Android SDK and Maven access. The parse gate has already been through
-   every file, so expect unresolved references rather than syntax errors. See
-   `VALIDATION.md` for why the sandbox could not do this.
-2. **Port the two player panes that are still re-implementations.** The
-   rebirth queue moves entries with arrows, not by dragging, and the rebirth
-   lyric page has no line picker and no offset sheet. Both exist in the legacy
-   player (`InlineQueue`, `LyricsPanel`, `LyricsOffsetSheet`); they are
-   `internal` in the same module, so either lift them into the rebirth scenes
-   or move the shared machinery behind an interface both use.
-3. **Restyle the shared drawers.** `AudioOutputSheet`, `CastDialog` and
-   `AudioPipelineDialog` are the legacy `PlayerDrawer` — right for the glass
-   style, foreign in the expressive one.
-4. **Translate the twelve player strings** into the fifteen other Compose
-   locales. The static gate prints the list on every run.
-5. **Finish the second-level settings screens.** The appearance group's
-   accent picker, artwork colours and adaptive-navigation rows are still
-   legacy widgets inside a rebirth frame.
-6. **Device pass.** Narrow screens, 200 % font scale, both Plus themes and
-   Original, playlist reorder under a search, and a song menu opened from the
-   Home list.
+   the Android SDK and Maven access. The parse, symbol and signature gates have
+   been through every file; what they cannot see is types and overloads, so
+   expect *type* errors rather than syntax or missing-import ones.
+2. **Drag for playlist rows.** The queue has it; the library's playlist page
+   still moves tracks with the two arrows. The engine in
+   `RebirthQueueReorder.kt` is list-shaped and can be reused, but the playlist
+   write path (`DevicePlaylistStore.move`) has to be settled against a filtered
+   view first — see the guard in `rebirthCanReorder`.
+3. **Sheet internals.** The player's sheets now match their player's material;
+   their *layouts* are still the original's. The larger one is the pipeline
+   readout, whose signal graph is drawn for a dark pane.
+4. **Second-level settings.** Accent picker, artwork colours and adaptive
+   navigation rows are still legacy widgets inside a rebirth frame.
+5. **Device pass.** The checklist below.
 
 ## Device checklist (nothing here has been run)
 
@@ -121,11 +143,20 @@ foot of the tools sheet, labelled as such, not the contents of the button.
       sound system you selected.
 - [ ] Playback tools → output, pipeline, cast, lyrics provider, equalizer,
       classic player.
-- [ ] Lyrics page: tap a line to seek; translation and romanisation toggles.
-- [ ] Queue page: jump, move, remove, clear added.
+- [ ] Lyrics page: tap a line to seek; translation and romanisation toggles;
+      the offset chip opens the sheet and shows the signed value after.
+- [ ] Lyrics page → provider chip opens the picker; tools sheet → same picker.
+- [ ] Queue page: drag a row by its handle to a new position; the row follows
+      the finger, edges auto-scroll, and the party hears one reorder on drop.
+- [ ] Queue page: the up/down arrows move the same row; both are disabled in a
+      party, and the reason is on screen.
+- [ ] Queue page: jump, remove, clear added.
 - [ ] Equalizer: dynamic, manual, Total EQ 10/31 bands, a saved profile, the
       advanced page.
-- [ ] Switch to Original: everything above behaves exactly as `main`.
+- [ ] At 200 % font scale: library header, settings home, equalizer rows and
+      the song menu still scroll, and nothing is clipped out of reach.
+- [ ] Switch to Original: everything above behaves exactly as `main`, including
+      the sheets' colours.
 
 ## Files changed from `main`
 

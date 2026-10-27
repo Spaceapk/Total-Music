@@ -269,13 +269,13 @@ def check_compose_resources() -> None:
             if name not in default[kind] and not (kind == "string" and name in default["string-array"]):
                 line = text.count("\n", 0, match.start()) + 1
                 fail(f"Res.{match.group(1)}.{name} has no key in composeResources/values ({os.path.relpath(path, ROOT)}:{line})")
-    missing = sorted(name for name in used if name.startswith("rebirth_") and any(
-        name not in locales[locale]["string"] for locale in locales if locale != "values"))
-    if missing:
-        note(
-            "Compose strings used by the rebirth player but translated in no locale besides "
-            f"the default: {', '.join(missing)}",
-        )
+    gaps = {
+        locale: sorted(name for name in used if name.startswith("rebirth_") and name not in locales[locale]["string"])
+        for locale in locales if locale != "values"
+    }
+    for locale, missing in sorted(gaps.items()):
+        if missing:
+            note(f"composeResources/{locale}: {len(missing)} rebirth key(s) fall back to English, e.g. {missing[:3]}")
     note(f"Compose resource references: {checked} checked.")
 
 
@@ -299,6 +299,322 @@ def check_hardcoded_text() -> None:
             line = text.count("\n", 0, match.start()) + 1
             fail(f"Hardcoded UI text: {os.path.relpath(path, ROOT)}:{line} {literal!r}")
     note(f"Hardcoded rebirth text: {checked} literal(s) found.")
+
+
+
+def check_compose_translations() -> None:
+    """Every locale keeps the default string's format arguments, key by key."""
+    base = os.path.join(ROOT, COMPOSE_RES)
+    placeholder = re.compile(r"%(?:\d+\$)?[-#+ 0,(]*\d*(?:\.\d+)?[a-zA-Z%]")
+    if not os.path.isdir(base):
+        return
+    parsed: dict[str, dict[str, set[str]]] = {}
+    for directory in sorted(os.listdir(base)):
+        path = os.path.join(base, directory)
+        if not os.path.isdir(path) or not (directory == "values" or directory.startswith("values-")):
+            continue
+        values: dict[str, set[str]] = {}
+        for filename in sorted(os.listdir(path)):
+            if not filename.endswith(".xml"):
+                continue
+            with open(os.path.join(path, filename), encoding="utf-8") as handle:
+                text = strip_comments(handle.read())
+            for match in re.finditer(r'<string\s+name="([^"]+)"[^>]*>(.*?)</string>', text, re.S):
+                values[match.group(1)] = set(placeholder.findall(match.group(2)))
+        parsed[directory] = values
+    default = parsed.get("values", {})
+    checked = 0
+    for directory, values in parsed.items():
+        if directory == "values":
+            continue
+        for name, args in values.items():
+            if name not in default:
+                continue
+            checked += 1
+            wanted = {a for a in default[name] if a.endswith(("s", "d", "f", "x", "X"))}
+            found = {a for a in args if a.endswith(("s", "d", "f", "x", "X"))}
+            if wanted != found:
+                fail(
+                    f"composeResources/{directory}: {name} takes {sorted(wanted) or 'no arguments'} "
+                    f"but the translation uses {sorted(found) or 'none'}",
+                )
+    # A key added to the default and forgotten in a locale falls back to
+    # English at runtime; that is reported, not failed, but it must be visible.
+    for directory, values in parsed.items():
+        if directory == "values":
+            continue
+        missing = sorted(name for name in default if name.startswith("rebirth_") and name not in values)
+        if missing:
+            note(f"composeResources/{directory}: {len(missing)} rebirth key(s) fall back to English.")
+    note(f"Compose translations: {checked} translated string(s) compared.")
+
+
+SYMBOL_CACHE: dict[str, set[str]] = {}
+
+
+def _declared_names() -> dict[str, set[str]]:
+    """Every top-level declaration name, keyed by the package that declares it."""
+    if SYMBOL_CACHE:
+        return SYMBOL_CACHE  # type: ignore[return-value]
+    pattern = re.compile(
+        r"^(?:@\w+(?:\([^)]*\))?\s*)*"
+        r"(?:internal |private |public |expect |actual |const )*"
+        r"(?:inline |suspend |tailrec |operator |infix |abstract |open |sealed |data |value |fun interface )*"
+        r"(?:fun|val|var|class|object|interface|typealias|enum class)\s+"
+        r"(?:<[^>]*>\s*)?([A-Za-z_][\w]*)",
+        re.M,
+    )
+    for path in walk("app/src", ".kt") + walk("shared/src", ".kt") + walk("sharedUi/src", ".kt"):
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+        package = re.search(r"^package\s+([\w.]+)", text, re.M)
+        key = package.group(1) if package else ""
+        names = SYMBOL_CACHE.setdefault(key, set())
+        for match in pattern.finditer(text):
+            names.add(match.group(1))
+        # Nested and member declarations are not top-level, but a file that
+        # declares a class also declares what is inside it; the resolver below
+        # only needs to know the name exists somewhere.
+        for match in re.finditer(r"^\s{4}(?:@\w+\s*)*(?:private |internal |public |const )*(?:fun|val|var|class|object) ([A-Za-z_][\w]*)", text, re.M):
+            names.add(match.group(1))
+        # Entries of an enum are names in this package too. A companion object
+        # inside the enum body stops a whole-body match, so this reads lines.
+        for entry in re.findall(r"^\s{2,}([A-Z][A-Z0-9_]{2,})\s*[,(]?\s*$", text, re.M):
+            names.add(entry)
+        # `enum class Foo { A, B, C }` on one line, and the multi-line entries
+        # before a companion object, which a whole-body match cannot reach.
+        for match in re.finditer(r"enum class \w+[^{]*\{([^}]*)", text):
+            for entry in re.split(r"[,\n]", match.group(1).split(";")[0]):
+                name = entry.strip().split("(")[0].strip()
+                if re.fullmatch(r"[A-Z][A-Za-z0-9_]*", name):
+                    names.add(name)
+    return SYMBOL_CACHE
+
+
+def _file_package(text: str) -> str:
+    match = re.search(r"^package\s+([\w.]+)", text, re.M)
+    return match.group(1) if match else ""
+
+
+def check_symbol_resolution() -> None:
+    """
+    A resolution proxy, not a type checker.
+
+    For the rebirth layer and the files it touched, every capitalised name that
+    is *used* has to be imported, declared in the same file, or declared in the
+    same package. That is the class of mistake a compiler catches first once the
+    syntax is right — a missing import — and the one thing the parser cannot
+    see. It says nothing about types, overloads or receivers.
+    """
+    declared = _declared_names()
+    targets = set(walk("app/src/main/java/com/music/bitchord/ui/rebirth", ".kt"))
+    targets |= {
+        path for path in walk("sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player", ".kt")
+        if "Rebirth" in os.path.basename(path)
+    }
+    # The shared files the rebirth work edits. Deliberately a list rather than
+    # `git diff main`: the recovery patch also carried widget and player files
+    # this change did not write, and their private constants are not what this
+    # proxy is for.
+    player = "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/"
+    targets |= {
+        os.path.join(ROOT, player + name) for name in (
+            "PlayerDrawer.kt", "AudioOutputSheet.kt", "LyricsProviderSheet.kt",
+            "LyricsOffsetSheet.kt", "ListenTogetherMembersSheet.kt",
+            "NowPlayingScreen.kt", "PlayerStyleLocal.kt", "PlayerVisualStyle.kt",
+        )
+    }
+    targets |= {
+        os.path.join(ROOT, "app/src/main/java/com/music/bitchord/" + name) for name in (
+            "MainActivity.kt",
+            "ui/screens/SettingsSheet.kt",
+            "ui/screens/EqualizerScreen.kt",
+            "ui/components/AudioPopupCard.kt",
+            "ui/components/CastDialog.kt",
+            "ui/components/AudioPipelineDialog.kt",
+        )
+    }
+    targets = sorted(path for path in targets if os.path.isfile(path))
+    problems = 0
+    for path in targets:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+        package = _file_package(text)
+        local = set(re.findall(r"^(?:internal |private |public )?(?:fun|val|var|class|object|interface) (\w+)", text, re.M))
+        local |= set(re.findall(r"^\s+(?:private |internal )?(?:fun|val|var) (\w+)", text, re.M))
+        imported = set(re.findall(r"^import ([\w.]+)(?: as (\w+))?", text, re.M))
+        imported_names = {i[0].rsplit(".", 1)[-1] for i in imported}
+        imported_names |= {match for match in re.findall(r"^import [\w.]+\.\w+ as (\w+)", text, re.M)}
+        body = re.sub(r"^(?:import|package) .*$", "", text, flags=re.M)
+        # Comments and string literals talk about the code; only the code counts.
+        body = re.sub(r"/\*.*?\*/", "", body, flags=re.S)
+        body = re.sub(r"//[^\n]*", "", body)
+        body = re.sub(r'"(?:\\.|[^"\\\n])*"', '""', body)
+        # Names used as a type, a constructor or an enum receiver.
+        used = set(re.findall(r"(?<![\.\w])([A-Z][A-Za-z0-9_]{2,})", body))
+        known = local | imported_names | declared.get(package, set())
+        # A star import of a package this repository declares brings every one
+        # of its names into scope; that is how the compose resources are used.
+        for match in re.findall(r"^import (com\.music\.bitchord\.[\w.]+)\.\*", text, re.M):
+            known |= declared.get(match, set())
+        # Kotlin's own and the platform's: too many to list, and not what this
+        # check is for.
+        known |= {
+            "String", "StringBuilder", "Int", "Long", "Float", "Double", "Boolean", "Byte", "Short",
+            "List", "Set", "Map", "MutableList", "MutableMap", "MutableSet", "Pair", "Triple",
+            "Any", "Unit", "Nothing", "Array", "CharArray", "Exception", "Throwable",
+            "Locale", "Math", "System", "Object", "Class", "Thread", "Runnable", "Override",
+            "Suppress", "JvmStatic", "JvmField", "JvmOverloads", "Volatile", "Synchronized",
+            "Serializable", "JSONObject", "JSONArray", "UUID", "File", "InputStream",
+            "OutputStream", "Uri", "Context", "Intent", "Log", "Build", "Settings", "Toast",
+            "TAG", "I", "W", "E", "D", "V", "TODO",
+            "OptIn", "ClosedFloatingPointRange", "IllegalStateException", "IllegalArgumentException",
+            "Regex", "Result", "Lazy", "State", "StateFlow", "MutableStateFlow", "Flow",
+            "HashSet", "HashMap", "LinkedHashMap", "ArrayList", "Collections", "Comparator",
+            "StringBuilder", "CharSequence", "Collection", "Number", "Comparable", "Iterable", "Sequence",
+            "BuildConfig", "IntArray", "FloatArray", "LongArray", "BooleanArray", "Pair",
+            # Generated at build time by Compose Multiplatform and AGP; there is
+            # no source in the tree for either, which is the point of them.
+            "Res",
+        }
+        for name in sorted(used - known):
+            line = None
+            for match in re.finditer(rf"(?<![\.\w]){re.escape(name)}(?![\w])", body):
+                line = body.count("\n", 0, match.start()) + 1
+                break
+            problems += 1
+            fail(f"Unresolved symbol {name} in {os.path.relpath(path, ROOT)}:{line or '?'}")
+    note(f"Symbol resolution proxy: {len(targets)} file(s), {problems} unresolved name(s).")
+
+
+
+def _split_top_level(body: str) -> list[str]:
+    out, depth, current = [], 0, ""
+    for char in body:
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        if char == "," and depth == 0:
+            out.append(current)
+            current = ""
+        else:
+            current += char
+    out.append(current)
+    return [part.strip() for part in out if part.strip()]
+
+
+def _function_signatures(paths: list[str]) -> dict[str, list[tuple[str, list[tuple[str, bool]]]]]:
+    signatures: dict[str, list[tuple[str, list[tuple[str, bool]]]]] = {}
+    pattern = re.compile(r"(?:internal |private )?fun (?:<[^>]*>\s*)?(\w+)\s*\(")
+    for path in paths:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+        for match in pattern.finditer(text):
+            name = match.group(1)
+            index = match.end()
+            depth = 1
+            while index < len(text) and depth:
+                if text[index] == "(":
+                    depth += 1
+                elif text[index] == ")":
+                    depth -= 1
+                index += 1
+            params: list[tuple[str, bool]] = []
+            for part in _split_top_level(text[match.end():index - 1]):
+                part = re.sub(r"^@\w+(?:\([^)]*\))?\s*", "", part)
+                part = part.split("//")[0].strip()
+                if ":" not in part:
+                    continue
+                label = part.split(":")[0].strip().split()[-1]
+                params.append((label, "=" in part))
+            signatures.setdefault(name, []).append((path, params))
+    return signatures
+
+
+def check_call_signatures() -> None:
+    """
+    Named arguments of calls to the rebirth layer's own functions.
+
+    A Kotlin compiler rejects a call that names an argument the function does
+    not declare, or that omits one without a default. This reproduces that one
+    rule for the functions this change wrote: same-file name, explicit named
+    arguments only, and a trailing lambda is treated as the last parameter.
+    Positional calls are left alone — inferring overloads without types would
+    guess more than it proves.
+    """
+    paths = sorted(set(
+        walk("app/src/main/java/com/music/bitchord/ui/rebirth", ".kt")
+        + [
+            path for path in walk("sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player", ".kt")
+            if "Rebirth" in os.path.basename(path)
+        ]
+    ))
+    signatures = _function_signatures(paths)
+    # Call sites outside the layer that calls into it: the app wires these, and
+    # a signature change that the wiring did not follow is a compile error.
+    call_sites = paths + [
+        path for path in (
+            os.path.join(ROOT, "app/src/main/java/com/music/bitchord/MainActivity.kt"),
+            os.path.join(ROOT, "app/src/main/java/com/music/bitchord/ui/screens/SettingsSheet.kt"),
+            os.path.join(ROOT, "app/src/main/java/com/music/bitchord/ui/screens/EqualizerScreen.kt"),
+            os.path.join(ROOT, "app/src/main/java/com/music/bitchord/ui/components/SongActionsSheet.kt"),
+            os.path.join(ROOT, "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/NowPlayingScreen.kt"),
+            os.path.join(ROOT, "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/RebirthPlayer.kt"),
+        ) if os.path.isfile(path)
+    ]
+    checked = 0
+    for path in call_sites:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+        body = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        body = re.sub(r"//[^\n]*", "", body)
+        for match in re.finditer(r"\b(\w+)\s*\(", body):
+            name = match.group(1)
+            if name not in signatures:
+                continue
+            index = match.end()
+            depth = 1
+            while index < len(body) and depth:
+                if body[index] == "(":
+                    depth += 1
+                elif body[index] == ")":
+                    depth -= 1
+                index += 1
+            arguments = _split_top_level(body[match.end():index - 1])
+            named = []
+            positional = 0
+            for argument in arguments:
+                head = re.match(r"(\w+)\s*=(?!=)", argument.strip())
+                if head:
+                    named.append(head.group(1))
+                else:
+                    positional += 1
+            if not named:
+                continue
+            trailing = body[index:index + 40].lstrip().startswith("{")
+            checked += 1
+            best = None
+            for _, params in signatures[name]:
+                if len(params) < positional:
+                    continue
+                leading = {label for label, _ in params[:positional]}
+                if set(named) <= {label for label, _ in params} and not (leading & set(named)):
+                    best = params
+                    break
+            if best is None:
+                fail(f"{os.path.relpath(path, ROOT)}: {name}() has no parameter named {sorted(named)}")
+                continue
+            filled = set(named) | {label for label, _ in best[:positional]}
+            missing = [
+                label for label, has_default in best
+                if not has_default and label not in filled and label != "modifier"
+            ]
+            if trailing and missing and best[-1][1] is False:
+                missing = missing[:-1]
+            if missing:
+                fail(f"{os.path.relpath(path, ROOT)}: {name}() called without {missing}")
+    note(f"Call signatures: {checked} named-argument call(s) checked.")
 
 
 def check_manifest_components() -> None:
@@ -377,6 +693,9 @@ def main() -> int:
     check_xml_references(default)
     check_translation_format_args()
     check_compose_resources()
+    check_compose_translations()
+    check_symbol_resolution()
+    check_call_signatures()
     check_hardcoded_text()
     if not arguments.skip_manifest:
         check_manifest_components()

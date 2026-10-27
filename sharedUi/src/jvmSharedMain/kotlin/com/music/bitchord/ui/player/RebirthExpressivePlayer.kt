@@ -102,6 +102,9 @@ internal fun RebirthExpressiveScene(
     onMove: (Int, Int) -> Unit,
     onRemove: (Int) -> Unit,
     onClear: () -> Unit,
+    onDragActiveChange: (Boolean) -> Unit,
+    onOpenLyricsOffset: () -> Unit,
+    onOpenLyricsProviders: () -> Unit,
     onAlbum: () -> Unit,
     onArtist: () -> Unit,
     lyrics: List<LyricLine>?,
@@ -173,6 +176,7 @@ internal fun RebirthExpressiveScene(
                     onMove = onMove,
                     onRemove = onRemove,
                     onClear = onClear,
+                    onDragActiveChange = onDragActiveChange,
                     modifier = Modifier.weight(1f),
                 )
                 RebirthPage.LYRICS -> RebirthLyricsPage(
@@ -185,6 +189,8 @@ internal fun RebirthExpressiveScene(
                     enabled = !locked,
                     spec = spec,
                     onSeekLine = onSeekLine,
+                    onOpenOffset = onOpenLyricsOffset,
+                    onOpenProviders = onOpenLyricsProviders,
                     modifier = Modifier.weight(1f),
                 )
                 RebirthPage.PLAYER -> Column(

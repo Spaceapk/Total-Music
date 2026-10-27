@@ -1,10 +1,13 @@
-# Why this branch has no build
+# Why this branch has no build — and what was tried, exactly
 
-Recorded so that the next person does not spend the same hour finding out.
+Recorded so the next person does not repeat it.
 
-The sandbox that applied the 1.8.0 recovery patch and finished the rebirth
-layer has no JVM toolchain and cannot reach the hosts that would provide one.
-Every command below was run in it; the output is quoted, not paraphrased.
+## The blocker in one line
+
+The sandbox has no Java, no Android SDK, and no route to any artifact host. A
+JDK *can* be fetched from PyPI; the Gradle distribution and every Maven
+artifact *cannot*, because those hosts refuse the TLS connection rather than
+answering 403/404.
 
 ## What is installed
 
@@ -19,59 +22,108 @@ $ command -v adb sdkmanager
 (no output)
 $ echo $ANDROID_HOME $ANDROID_SDK_ROOT
 (empty)
-$ ls ~/.gradle ~/.android
-ls: cannot access '~/.gradle': No such file or directory
+$ ls -d /opt/android* /root/.gradle /root/.m2
+(no output)
 ```
 
-Python 3.11.2 and Node are present; Debian 12 is the base image.
+Python 3.11.2 and Node/Yarn are present; Debian 12 is the base image. Home is
+`/home/user`.
 
-## What is reachable
+## Host names, one by one
 
 | Host | Result |
 | --- | --- |
-| `github.com`, `api.github.com`, `codeload.github.com` | 200 — clone, fetch, push and `gh` all work |
-| `release-assets.githubusercontent.com` | `curl: (35) SSL_ERROR_SYSCALL` — no release binary, so no Gradle mirror, no Kotlin compiler, no Android tools package |
+| `github.com`, `api.github.com`, `codeload.github.com` | 200 — clone, fetch, push and `gh` work |
+| `release-assets.githubusercontent.com` | `curl: (35) SSL_ERROR_SYSCALL` |
 | `registry.npmjs.org` | 200 |
 | `pypi.org`, `files.pythonhosted.org` | 200 — `pip download` works |
-| `services.gradle.org` | `SSL_ERROR_SYSCALL` — the wrapper cannot fetch its distribution |
-| `dl.google.com` | `SSL_ERROR_SYSCALL` — no AGP, no Android platform, no Compose |
-| `repo1.maven.org` | `SSL_ERROR_SYSCALL` — no dependencies |
-| `api.adoptium.net` | `SSL_ERROR_SYSCALL` — no JDK |
+| `services.gradle.org` | `000` from curl; the wrapper itself fails as below |
+| `downloads.gradle.org` | `000` |
+| `plugins.gradle.org` | `000` |
+| `dl.google.com` | `000` — no AGP, no Android platform, no Compose |
+| `maven.google.com` | `000` |
+| `repo1.maven.org` | `000` |
+| `repo.maven.apache.org` | `000` |
+| `api.adoptium.net` | `000` |
+| `cache-redirector.jetbrains.com` | `000` — no Kotlin distribution |
 
-## What was tried
+`000` is curl's "connection never happened"; the wrapper's own view of the
+same block is quoted below.
 
-* `pip download --no-deps jdk4py` — **works**, produces a 25.0.2.1 manylinux
-  wheel with a full JDK. A JDK alone is not enough; it was not extracted
-  because the Gradle distribution and the dependencies are unreachable.
+## The compile attempt, verbatim
+
+With no JDK, the wrapper cannot even start:
+
+```
+$ ./gradlew --version
+ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
+```
+
+A JDK is obtainable — this is the one tool the sandbox *can* supply:
+
+```
+$ pip download --no-deps jdk4py -d /tmp/jdkdl
+jdk4py-25.0.2.1-py3-none-manylinux_2_17_x86_64.whl        # 214 MB, Temurin 25
+$ python3 -c "import zipfile; zipfile.ZipFile('/tmp/jdkdl/*.whl').extractall('/tmp/jdk')"
+$ /tmp/jdk/jdk4py/java-runtime/bin/java -version
+openjdk version "25.0.2" 2026-01-20 LTS
+```
+
+With that JDK the wrapper gets one step further and stops at the distribution:
+
+```
+$ JAVA_HOME=/tmp/jdk/jdk4py/java-runtime ./gradlew --version
+Exception in thread "main" java.net.UnknownHostException ... (Download.java:87)
+	at org.gradle.wrapper.Install.createDist(Install.java:48)
+Caused by: java.io.EOFException: SSL peer shut down incorrectly
+	at java.base/sun.security.ssl.SSLSocketInputRecord.read(Unknown Source)
+```
+
+`gradle-wrapper.properties` points at
+`https://services.gradle.org/distributions/gradle-8.11.1-bin.zip`. That
+connection is closed mid-handshake by the sandbox's egress proxy, for every
+`000` host in the table.
+
+## Alternatives that were tried and did not help
+
 * `npm search kotlin-compiler` — the package of that name is Kotlin/JS
   2.4.21, not the JVM compiler.
-* `npm view android-sdk versions` — an unrelated 1.0.0 package, no SDK.
-* `apt-get download` — "Unable to locate package" for every Android/JDK name
-  tried; the image has no package lists.
-* GitHub release download of Gradle, Kotlin and the Android command-line
-  tools — the redirect to `release-assets.githubusercontent.com` fails TLS.
+* `npm view android-sdk` — an unrelated 1.0.0 package; no SDK.
+* `apt-get download` for a JDK, Gradle, or the Android tools — "Unable to
+  locate package" (no package lists in the image).
+* GitHub releases as a mirror for Gradle, Kotlin or the command-line tools —
+  the redirect to `release-assets.githubusercontent.com` fails TLS.
+* PyPI for Gradle distributions or Maven artifacts — no such packages exist.
+
+The missing pieces are not one tool, they are three: a Gradle distribution, the
+Android SDK (`platforms;android-37`, `build-tools`), and ~1 GB of Maven
+artifacts (AGP, Kotlin 2.3.20, Compose 1.10.3, Haze, Media3, Coil). No
+combination of PyPI and npm supplies them.
 
 ## Consequence
 
 `./gradlew` has never run on this tree. The build files were not touched:
-Kotlin 2.3.20, AGP 8.10.1, Compose 1.10.3, Gradle wrapper 8.11.1, and the
-single build change the recovered patch carries (`incremental = false` on the
-Compose compiler task, in `sharedUi/build.gradle.kts`).
+Kotlin 2.3.20, AGP 8.10.1, Compose 1.10.3, Gradle wrapper 8.11.1, and the one
+build change the recovered patch carries (`incremental = false` on the Compose
+compiler task, in `sharedUi/build.gradle.kts`).
 
-Verification that *was* possible: `scripts/verify/rebirth_check.py`, described
-in `VALIDATION.md`. It parses every Kotlin file, resolves every resource
-reference, compares translation format arguments, checks the manifest and
-refuses changes to signing and workflows. It is not a compiler and does not
-claim to be.
+The closest substitute that *is* available is
+`scripts/verify/rebirth_check.py`: it parses every Kotlin file, resolves every
+resource and compose-resource reference, compares translation format arguments
+in all 18 locales, checks named arguments against the declarations this branch
+wrote, resolves capitalised names to imports or same-package declarations,
+checks the manifest against declared classes, and refuses changes to signing
+and workflows. It is a compile *proxy*, not a compiler, and
+[VALIDATION.md](VALIDATION.md) is explicit about which errors each part can and
+cannot catch.
 
 ## To build this branch elsewhere
 
 ```
 git fetch origin arena/3b36059c-total-music
 git switch arena/3b36059c-total-music
-./gradlew :app:assembleDebug          # needs JDK 17+, Android SDK 37, Maven access
-./gradlew :app:testDebugUnitTest      # app/src/test/.../rebirth/RebirthLibraryTest.kt
+./gradlew :app:compileDebugKotlin    # JDK 17+, Android SDK 37, Maven access
+./gradlew :app:testDebugUnitTest     # app/src/test/.../rebirth/RebirthLibraryTest.kt
 ```
 
-The unit tests in `app/src/test/java/com/music/bitchord/ui/rebirth/` are JVM
-tests over the pure model and need no device.
+The unit tests over the library model are plain JVM tests and need no device.

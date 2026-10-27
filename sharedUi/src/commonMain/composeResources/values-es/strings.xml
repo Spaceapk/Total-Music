@@ -212,4 +212,10 @@
     <string name="rebirth_equalizer">Ecualizador</string>
     <string name="rebirth_classic_player">Reproductor clásico</string>
     <string name="rebirth_classic_player_caption">Compartir letra en imagen y controles de letra avanzados</string>
+    <string name="rebirth_queue_locked">En esta sesión la cola sigue al anfitrión</string>
+    <string name="rebirth_queue_move_up">Subir</string>
+    <string name="rebirth_queue_move_down">Bajar</string>
+    <string name="rebirth_lyrics_sync_off">La letra sincronizada está desactivada en Ajustes</string>
+    <string name="rebirth_lyrics_offset">Desfase de la letra</string>
+    <string name="rebirth_lyrics_offset_value">Desfase %1$s</string>
 </resources>

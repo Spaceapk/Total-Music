@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,6 +75,9 @@ internal fun RebirthPlayer(
     onSeekLine: (Long) -> Unit,
     onOutput: () -> Unit,
     onListenTogether: () -> Unit,
+    onOpenLyricsProviders: () -> Unit = {},
+    /** A row being carried in the queue; the party hears the reorder once, on drop. */
+    onQueueDragActiveChange: (Boolean) -> Unit = {},
     /** Everything the tools sheet lists, built by the caller from its own surfaces. */
     tools: List<RebirthTool>,
     hazeState: HazeState,
@@ -82,18 +86,25 @@ internal fun RebirthPlayer(
 ) {
     var page by rememberSaveable { mutableStateOf(RebirthPage.PLAYER) }
     var toolsOpen by rememberSaveable { mutableStateOf(false) }
+    // The lyric offset sheet is the app's own: this player only gives it a
+    // place to open from, inside the page whose lines it shifts.
+    var lyricsOffsetOpen by rememberSaveable { mutableStateOf(false) }
     // The back gesture belongs to the innermost layer that has one: the tools
     // sheet first, then a page, and only then the screen behind the player.
-    PlayerBackHandler(enabled = toolsOpen || page != RebirthPage.PLAYER) {
-        if (toolsOpen) {
-            toolsOpen = false
-        } else {
-            page = RebirthPage.PLAYER
+    PlayerBackHandler(enabled = toolsOpen || lyricsOffsetOpen || page != RebirthPage.PLAYER) {
+        when {
+            toolsOpen -> toolsOpen = false
+            lyricsOffsetOpen -> lyricsOffsetOpen = false
+            else -> page = RebirthPage.PLAYER
         }
     }
     val spec = rebirthSpec(style)
     val colors = rebirthColors(style, MaterialTheme.colorScheme)
     MaterialTheme(colorScheme = colors) {
+        // Tells the shared player sheets — output, cast, pipeline, lyric
+        // providers, lyric offset — which player they were opened from, so
+        // they draw in its material instead of the original's.
+        CompositionLocalProvider(LocalPlayerStyle provides style) {
         Box(Modifier.fillMaxSize().background(colors.background)) {
             when (style) {
                 PlayerVisualStyle.LIQUID_GLASS_PLUS -> RebirthGlassScene(
@@ -132,6 +143,9 @@ internal fun RebirthPlayer(
                     onSeekLine = onSeekLine,
                     onOutput = onOutput,
                     onListenTogether = onListenTogether,
+                    onDragActiveChange = onQueueDragActiveChange,
+                    onOpenLyricsOffset = { lyricsOffsetOpen = true },
+                    onOpenLyricsProviders = onOpenLyricsProviders,
                     onTools = { toolsOpen = true },
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -172,10 +186,16 @@ internal fun RebirthPlayer(
                     onSeekLine = onSeekLine,
                     onOutput = onOutput,
                     onListenTogether = onListenTogether,
+                    onDragActiveChange = onQueueDragActiveChange,
+                    onOpenLyricsOffset = { lyricsOffsetOpen = true },
+                    onOpenLyricsProviders = onOpenLyricsProviders,
                     onTools = { toolsOpen = true },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
+        }
+        if (lyricsOffsetOpen) {
+            LyricsOffsetSheet(hazeState = hazeState, onDismiss = { lyricsOffsetOpen = false })
         }
         if (toolsOpen) {
             // A tool opens a surface of its own — the output drawer, the
@@ -201,6 +221,7 @@ internal fun RebirthPlayer(
                 tools = rows,
                 onDismiss = { toolsOpen = false },
             )
+        }
         }
     }
 }

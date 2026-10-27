@@ -12,19 +12,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.VolumeOff
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -46,18 +50,22 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -65,16 +73,25 @@ import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.PlaybackPosition
 import com.music.bitchord.sharedui.resources.Res
+import com.music.bitchord.sharedui.resources.drag_to_reorder
 import com.music.bitchord.sharedui.resources.lyrics_loading_lines
 import com.music.bitchord.sharedui.resources.lyrics_not_available
 import com.music.bitchord.sharedui.resources.no_lyrics_for_track
 import com.music.bitchord.sharedui.resources.rebirth_clear_added
 import com.music.bitchord.sharedui.resources.rebirth_next_up_empty
+import com.music.bitchord.sharedui.resources.rebirth_lyrics_offset
+import com.music.bitchord.sharedui.resources.rebirth_lyrics_offset_value
+import com.music.bitchord.sharedui.resources.rebirth_lyrics_sync_off
+import com.music.bitchord.sharedui.resources.rebirth_queue_locked
+import com.music.bitchord.sharedui.resources.choose_lyrics_provider
+import com.music.bitchord.sharedui.resources.rebirth_queue_move_down
+import com.music.bitchord.sharedui.resources.rebirth_queue_move_up
 import com.music.bitchord.sharedui.resources.rebirth_queue_tracks
 import com.music.bitchord.sharedui.resources.rebirth_romanize
 import com.music.bitchord.sharedui.resources.rebirth_translate
 import com.music.bitchord.sharedui.resources.remove_from_queue
 import com.music.bitchord.sharedui.resources.up_next
+import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
 import org.jetbrains.compose.resources.stringResource
 
@@ -300,10 +317,15 @@ internal fun RebirthSleeve(
  * The queue, as a rebirth scene draws it.
  *
  * Same calls the original's inline queue makes — jump, move, remove, clear the
- * added tracks — with its own rows. Reordering is done with the two arrows
- * rather than a drag: the drag needs the shared queue list's gesture plumbing,
- * which is welded to the original player's foreground colours, and porting it
- * is tracked in the handoff rather than half-done here.
+ * added tracks — with its own rows, and with the same drag to reorder: hold a
+ * row's handle, carry it, and it trades places as it crosses its neighbours
+ * (see [RebirthQueueDrag]). The two arrow buttons stay as well, because a drag
+ * is not reachable with a screen reader or a switch, and reordering is a
+ * function rather than a flourish.
+ *
+ * The row under the finger is drawn here, over the list, from the engine's
+ * [RebirthQueueDrag.heldTop]; its own slot stays behind as an invisible
+ * stand-in that keeps the gesture and the layout.
  */
 @Composable
 internal fun RebirthQueuePage(
@@ -316,86 +338,194 @@ internal fun RebirthQueuePage(
     onRemove: (Int) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
+    onDragActiveChange: (Boolean) -> Unit = {},
 ) {
-    LazyColumn(
-        modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = spec.gutter, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(Res.string.rebirth_queue_tracks, queue.size),
-                    modifier = Modifier.weight(1f),
-                    style = spec.captionStyle,
+    val listState = rememberLazyListState()
+    val rows = remember(queue) { rebirthQueueRows(queue) }
+    val keys = remember(rows) { rows.map { it.key } }
+    val drag = rememberRebirthQueueDrag(listState, rows, onMove)
+    val haptics = rememberHaptics()
+
+    // A queue that changes under a drag — a track finishing, the host moving
+    // something — can take the held row away. Dropped here rather than inside
+    // the engine's own bookkeeping, which runs during composition.
+    LaunchedEffect(keys) { if (!drag.holdsAnyOf(keys)) drag.end() }
+    // The player reads this to keep its own swipe gestures out of the way
+    // while a row is being carried.
+    val dragging = drag.heldKey != null
+    LaunchedEffect(dragging) { onDragActiveChange(dragging) }
+    DisposableEffect(Unit) { onDispose { onDragActiveChange(false) } }
+
+    Box(modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = spec.gutter, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item(key = "queue-header") {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(Res.string.rebirth_queue_tracks, queue.size),
+                        modifier = Modifier.weight(1f),
+                        style = spec.captionStyle,
+                    )
+                    TextButton(onClick = onClear, enabled = !locked) {
+                        Text(stringResource(Res.string.rebirth_clear_added))
+                    }
+                }
+                if (locked) {
+                    Text(
+                        text = stringResource(Res.string.rebirth_queue_locked),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            itemsIndexed(queue, key = { index, _ -> keys.getOrElse(index) { "queue:$index" } }) { index, song ->
+                val key = keys.getOrElse(index) { "queue:$index" }
+                val current = index == queueIndex
+                val held = drag.heldKey == key
+                // A row scrolled far enough out to be disposed takes its
+                // gesture with it, and neither drag-end callback runs.
+                if (held) {
+                    DisposableEffect(key) { onDispose { drag.end(key) } }
+                }
+                RebirthQueueRowView(
+                    song = song,
+                    current = current,
+                    locked = locked,
+                    spec = spec,
+                    draggable = !locked && !current,
+                    lifted = false,
+                    onJump = { onJump(index) },
+                    onRemove = { onRemove(index) },
+                    onMoveUp = { if (index > 0) { onMove(index, index - 1); haptics.play(Haptic.Select) } },
+                    onMoveDown = { if (index < queue.lastIndex) { onMove(index, index + 1); haptics.play(Haptic.Select) } },
+                    handle = { Modifier.rebirthReorderHandle(drag, key) },
+                    modifier = if (held) Modifier.alpha(0f) else Modifier,
                 )
-                TextButton(onClick = onClear, enabled = !locked) {
-                    Text(stringResource(Res.string.rebirth_clear_added))
+            }
+        }
+        // The row the user is carrying, drawn where the finger is.
+        val heldKey = drag.heldKey
+        if (heldKey != null) {
+            val heldIndex = rows.firstOrNull { it.key == heldKey }?.index
+            val heldSong = heldIndex?.let { queue.getOrNull(it) }
+            if (heldSong != null) {
+                Box(Modifier.matchParentSize().padding(horizontal = spec.gutter)) {
+                    RebirthQueueRowView(
+                        song = heldSong,
+                        current = heldIndex == queueIndex,
+                        locked = true,
+                        spec = spec,
+                        draggable = true,
+                        lifted = true,
+                        onJump = {},
+                        onRemove = {},
+                        onMoveUp = {},
+                        onMoveDown = {},
+                        handle = { Modifier },
+                        modifier = Modifier.offset { IntOffset(0, drag.heldTop.roundToInt()) },
+                    )
                 }
             }
         }
-        itemsIndexed(
-            queue,
-            key = { index, song -> song.queueEntryId ?: "${song.videoId}:$index" },
-        ) { index, song ->
-            val current = index == queueIndex
-            Surface(
-                shape = RoundedCornerShape(spec.panelCorner),
-                color = if (current) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f)
-                },
-                modifier = Modifier.fillMaxWidth(),
+    }
+}
+
+/** One row of the rebirth queue, in both the list and the lifted copy. */
+@Composable
+private fun RebirthQueueRowView(
+    song: Song,
+    current: Boolean,
+    locked: Boolean,
+    spec: RebirthSpec,
+    draggable: Boolean,
+    lifted: Boolean,
+    onJump: () -> Unit,
+    onRemove: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    handle: @Composable () -> Modifier,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = RoundedCornerShape(spec.panelCorner),
+        color = when {
+            lifted -> MaterialTheme.colorScheme.surfaceContainerHighest
+            current -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+            else -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f)
+        },
+        shadowElevation = if (lifted) 8.dp else 0.dp,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (draggable) {
+                Icon(
+                    imageVector = Icons.Rounded.DragHandle,
+                    contentDescription = stringResource(Res.string.drag_to_reorder),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(40.dp).padding(10.dp).then(handle()),
+                )
+            } else {
+                Spacer(Modifier.width(6.dp))
+            }
+            AsyncImage(
+                model = song.thumbnailUrl,
+                contentDescription = null,
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)),
+                contentScale = ContentScale.Crop,
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(
+                Modifier
+                    .weight(1f)
+                    .clickable(enabled = !locked) { onJump() }
+                    .padding(vertical = 8.dp),
             ) {
-                Row(
-                    Modifier.padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .clickable(enabled = !locked) { onJump(index) }
-                            .padding(vertical = 8.dp),
-                    ) {
-                        Text(
-                            text = song.title,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            style = spec.labelStyle,
-                            color = if (current) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                        )
-                        Text(
-                            text = song.artist,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Text(
+                    text = song.title,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = spec.labelStyle,
+                    color = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = song.artist,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (draggable) {
+                Column {
+                    IconButton(onClick = onMoveUp, enabled = !locked, modifier = Modifier.size(30.dp)) {
+                        Icon(
+                            Icons.Rounded.KeyboardArrowUp,
+                            contentDescription = stringResource(Res.string.rebirth_queue_move_up),
+                            modifier = Modifier.size(18.dp),
                         )
                     }
-                    IconButton(
-                        onClick = { onMove(index, index - 1) },
-                        enabled = !locked && index > 0,
-                    ) {
-                        Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = null)
-                    }
-                    IconButton(
-                        onClick = { onMove(index, index + 1) },
-                        enabled = !locked && index < queue.lastIndex,
-                    ) {
-                        Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null)
-                    }
-                    IconButton(
-                        onClick = { onRemove(index) },
-                        enabled = !locked && !current,
-                    ) {
-                        Icon(Icons.Rounded.Close, contentDescription = stringResource(Res.string.remove_from_queue))
+                    IconButton(onClick = onMoveDown, enabled = !locked, modifier = Modifier.size(30.dp)) {
+                        Icon(
+                            Icons.Rounded.KeyboardArrowDown,
+                            contentDescription = stringResource(Res.string.rebirth_queue_move_down),
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
                 }
+            }
+            IconButton(onClick = onRemove, enabled = !locked && !current, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = stringResource(Res.string.remove_from_queue),
+                    modifier = Modifier.size(18.dp),
+                )
             }
         }
     }
@@ -422,6 +552,8 @@ internal fun RebirthLyricsPage(
     spec: RebirthSpec,
     onSeekLine: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenOffset: () -> Unit = {},
+    onOpenProviders: () -> Unit = {},
 ) {
     val haptics = rememberHaptics()
     val looking = stringResource(Res.string.lyrics_loading_lines)
@@ -460,6 +592,43 @@ internal fun RebirthLyricsPage(
                     onClick = translation.toggleRomanization,
                 )
             }
+        }
+        // The rest of the lyric controls the original panel offers: whether the
+        // player follows the words at all, how far the words sit from the
+        // clock, and where they came from. All three are the app's own
+        // settings and pickers — nothing here re-implements them.
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = spec.gutter, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val synced by PlayerSettings.syncedLyrics.collectAsStateWithLifecycle()
+            val offsetMs by PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
+            // The player can read this setting and cannot write it: following
+            // the words is a decision made in Settings, so this reports it
+            // rather than offering a switch that would do nothing.
+            if (!synced) {
+                Text(
+                    text = stringResource(Res.string.rebirth_lyrics_sync_off),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            LyricModeChip(
+                label = if (offsetMs == 0) {
+                    stringResource(Res.string.rebirth_lyrics_offset)
+                } else {
+                    // Signed, because early and late are the whole point.
+                    stringResource(Res.string.rebirth_lyrics_offset_value, offsetSeconds(offsetMs))
+                },
+                selected = offsetMs != 0,
+                onClick = { if (enabled) onOpenOffset() },
+            )
+            LyricModeChip(
+                label = stringResource(Res.string.choose_lyrics_provider),
+                selected = false,
+                onClick = { if (enabled) onOpenProviders() },
+            )
         }
         when {
             lines.isEmpty() && lyricsUnavailable -> EmptyLyrics(stringResource(Res.string.lyrics_not_available))
@@ -505,6 +674,10 @@ internal fun RebirthLyricsPage(
         }
     }
 }
+
+/** `+0.3 s` / `-1.2 s`: the sign is the information. */
+private fun offsetSeconds(ms: Int): String =
+    String.format(java.util.Locale.getDefault(), "%+.1f s", ms / 1000.0)
 
 @Composable
 private fun LyricModeChip(label: String, selected: Boolean, onClick: () -> Unit) {
