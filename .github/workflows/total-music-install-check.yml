@@ -22,7 +22,7 @@ jobs:
           curl -fL --retry 3 https://github.com/Spaceapk/Total-Music/releases/download/v1.8.0-preview.1/Total-Music-1.8.0-universal.apk -o published.apk
           echo '2f06be1aca0452d9a19a45195863d7b68a44d4c42be71dc09cb6353236e1bc2c  previous.apk' | sha256sum -c -
           echo '0c757220666a28724c128f40284102c96e6049eb0f8eea121798fb66e90877e3  published.apk' | sha256sum -c -
-      - name: Boot Android 13
+      - name: Boot Android 13 and reproduce startup
         run: |
           set -euo pipefail
           adb start-server
@@ -35,27 +35,25 @@ jobs:
           timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
           adb shell input keyevent 82
           adb shell getprop > results/device-properties.txt
-      - name: Reproduce upgrade and clean-launch failures
-        run: |
           set -uo pipefail
           launch() {
-            adb logcat -c
-            adb shell am force-stop org.nexlibre.totalmusic
-            adb shell am start -W -n org.nexlibre.totalmusic/com.music.bitchord.MainActivity > "results/$1-launch.txt" 2>&1
+            timeout 20 adb logcat -c
+            timeout 20 adb shell am force-stop org.nexlibre.totalmusic
+            timeout 45 adb shell am start -W -n org.nexlibre.totalmusic/com.music.bitchord.MainActivity > "results/$1-launch.txt" 2>&1
             sleep 15
             adb logcat -d -v threadtime > "results/$1-logcat.txt"
             adb logcat -d -b crash > "results/$1-crash.txt"
-            adb shell pidof org.nexlibre.totalmusic > "results/$1-process.txt" || true
-            adb exec-out screencap -p > "results/$1-screen.png"
+            timeout 20 adb shell pidof org.nexlibre.totalmusic > "results/$1-process.txt" || true
+            timeout 20 adb exec-out screencap -p > "results/$1-screen.png"
             cat "results/$1-crash.txt"
           }
           timeout 120 adb install --no-streaming previous.apk || exit 1
-          adb shell pm grant org.nexlibre.totalmusic android.permission.READ_MEDIA_AUDIO
+          timeout 20 adb shell pm grant org.nexlibre.totalmusic android.permission.READ_MEDIA_AUDIO
           launch baseline170
           timeout 120 adb install --no-streaming -r published.apk || exit 1
           launch upgrade180
-          adb shell dumpsys activity exit-info org.nexlibre.totalmusic > results/exit-info.txt
-          adb uninstall org.nexlibre.totalmusic
+          timeout 20 adb shell dumpsys activity exit-info org.nexlibre.totalmusic > results/exit-info.txt
+          timeout 30 adb uninstall org.nexlibre.totalmusic
           timeout 120 adb install --no-streaming published.apk || exit 1
           adb shell pm grant org.nexlibre.totalmusic android.permission.READ_MEDIA_AUDIO
           launch clean180
