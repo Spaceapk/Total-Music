@@ -38,12 +38,25 @@ class RebirthLibraryTest {
         localDateAddedSeconds = added,
     )
 
+    /**
+     * The album rule is the app's own, not this screen's: `AlbumOrdering`
+     * already says what a missing disc number means (disc one) and where a
+     * track without a number goes (last). The rebirth library delegates to it,
+     * so an album cannot be listed one way here and another way there — and
+     * this test pins the shared answer rather than a second opinion about it.
+     */
     @Test
-    fun albumOrderKeepsDiscsAndPlacesMissingTagsLast() {
+    fun albumOrderUsesTheSharedRuleAcrossDiscs() {
         val result = rebirthAlbumOrder(
             listOf(song("sin etiqueta"), song("dos", 2), song("disco dos", 1, 2), song("uno", 1)),
         )
-        assertEquals(listOf("uno", "dos", "sin etiqueta", "disco dos"), result.map { it.videoId })
+        assertEquals(listOf("uno", "dos", "disco dos", "sin etiqueta"), result.map { it.videoId })
+    }
+
+    @Test
+    fun albumOrderTreatsAMissingDiscAsDiscOne() {
+        val result = rebirthAlbumOrder(listOf(song("segundo", 1, 2), song("sin disco", 3)))
+        assertEquals(listOf("sin disco", "segundo"), result.map { it.videoId })
     }
 
     @Test
