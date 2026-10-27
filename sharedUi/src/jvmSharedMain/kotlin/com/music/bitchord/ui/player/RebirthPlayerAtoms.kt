@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.roundToInt
 import coil3.compose.AsyncImage
 import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.data.model.Song
@@ -77,6 +78,7 @@ import com.music.bitchord.playback.PlaybackPosition
 import com.music.bitchord.sharedui.resources.Res
 import com.music.bitchord.sharedui.resources.drag_to_reorder
 import com.music.bitchord.sharedui.resources.lyrics_loading_lines
+import com.music.bitchord.sharedui.resources.more
 import com.music.bitchord.sharedui.resources.lyrics_not_available
 import com.music.bitchord.sharedui.resources.no_lyrics_for_track
 import com.music.bitchord.sharedui.resources.rebirth_clear_added
@@ -95,6 +97,7 @@ import com.music.bitchord.sharedui.resources.remove_from_queue
 import com.music.bitchord.sharedui.resources.up_next
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
+import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -579,7 +582,10 @@ internal fun RebirthLyricsPage(
     onOpenProviders: () -> Unit = {},
 ) {
     val haptics = rememberHaptics()
-    val looking = stringResource(Res.string.lyrics_loading_lines)
+    // A string *array*: the same handful of "still looking" lines the original
+    // panel rotates through, picked once per track rather than per frame.
+    val loadingLines = stringArrayResource(Res.array.lyrics_loading_lines)
+    val looking = remember(song.videoId) { loadingLines.random() }
     val translation = rememberLyricsTranslation(
         trackId = song.videoId,
         lyrics = lyrics,

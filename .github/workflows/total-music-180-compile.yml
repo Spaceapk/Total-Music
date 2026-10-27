@@ -99,24 +99,30 @@ jobs:
           python3 - "$JOB_STATUS" "$RUN_URL" <<'PY' > ci-logs/comment.md
           import os, re, sys
           status, run_url = sys.argv[1], sys.argv[2]
-          wanted = re.compile(
-              r"^e: |^w: .*deprecat"          # Kotlin errors and warnings
-              r"|FAILURE:|What went wrong|Caused by:"
-              r"|> Task .* FAILED"
-              r"|^error:|^ERROR"
-              r"|FAILED$|AssertionError|expected:<"
-          )
+          # Kotlin prints "e: <line>" and then, for a call that matches no
+          # overload, several indented "candidate" lines. Keeping only the
+          # first line hides exactly the part that says why.
+          starts = re.compile(r"^(e: |FAILURE:|What went wrong|Caused by:|> Task .*FAILED|FAILED$|AssertionError|org\.gradle)")
           parts = [f"### 1.8.0 compile: **{status}**", "", f"Run: {run_url}", ""]
           for name in ("compile", "test", "assemble"):
               path = f"ci-logs/{name}.log"
               if not os.path.isfile(path):
                   continue
               lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
-              hits = [line for line in lines if wanted.search(line)][:40]
+              hits, index = [], 0
+              while index < len(lines) and len(hits) < 120:
+                  if starts.search(lines[index]):
+                      hits.append(lines[index])
+                      for extra in lines[index + 1:index + 4]:
+                          if extra.startswith((" ", "\t")) or extra.startswith("  "):
+                              hits.append(extra)
+                          else:
+                              break
+                  index += 1
               if not hits and status == "success":
                   continue
               parts += [f"<details><summary>{name}.log — {len(lines)} lines</summary>", "", "```"]
-              parts += hits or lines[-40:]
+              parts += hits or lines[-60:]
               parts += ["```", "</details>", ""]
           body = "\n".join(parts)
           if len(body) > 60000:

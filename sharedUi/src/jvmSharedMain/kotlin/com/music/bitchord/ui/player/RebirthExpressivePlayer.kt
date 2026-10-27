@@ -52,6 +52,7 @@ import com.music.bitchord.data.lyrics.LyricsSource
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.PlaybackPosition
 import com.music.bitchord.sharedui.resources.Res
+import com.music.bitchord.sharedui.resources.listen_together
 import com.music.bitchord.sharedui.resources.now_playing
 import com.music.bitchord.sharedui.resources.queue
 import com.music.bitchord.sharedui.resources.rebirth_lyrics_page
@@ -386,7 +387,7 @@ private fun ExpressiveActionBar(
         )
     }
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {

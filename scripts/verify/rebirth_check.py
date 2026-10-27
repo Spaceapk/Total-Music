@@ -714,6 +714,45 @@ def check_import_packages(base: str) -> None:
     note(f"Import packages: {checked} import(s) checked against the tree.")
 
 
+
+def check_compose_resource_imports() -> None:
+    """
+    `Res.string.x` needs more than the key existing: the generated property is
+    an extension on `StringResources`, so the *property* has to be imported
+    (or the package wildcard used). A missing import compiles to "Unresolved
+    reference", and so does a string-array accessed as a plain string. Both
+    happened in this branch and both cost a CI round trip; neither is visible
+    to a check that only asks whether the key exists.
+    """
+    uses = re.compile(r"Res\.(string|array|drawable|plurals)\.(\w+)")
+    imports = re.compile(r"^import com\.music\.bitchord\.sharedui\.resources\.(\w+)$", re.M)
+    wildcard = re.compile(r"^import com\.music\.bitchord\.sharedui\.resources\.\*$", re.M)
+    kinds: dict[str, str] = {}
+    values = os.path.join(COMPOSE_RES, "values", "strings.xml")
+    if os.path.isfile(values):
+        tree = ET.parse(values)
+        for element in tree.getroot():
+            name = element.attrib.get("name")
+            if name:
+                kinds[name] = {"string-array": "array", "string": "string",
+                               "plurals": "plurals"}.get(element.tag, element.tag)
+    checked = 0
+    for path in _rebirth_target_files():
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+        if wildcard.search(text):
+            continue
+        imported = set(imports.findall(text))
+        for kind, name in uses.findall(text):
+            checked += 1
+            if name not in imported:
+                fail(f"{os.path.relpath(path, ROOT)}: Res.{kind}.{name} used without importing the property.")
+            declared = kinds.get(name)
+            if declared and declared != kind:
+                fail(f"{os.path.relpath(path, ROOT)}: Res.{kind}.{name} but `{name}` is a {declared}.")
+    note(f"Compose resource imports: {checked} property use(s) checked.")
+
+
 def check_manifest_components() -> None:
     path = os.path.join(ROOT, APP_MANIFEST)
     if not os.path.isfile(path):
@@ -818,6 +857,7 @@ def main() -> int:
     check_translation_format_args()
     check_compose_resources()
     check_compose_translations()
+    check_compose_resource_imports()
     check_symbol_resolution()
     check_call_signatures()
     check_import_packages(arguments.base)

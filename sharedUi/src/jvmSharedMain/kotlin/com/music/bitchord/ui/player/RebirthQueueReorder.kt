@@ -58,11 +58,15 @@ internal class RebirthQueueDrag(private val listState: LazyListState) {
 
     var onMove: (Int, Int) -> Unit = { _, _ -> }
 
-    /** [QUEUE_EDGE_SCROLL_ZONE] and [QUEUE_EDGE_SCROLL_SPEED], in pixels. */
-    var edgeZone = 0f
-        private set
-    var edgeSpeed = 0f
-        private set
+    /** [REBIRTH_QUEUE_EDGE_ZONE] and [REBIRTH_QUEUE_EDGE_SPEED], in pixels. */
+    private var edgeZone = 0f
+    private var edgeSpeed = 0f
+
+    /** Density-dependent, so set from the caller's composition rather than here. */
+    fun configure(edgeZonePx: Float, edgeSpeedPx: Float) {
+        edgeZone = edgeZonePx
+        edgeSpeed = edgeSpeedPx
+    }
 
     /** The key of the row under the finger, or null at rest. */
     var heldKey by mutableStateOf<String?>(null)
@@ -213,8 +217,10 @@ internal fun rememberRebirthQueueDrag(
     drag.rows = rows
     drag.onMove = onMove
     with(LocalDensity.current) {
-        drag.edgeZone = REBIRTH_QUEUE_EDGE_ZONE.toPx()
-        drag.edgeSpeed = REBIRTH_QUEUE_EDGE_SPEED.toPx()
+        drag.configure(
+            edgeZonePx = REBIRTH_QUEUE_EDGE_ZONE.toPx(),
+            edgeSpeedPx = REBIRTH_QUEUE_EDGE_SPEED.toPx(),
+        )
     }
     val speed = drag.autoScroll
     LaunchedEffect(drag, speed) {
