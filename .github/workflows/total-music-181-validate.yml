@@ -32,7 +32,7 @@ on:
   # than main. Both are listed so the same file can be dispatched by hand once
   # it does reach main.
   push:
-    branches: [arena/c83a7b6e-total-music, work/1.8.1-favorites-refinement, work/player-glass-balance]
+    branches: [arena/c83a7b6e-total-music, work/1.8.1-favorites-refinement, work/player-glass-balance, work/player-glass-previews]
     # Only a change that can affect the build starts this: an hour of Gradle,
     # lint and two emulators is not worth re-running for a comment or a probe
     # script. The published-APK probe has its own workflow and its own trigger.
@@ -83,6 +83,7 @@ env:
 
 jobs:
   build:
+    if: github.ref_name != 'work/player-glass-previews'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -397,7 +398,7 @@ jobs:
               body = body[:60000] + "\n… truncated"
           sys.stdout.write(body)
           PY
-          if [ "$GITHUB_REF_NAME" != "work/player-glass-balance" ]; then gh pr comment "$PR_NUMBER" --body-file ci-logs/comment.md || echo "could not comment"; fi
+          if [[ "$GITHUB_REF_NAME" != work/player-glass-* ]]; then gh pr comment "$PR_NUMBER" --body-file ci-logs/comment.md || echo "could not comment"; fi
 
       - name: Fail when the unit tests failed
         if: steps.tests.outcome == 'failure'
@@ -507,7 +508,7 @@ jobs:
               echo "</details>"
             fi
           } > ci-logs/lint-comment.md
-          if [ "$GITHUB_REF_NAME" != "work/player-glass-balance" ]; then gh pr comment "$PR_NUMBER" --body-file ci-logs/lint-comment.md || echo "could not comment"; fi
+          if [[ "$GITHUB_REF_NAME" != work/player-glass-* ]]; then gh pr comment "$PR_NUMBER" --body-file ci-logs/lint-comment.md || echo "could not comment"; fi
 
   device:
     # The 1.8.1 candidate, doing the two things that were reported broken.
@@ -611,7 +612,7 @@ jobs:
           print("\n".join(parts)[:60000])
           PY
           tail -40 device-comment.md
-          if [ "$GITHUB_REF_NAME" != "work/player-glass-balance" ]; then gh pr comment "$PR_NUMBER" --body-file device-comment.md || echo "could not comment"; fi
+          if [[ "$GITHUB_REF_NAME" != work/player-glass-* ]]; then gh pr comment "$PR_NUMBER" --body-file device-comment.md || echo "could not comment"; fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -688,12 +689,41 @@ jobs:
             '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.DevicePlaylistStoreTest' \
             --max-workers=2 --build-cache --stacktrace 2>&1 | tee ui-test.log
 
-      - name: Collect player visual previews
-        if: always()
+      - name: Capture the player before test-app cleanup
+        if: steps.uitest.outcome == 'success'
         run: |
+          set -euo pipefail
+          preview_apk=$(find app/build/outputs/apk/prod/debug -name '*x86_64*.apk' -print -quit)
+          if [ -z "$preview_apk" ]; then preview_apk=$(find app/build/outputs/apk/prod/debug -name '*universal*.apk' -print -quit); fi
+          preview_test_apk=$(find app/build/outputs/apk/androidTest/prod/debug -name '*.apk' -print -quit)
+          test -n "$preview_apk"
+          test -n "$preview_test_apk"
+          adb install -r "$preview_apk"
+          adb install -r "$preview_test_apk"
+          adb shell am instrument -w -e class com.music.bitchord.FavoritePlayerUiTest org.nexlibre.totalmusic.test/androidx.test.runner.AndroidJUnitRunner | tee preview-instrumentation.log
+          grep -q 'OK (5 tests)' preview-instrumentation.log
           mkdir -p player-previews
-          adb exec-out run-as org.nexlibre.totalmusic tar -cf - files/player-previews > player-previews.tar || true
-          tar -xf player-previews.tar -C player-previews --strip-components=2 || true
+          adb exec-out run-as org.nexlibre.totalmusic tar -cf - files/player-previews > player-previews.tar
+          tar -xf player-previews.tar -C player-previews --strip-components=2
+          test "$(find player-previews -name '*.png' | wc -l)" -ge 5
+
+      - name: Package public Android signing tools
+        run: |
+          set -euo pipefail
+          preview_tools="$ANDROID_HOME/build-tools/36.0.0"
+          mkdir -p public-signing-tools/lib public-signing-tools/lib64
+          cp "$preview_tools/apksigner" "$preview_tools/aapt" "$preview_tools/zipalign" public-signing-tools/
+          cp "$preview_tools/lib/apksigner.jar" public-signing-tools/lib/
+          cp "$preview_tools"/lib64/*.so public-signing-tools/lib64/
+          tar -czf public-signing-tools.tar.gz public-signing-tools
+          sha256sum public-signing-tools.tar.gz > public-signing-tools.SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: minimal-public-signing-tools
+          path: |
+            public-signing-tools.tar.gz
+            public-signing-tools.SHA256SUMS
+          retention-days: 3
 
       - name: Read the UI test results
         if: always()
@@ -754,7 +784,7 @@ jobs:
               echo "</details>"
             fi
           } > ui-test-comment.md
-          if [ "$GITHUB_REF_NAME" != "work/player-glass-balance" ]; then gh pr comment "$PR_NUMBER" --body-file ui-test-comment.md || echo "could not comment"; fi
+          if [[ "$GITHUB_REF_NAME" != work/player-glass-* ]]; then gh pr comment "$PR_NUMBER" --body-file ui-test-comment.md || echo "could not comment"; fi
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
