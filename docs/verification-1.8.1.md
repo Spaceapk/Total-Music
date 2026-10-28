@@ -81,7 +81,39 @@ Corrección (`9c200c69`):
 - Una sesión guardada con Explorar seleccionado se restaura en Inicio.
 - El acceso «abrir origen» usa `PlaybackSourceType.EXPLORE -> TAB_HOME`.
 
-## Compilación, pruebas y lint (run 40591890427)
+## Entrega: el run 40606188366
+
+Compilado desde el commit `70a15ae`, todo el pipeline en verde
+([run 40606188366](https://github.com/Spaceapk/Total-Music/actions/runs/40606188366)):
+
+| Trabajo | Resultado |
+| --- | --- |
+| `build` | **success** — compilación, 3 sabores de APK, APK de pruebas de instrumentación |
+| `lint` | **success** — 0 errores, 655 avisos |
+| `ui` | **success** — 2 de 2 pruebas del shell |
+| `device` | **success**, con una salvedad: el emulador se atascó al final (ver «Límites») |
+
+Descargas (requieren sesión en GitHub; la página del artefacto trae sus propios `SHA256SUMS`):
+
+- **Sin firmar**, es el release: [`total-music-181-release-unsigned`](https://github.com/Spaceapk/Total-Music/actions/runs/40606188366/artifacts/12781671728)
+  — `app-prod-universal-release-unsigned.apk`, SHA-256
+  `059932b9c2ddab5e3b293738ac2d54bfc9f296412afd8789aab645fbc33ecd5d`.
+- **APK de prueba** (certificado de depuración del runner): [`total-music-181-test-apk`](https://github.com/Spaceapk/Total-Music/actions/runs/40606188366/artifacts/12781492062)
+  — `app-prod-universal-debug.apk`, SHA-256
+  `f64ba1ee3637d890b0430ca91957cbcb6cbc983b135491b9de607169b583c136`, y
+  `app-prod-universal-measurement.apk` (R8, paquete publicado), SHA-256
+  `5bfd0bbea7d7f64f65ad58e53a87fda6098662eabaae7c92bf03fcd90aa69d09`.
+- Conjunto completo por ABI: [`total-music-181-apks`](https://github.com/Spaceapk/Total-Music/actions/runs/40606188366/artifacts/12781492121).
+- Registros: [`total-music-181-logs`](https://github.com/Spaceapk/Total-Music/actions/runs/40606188366/artifacts/12781966697).
+
+Identidad del APK release, leída con `aapt` sobre el propio archivo:
+
+```
+package: name='org.nexlibre.totalmusic' versionCode='15' versionName='1.8.1'
+certificate: ninguno (NOT SIGNED)
+```
+
+## Compilación, pruebas y lint (run 40591890427, idéntico en 40606188366)
 
 - `:app:compileProdDebugKotlin`: correcto.
 - `:app:assembleProdDebug`, `assembleProdMeasurement` (R8, firmado con la clave de depuración del
@@ -95,6 +127,23 @@ Corrección (`9c200c69`):
   correcto.
 
 ## Dispositivo (Android 13, API 33)
+
+En el run de entrega 40606188366, sonda sobre el APK *release-like* (R8, paquete publicado):
+
+```
+== flows ['settings', 'player', 'categories'] in LIQUID_GLASS_PLUS ==
+launch LIQUID_GLASS_PLUS: pid=alive crash=no
+LIQUID_GLASS_PLUS player opened: pid=alive crash=no
+LIQUID_GLASS_PLUS returned from player: pid=alive crash=no
+== flows ['settings', 'player', 'categories'] in GOOGLE_EXPRESSIVE_PLUS ==
+launch GOOGLE_EXPRESSIVE_PLUS: pid=alive crash=no
+```
+
+Después, el emulador se atascó: `adb logcat -d -b crash` agotó su tiempo y el segundo
+lanzamiento de la sonda no llegó a arrancar. El paso de sonda es `continue-on-error`, así que el
+trabajo figura en verde aunque esa mitad no exista; es un defecto del informe, no de la aplicación,
+y está anotado en «Límites». La pasada completa y limpia, sobre código de aplicación idéntico, es el
+run 40591890427 de más abajo.
 
 Prueba de interfaz (job `ui`), Compose UI sobre emulador, dos casos **aprobados**:
 
@@ -193,3 +242,7 @@ Los SHA-256 exactos de cada entrega los imprime el comentario del run
 - La sonda por `adb` no consigue leer siempre la jerarquía de accesibilidad del shell, así que sus
   notas de flujo («qué botón encontró») no son prueba de que Ajustes se abriera; la prueba de
   Compose sí lo hace de forma explícita.
+- Los pasos de sonda del job de dispositivo son `continue-on-error`, de modo que un emulador que se
+  atasca deja el trabajo en verde con un traceback en el comentario. Deberían fallar cuando el
+  proceso de la sonda termina por excepción (no cuando encuentra un fallo de la aplicación) y
+  publicar una línea de veredicto por estilo; queda pendiente.
