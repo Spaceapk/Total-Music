@@ -200,4 +200,22 @@
     <string name="search_library_empty">Yerel Müzik klasörünüzdeki şarkıları arar.</string>
     <string name="search_library_hint">Şarkılar, Sanatçılar ve Albümler</string>
     <string name="search_library_no_results">Yerel Müzik’te “%1$s” ile eşleşen bir şey yok.</string>
+    <string name="rebirth_playback_tools">Oynatma araçları</string>
+    <string name="rebirth_lyrics_page">Şarkı sözleri</string>
+    <string name="rebirth_output">Çıkış</string>
+    <string name="rebirth_tools_short">Araçlar</string>
+    <string name="rebirth_translate">Çevir</string>
+    <string name="rebirth_romanize">Romanize et</string>
+    <string name="rebirth_queue_tracks">Kuyrukta %1$d şarkı</string>
+    <string name="rebirth_clear_added">Eklenenleri temizle</string>
+    <string name="rebirth_next_up_empty">Bu parçadan sonra bir şey yok</string>
+    <string name="rebirth_equalizer">Ekolayzer</string>
+    <string name="rebirth_classic_player">Klasik oynatıcı</string>
+    <string name="rebirth_classic_player_caption">Şarkı sözü kartı paylaşımı ve gelişmiş söz kontrolleri</string>
+    <string name="rebirth_queue_locked">Bu oturumda kuyruk sunucuyu izler</string>
+    <string name="rebirth_queue_move_up">Yukarı taşı</string>
+    <string name="rebirth_queue_move_down">Aşağı taşı</string>
+    <string name="rebirth_lyrics_sync_off">Senkron sözler Ayarlar'da kapalı</string>
+    <string name="rebirth_lyrics_offset">Söz kayması</string>
+    <string name="rebirth_lyrics_offset_value">Kayma %1$s</string>
 </resources>

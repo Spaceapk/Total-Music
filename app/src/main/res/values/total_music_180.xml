@@ -1,0 +1,54 @@
+<!-- Rebirth (1.8.0) strings. Outside Spanish these fall back to English on purpose:
+     translation is tracked per key in docs/design/1.8.0/IMPLEMENTATION_HANDOFF.md. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="rebirth_favorites">Favorite songs</string>
+    <string name="rebirth_home_subtitle">The music you carry</string>
+    <string name="rebirth_home_hero">Press play on your day</string>
+    <string name="rebirth_home_collection">Your collection</string>
+    <string name="rebirth_home_session">Your session</string>
+    <string name="rebirth_home_explore">Explore your music</string>
+    <string name="rebirth_home_empty">Add music to this device to get started.</string>
+    <string name="rebirth_search_global">Search YouTube Music</string>
+    <string name="rebirth_search_local">Search your library</string>
+    <string name="rebirth_selected_count">%1$d selected</string>
+    <string name="rebirth_reorder_search_hint">Clear the search to reorder this playlist</string>
+    <string name="rebirth_playlist_drag">Drag to reorder</string>
+    <string name="rebirth_player_style">Player style</string>
+    <string name="rebirth_visual_experience">Visual experience</string>
+    <string name="rebirth_effect_background">Dynamic background</string>
+    <string name="rebirth_effect_background_hint">Artwork colors with a slow movement</string>
+    <string name="rebirth_effect_glass">Glass effects</string>
+    <string name="rebirth_effect_glass_hint">Translucent player surfaces</string>
+    <string name="rebirth_effect_controls">Alternative controls</string>
+    <string name="rebirth_effect_controls_hint">An expressive play button</string>
+    <string name="rebirth_effect_motion">Animated transitions</string>
+    <string name="rebirth_effect_motion_hint">Movement between player pages</string>
+    <string name="rebirth_all_settings">All settings and tools</string>
+    <string name="rebirth_settings_expressive_title">Every detail, your way</string>
+    <string name="rebirth_settings_glass_title">Control panel</string>
+    <string name="rebirth_sound">Sound</string>
+    <string name="rebirth_equalizer_hint">Ten-band equalizer</string>
+    <string name="rebirth_back_to_customization">Back to customization</string>
+    <string name="rebirth_eq_studio">Sound studio</string>
+    <string name="rebirth_eq_editorial">Listen your way</string>
+    <string name="rebirth_eq_dynamic_title">Dynamic tone</string>
+    <string name="rebirth_eq_manual_title">Manual bands</string>
+    <string name="rebirth_eq_profiles">Presets and profiles</string>
+    <string name="rebirth_eq_save_profile">Save current profile</string>
+    <string name="rebirth_eq_delete_profile">Delete profile</string>
+    <string name="rebirth_eq_reset_curve">Reset curve</string>
+    <string name="rebirth_eq_advanced_hide">Hide details</string>
+    <string name="rebirth_eq_advanced_show">Advanced controls</string>
+    <string name="rebirth_eq_headroom">Level protection</string>
+    <string name="rebirth_eq_system_panel">Device sound panel</string>
+    <string name="rebirth_eq_system_panel_missing">This device has no system sound panel.</string>
+    <string name="rebirth_eq_saved_profile_hint">An existing name replaces that profile.</string>
+    <string name="rebirth_eq_band">Band %1$d</string>
+    <string name="total_eq_response_chart">Combined response</string>
+    <string name="total_eq_crossfeed">Crossfeed</string>
+    <string name="rebirth_eq_axis_low">20 Hz</string>
+    <string name="rebirth_eq_axis_mid">±24 dB</string>
+    <string name="rebirth_eq_axis_high">20 kHz</string>
+    <string name="rebirth_eq_filter">Filter %1$d</string>
+    <string name="rebirth_eq_q">Q (width)</string>
+</resources>

@@ -200,4 +200,22 @@
     <string name="search_library_empty">搜索本地音乐文件夹中的歌曲。</string>
     <string name="search_library_hint">歌曲、艺人和专辑</string>
     <string name="search_library_no_results">本地音乐中没有与「%1$s」匹配的内容。</string>
+    <string name="rebirth_playback_tools">播放工具</string>
+    <string name="rebirth_lyrics_page">歌词</string>
+    <string name="rebirth_output">输出</string>
+    <string name="rebirth_tools_short">工具</string>
+    <string name="rebirth_translate">翻译</string>
+    <string name="rebirth_romanize">罗马音</string>
+    <string name="rebirth_queue_tracks">队列中有 %1$d 首</string>
+    <string name="rebirth_clear_added">清除已添加</string>
+    <string name="rebirth_next_up_empty">这首之后没有歌曲</string>
+    <string name="rebirth_equalizer">均衡器</string>
+    <string name="rebirth_classic_player">经典播放器</string>
+    <string name="rebirth_classic_player_caption">歌词卡片分享和高级歌词控制</string>
+    <string name="rebirth_queue_locked">本次会话中队列跟随主持人</string>
+    <string name="rebirth_queue_move_up">上移</string>
+    <string name="rebirth_queue_move_down">下移</string>
+    <string name="rebirth_lyrics_sync_off">同步歌词已在设置中关闭</string>
+    <string name="rebirth_lyrics_offset">歌词偏移</string>
+    <string name="rebirth_lyrics_offset_value">偏移 %1$s</string>
 </resources>
