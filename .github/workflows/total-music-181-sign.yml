@@ -30,8 +30,10 @@ name: Sign Total Music 1.8.1 with the permanent key
 #   TOTAL_MUSIC_KEYSTORE_B64   the PKCS12 keystore, base64-encoded, one line
 #   TOTAL_MUSIC_PASSWORD       its store password (and key password: the
 #                              signer passes one password for both)
-# Fallbacks with the names the repository's own documentation uses are accepted
-# too: KEYSTORE_BASE64 and KEYSTORE_PASSWORD. Nothing else is read.
+# Fallbacks are accepted so that whichever name the owner already used works:
+# KEYSTORE_BASE64, TOTAL_MUSIC_KEYSTORE_PASSWORD and KEYSTORE_PASSWORD.
+# TOTAL_MUSIC_KEYSTORE_PASSWORD is the name total-music-181-signing-check.yml
+# reads, and the two must agree. Nothing else is read.
 
 on:
   workflow_dispatch:
@@ -92,7 +94,7 @@ jobs:
         id: secrets
         env:
           KEYSTORE_B64: ${{ secrets.TOTAL_MUSIC_KEYSTORE_B64 || secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASS: ${{ secrets.TOTAL_MUSIC_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          KEYSTORE_PASS: ${{ secrets.TOTAL_MUSIC_PASSWORD || secrets.TOTAL_MUSIC_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
           CHECK_ONLY: ${{ inputs.check_only }}
         run: |
           set -uo pipefail
@@ -101,7 +103,7 @@ jobs:
 
           missing=()
           [ -n "${KEYSTORE_B64:-}" ]  || missing+=("TOTAL_MUSIC_KEYSTORE_B64 (or KEYSTORE_BASE64)")
-          [ -n "${KEYSTORE_PASS:-}" ] || missing+=("TOTAL_MUSIC_PASSWORD (or KEYSTORE_PASSWORD)")
+          [ -n "${KEYSTORE_PASS:-}" ] || missing+=("TOTAL_MUSIC_PASSWORD (or TOTAL_MUSIC_KEYSTORE_PASSWORD, or KEYSTORE_PASSWORD)")
 
           {
             echo "## Signing secrets"
@@ -109,7 +111,7 @@ jobs:
             echo "| Secret | Configured |"
             echo "| --- | --- |"
             echo "| \`TOTAL_MUSIC_KEYSTORE_B64\` / \`KEYSTORE_BASE64\` | $([ -n "${KEYSTORE_B64:-}" ] && echo yes || echo **no**) |"
-            echo "| \`TOTAL_MUSIC_PASSWORD\` / \`KEYSTORE_PASSWORD\` | $([ -n "${KEYSTORE_PASS:-}" ] && echo yes || echo **no**) |"
+            echo "| \`TOTAL_MUSIC_PASSWORD\` / \`TOTAL_MUSIC_KEYSTORE_PASSWORD\` / \`KEYSTORE_PASSWORD\` | $([ -n "${KEYSTORE_PASS:-}" ] && echo yes || echo **no**) |"
             echo
           } > signing-secrets.md
           cat signing-secrets.md
@@ -188,7 +190,7 @@ jobs:
         if: steps.secrets.outputs.ok == 'true'
         env:
           KEYSTORE_B64: ${{ secrets.TOTAL_MUSIC_KEYSTORE_B64 || secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASS: ${{ secrets.TOTAL_MUSIC_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          KEYSTORE_PASS: ${{ secrets.TOTAL_MUSIC_PASSWORD || secrets.TOTAL_MUSIC_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
         run: |
           set -euo pipefail
           [ -n "$KEYSTORE_B64" ]  && echo "::add-mask::$KEYSTORE_B64"

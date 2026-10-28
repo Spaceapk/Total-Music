@@ -214,8 +214,8 @@ Los SHA-256 exactos de cada entrega los imprime el comentario del run
    paquete, `versionCode` creciente y continuidad del certificado contra el APK anterior). Para CI
    hay un workflow manual preparado que hace exactamente eso y publica el APK sólo si todo pasa:
    `.github/workflows/total-music-181-sign.yml` (ver la sección siguiente). Sólo necesita dos
-   secretos: `TOTAL_MUSIC_KEYSTORE_B64` y `TOTAL_MUSIC_PASSWORD`, con `KEYSTORE_BASE64` y
-   `KEYSTORE_PASSWORD` aceptados como alternativa.
+   secretos: `TOTAL_MUSIC_KEYSTORE_B64` y `TOTAL_MUSIC_PASSWORD`, con `KEYSTORE_BASE64`,
+   `TOTAL_MUSIC_KEYSTORE_PASSWORD` y `KEYSTORE_PASSWORD` aceptados como alternativa.
 3. Instalar el resultado sobre 1.8.0 en un dispositivo o emulador y comprobar `dumpsys package`
    (`versionCode=15`, `versionName=1.8.1`) y que el arranque no cambia de identidad.
 
@@ -265,6 +265,10 @@ falta, en este orden:
 Mientras tanto, sin tocar `main`, el camino que funciona hoy es el documentado en
 `docs/TOTAL_MUSIC_RELEASES.md`: firmar en local con `sign_apk.py` usando el keystore que está en
 los archivos privados del propietario.
+
+El inventario histórico de artefactos, releases, workflows y documentación, la
+procedencia del único material cifrado del repositorio y el procedimiento de
+recuperación están en `docs/signing-recovery-1.8.1.md`.
 
 La puerta de secretos no se ha dado por buena de palabra: se ha ejecutado el propio bloque del
 workflow, extraído del YAML, en tres casos. Sin secretos y `check_only=true` → marca ambos como
