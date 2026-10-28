@@ -247,6 +247,7 @@ internal fun RebirthGlassLibrary(data: RebirthLibraryData, actions: RebirthLibra
                 onPlayPause = actions.onPlayPause,
                 onNext = actions.onNext,
                 onExpand = actions.onExpandPlayer,
+                glassEffects = data.glassEffects && data.backdropRecording,
             )
             RebirthGlassNav(
                 current = data.destination,
@@ -765,7 +766,7 @@ internal fun RebirthGlassNav(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .then(if (glassEffects) Modifier.liquidGlass(shape) else Modifier),
+            .then(if (glassEffects) Modifier.liquidGlass(shape, clear = true) else Modifier),
     ) {
         Row(
             Modifier.fillMaxWidth().padding(vertical = 6.dp),
@@ -792,9 +793,9 @@ private fun DestinationButton(
     Surface(
         shape = shape,
         color = if (selected) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
         } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f)
+            Color.Transparent
         },
         modifier = modifier.padding(horizontal = 4.dp).clip(shape).semantics { this.selected = selected; role = Role.Tab }.clickable { onDestination(destination) },
     ) {

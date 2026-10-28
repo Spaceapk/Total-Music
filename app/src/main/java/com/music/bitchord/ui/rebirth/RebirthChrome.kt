@@ -42,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.music.bitchord.ui.components.liquidGlass
 import com.music.bitchord.R
 import com.music.bitchord.data.model.Song
 
@@ -121,12 +122,14 @@ internal fun RebirthGlassMiniPlayer(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onExpand: () -> Unit,
+    glassEffects: Boolean = false,
 ) {
     if (song == null) return
     Surface(
         shape = RoundedCornerShape(26.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        color = if (glassEffects) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+            .then(if (glassEffects) Modifier.liquidGlass(RoundedCornerShape(26.dp), clear = true) else Modifier),
     ) {
         Row(
             Modifier.clickable(onClick = onExpand).padding(horizontal = 8.dp, vertical = 8.dp),
