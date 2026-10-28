@@ -168,7 +168,7 @@ fun Modifier.lightweightLiquidGlass(
  * throws for any other shape type.
  */
 @Composable
-fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
+fun Modifier.liquidGlass(shape: CornerBasedShape, clear: Boolean = false): Modifier {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     if (reduceDynamicBlur || !isGlassSupported()) {
         return background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape)
@@ -201,10 +201,10 @@ fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
                 )
             }
         },
-        highlight = { Highlight.Default },
+        highlight = { if (clear) Highlight(width = 0.8.dp) else Highlight.Default },
         shadow = { Shadow.Default },
         onDrawSurface = {
-            drawRect(color = surfaceTintColor.copy(alpha = SURFACE_OPACITY), size = size)
+            drawRect(color = surfaceTintColor.copy(alpha = if (clear) 0.18f else SURFACE_OPACITY), size = size)
         },
         exportedBackdrop = exportedBackdrop,
         backdropScale = GLASS_RESOLUTION_SCALE,
