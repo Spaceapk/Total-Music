@@ -431,8 +431,11 @@ internal fun TransportRow(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     compact: Boolean = false,
+    alternativeControls: Boolean = false,
+    expressiveControls: Boolean? = null,
 ) {
-    val playerForeground = if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current)
+    val expressive = expressiveControls ?: com.music.bitchord.ui.theme.LocalGoogleExpressive.current
+    val playerForeground = if (expressive)
         androidx.compose.material3.MaterialTheme.colorScheme.onSurface else Color.White
 
     val playSize = if (compact) 58.dp else 74.dp
@@ -472,7 +475,7 @@ internal fun TransportRow(
                 size = playSize,
                 touchSize = playTouch,
                 onClick = onPlayPause,
-                expressivePlay = com.music.bitchord.ui.theme.LocalGoogleExpressive.current,
+                expressivePlay = expressive || alternativeControls,
                 haptic = if (isPlaying) Haptic.Pause else Haptic.Resume,
             )
         }

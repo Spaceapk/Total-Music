@@ -201,6 +201,8 @@ fun SongActionsSheet(
      */
     presentation: SongActionsPresentation = SongActionsPresentation.Sheet,
 ) {
+    val visualStyle by com.music.bitchord.data.settings.AppSettings.playerVisualStyle.collectAsStateWithLifecycle()
+    val rebirth = visualStyle != com.music.bitchord.ui.player.PlayerVisualStyle.ORIGINAL
     val lyricsContext = LocalContext.current
     val lyricsScope = rememberCoroutineScope()
     val importSuccess = stringResource(R.string.local_lyrics_imported)
@@ -327,13 +329,13 @@ fun SongActionsSheet(
             GroupSeparator(palette)
         }
 
-        ActionRow(
+        if (!rebirth) ActionRow(
             icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
             label = stringResource(R.string.play_next),
             accent = palette.accent,
             onClick = onPlayNext,
         )
-        ActionRow(
+        if (!rebirth) ActionRow(
             icon = Icons.AutoMirrored.Rounded.QueueMusic,
             label = stringResource(R.string.add_to_queue),
             accent = palette.accent,
@@ -392,6 +394,12 @@ fun SongActionsSheet(
         }
     }
 
+    if (rebirth) {
+        com.music.bitchord.ui.rebirth.RebirthSongActions(visualStyle, song, onPlayNext, onAddToQueue, modifier) {
+            if (pickingSleepTimer) SleepTimerPicker(palette = palette, onBack = { pickingSleepTimer = false }) else rows()
+        }
+        return
+    }
     if (menu) {
         CompositionLocalProvider(LocalActionRowStyle provides ActionRowStyle.Menu) {
             Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), content = rows)

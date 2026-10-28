@@ -468,6 +468,8 @@ private fun BitChordApp(
     appBackdrop: LayerBackdrop,
     viewModel: MainViewModel = viewModel(),
 ) {
+    val rebirthStyle by AppSettings.playerVisualStyle.collectAsStateWithLifecycle()
+    val rebirthEnabled = rebirthStyle != com.music.bitchord.ui.player.PlayerVisualStyle.ORIGINAL
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val hazeState = remember { HazeState() }
@@ -488,7 +490,15 @@ private fun BitChordApp(
     // rather than inside the bar because the page's scroll is what drives it,
     // and the page is a sibling of the bar rather than a child.
     val navBarScroll = rememberFloatingTabBarScrollConnection()
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
+    // 1.8.1 removed Explore from the navigation: its page only ever sat on a
+    // spinner, so the tab it used to occupy is no longer one of the app's
+    // destinations. A session saved while Explore was selected restores the old
+    // index, and without this it would reopen exactly that dead page — the
+    // restoration is the one route left into it once the buttons are gone.
+    LaunchedEffect(Unit) {
+        if (selectedTab == TAB_EXPLORE) selectedTab = TAB_HOME
+    }
     // LocalMusicScreen uses 0=songs, 1=artists, 2=albums, 3=playlists.
     var spaceLibraryTab by rememberSaveable { mutableIntStateOf(0) }
     var spaceQuery by rememberSaveable { mutableStateOf("") }
@@ -521,7 +531,8 @@ private fun BitChordApp(
     // player and no artwork flying between the two. Everything below that
     // takes part in the docking asks for [activeDock] / this, never for the
     // dock or the motion directly.
-    val reducePlayerMotion by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val reduceLegacyPlayerMotion by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val reducePlayerMotion = reduceLegacyPlayerMotion || rebirthEnabled
     val activeDock = playerDock.takeIf { !reducePlayerMotion }
     playerSheetMotion.flingVelocity = with(LocalDensity.current) { PLAYER_PULL_FLING_VELOCITY.toPx() }
     // How the app takes the player down, whatever for: a back press, or a page
@@ -2170,6 +2181,9 @@ private fun BitChordApp(
         else if (floatingBarsHeight.intValue > 0) floatingBarsHeight.intValue.toDp() + 20.dp
         else if (player.song != null) 164.dp else 100.dp
     }
+    val rebirthRootVisible = rebirthEnabled && selectedTab == TAB_HOME && detail == null &&
+        !showSettings && !showEqualizer && !showAccountScrobbling && !showSources && !showListenTogether &&
+        !showReplay && !showHistory && !showDiscord && !showSpotify && libraryShowAll == null
     val listPadding = PaddingValues(
         top = topBarContentPadding(),
         bottom = bottomContentPadding,
@@ -2273,6 +2287,14 @@ private fun BitChordApp(
             }
         NowPlayingScreen(
             song = displayedSong,
+            onDismissRebirth = dismissPlayer,
+            // The equalizer is a page behind the player, not a sheet over it:
+            // leaving the player first is what makes the page visible when the
+            // tool row is tapped from inside it.
+            onOpenEqualizer = {
+                dismissPlayer()
+                showEqualizer = true
+            },
             playedBy = playedBy,
             accountName = account?.name,
             windowWidth = windowWidth,
@@ -2435,7 +2457,9 @@ private fun BitChordApp(
                         replayLandingPage = ReplayStoryPage.INTRO
                         showReplay = true
                     }
-                    PlaybackSourceType.EXPLORE -> selectedTab = TAB_EXPLORE
+                    // Explore is gone; a track queued from it came out of the
+                    // local library, so that is where its source now leads.
+                    PlaybackSourceType.EXPLORE -> selectedTab = TAB_HOME
                     PlaybackSourceType.SHARED_LINK -> {
                         val id = sourceId ?: return@openSource
                         context.startActivity(
@@ -2622,7 +2646,7 @@ private fun BitChordApp(
                     modifier = Modifier
                         .hazeSource(hazeState)
                         .then(
-                            if (glassActive || (expressiveNavigation && adaptiveGlass)) {
+                            if (!rebirthRootVisible && (glassActive || (expressiveNavigation && adaptiveGlass))) {
                                 Modifier
                                     // Not under "reduce dynamic blur": nothing
                                     // samples the layer then, and recording a
@@ -3037,7 +3061,29 @@ private fun BitChordApp(
                                 if (!LocalMediaRepository.hasStoragePermission(context)) {
                                     androidx.compose.material3.Button(onClick = { mediaPermissionLauncher.launch(mediaPermission) }) { Text(stringResource(R.string.library)) }
                                 }
-                                LocalMusicScreen(
+                                if (rebirthEnabled) com.music.bitchord.ui.rebirth.RebirthLocalExperience(
+                                    style = rebirthStyle, songs = deviceSongs, currentSong = player.song,
+                                    isPlaying = player.isPlaying, loading = playPauseBusy,
+                                    favoriteIds = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys,
+                                    initialQuery = spaceQuery,
+                                    onPlay = { songs, index -> playFrom(songs, index, QueueSource(libraryLabel, PlaybackSourceType.BROWSE, "local:all")) },
+                                    onSongMenu = openSongMenu, onSettings = { showSettings = true },
+                                    onPlayPause = { togglePlayPause() },
+                                    onNext = { if (!controlsLocked) controller?.seekToNextMediaItem() else showHostOnlyNotice() },
+                                    onExpandPlayer = { showNowPlaying = true },
+                                    emptyMessage = (deviceState as? UiState.Error)?.message,
+                                    // The shell owns the bottom of the screen while it is up, so
+                                    // the two routes it does not contain have to be reachable
+                                    // from its own bar. Leaving the tab is enough: the legacy
+                                    // chrome comes back for whichever tab is now selected.
+                                    onOpenGlobalSearch = {
+                                        viewModel.clearDetail()
+                                        viewModel.closeMoodGenre()
+                                        viewModel.onQueryChange("")
+                                        searchFocusRequested = true
+                                        selectedTab = TAB_SEARCH
+                                    },
+                                ) else LocalMusicScreen(
                                     songs = deviceSongs,
                                     navigationTab = spaceLibraryTab,
                                     onOpenSettings = { showSettings = true },
@@ -3452,7 +3498,7 @@ private fun BitChordApp(
                     !showHistory && !showSources && !showListenTogether && !showEqualizer && !showReplay &&
                     settingsSubScreen == null
                 // The playlist toolbar is in the content layer; do not paint a fade over its controls.
-                if (!playlistOwnsToolbar) BottomFadeScrim(
+                if (!playlistOwnsToolbar && !rebirthRootVisible) BottomFadeScrim(
                     pageColor = chromePageColor,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
@@ -3460,7 +3506,7 @@ private fun BitChordApp(
                         .graphicsLayer { alpha = topFadeAlpha },
                 )
 
-                if (!playlistOwnsToolbar) FrostedTopBar(
+                if (!playlistOwnsToolbar && !rebirthRootVisible) FrostedTopBar(
                     title = when {
                         showSpotify && detail == null -> stringResource(R.string.spotify)
                         showDiscord -> "Discord"
@@ -3781,7 +3827,9 @@ private fun BitChordApp(
                         .onSizeChanged { floatingBarsHeight.intValue = it.height },
                 ) {
                     QueueActionNoticeHost(queueNotice)
-                    if ((glassActive || expressiveNavigation) && adaptiveGlass) {
+                    if (rebirthRootVisible) {
+                        // The new shell owns its navigation and cover lifecycle.
+                    } else if ((glassActive || expressiveNavigation) && adaptiveGlass) {
                         GlassNavBar(
                             materialSurface = expressiveNavigation && !glassActive,
                             tabs = listOf(
