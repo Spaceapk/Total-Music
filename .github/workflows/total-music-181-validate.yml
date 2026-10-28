@@ -227,6 +227,108 @@ jobs:
           cp ci-logs/apk-signature.txt ci-logs/apks/ 2>/dev/null || true
           ls -l ci-logs/apks | head -20
 
+      # Two deliverables, kept apart on purpose.
+      #
+      # The release APK is the one a permanent key would sign, and it is the
+      # only file that can ever become an update. The test APK is installable
+      # but cannot replace an installed Total Music, because it carries the
+      # runner's throwaway debug certificate. Putting them in one artifact
+      # invites exactly the mistake that matters — installing the test build
+      # over a real installation — so each gets its own name, its own checksums
+      # and a text file that says what it is on the download page itself.
+      - name: Stage the unsigned release APK and the test APK separately
+        if: always()
+        run: |
+          set -uo pipefail
+          rm -rf delivery
+          mkdir -p delivery/unsigned-release delivery/test-apk
+          TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+
+          release=$(find app/build/outputs/apk/prod/release -name '*universal*release-unsigned.apk' 2>/dev/null | head -1)
+          if [ -n "${release:-}" ]; then
+            cp "$release" delivery/unsigned-release/
+            ( cd delivery/unsigned-release && sha256sum ./*.apk > SHA256SUMS )
+            {
+              echo "Total Music 1.8.1 — release APK"
+              echo
+              echo "NOT SIGNED. This is the build that waits for the permanent"
+              echo "signing key; it cannot be installed as an update over an"
+              echo "existing Total Music until it is signed with that key."
+              echo
+              echo "package:      $("$TOOLS"/aapt dump badging "$release" 2>/dev/null | head -1 | sed -E "s/.*name='([^']+)' versionCode='([^']+)' versionName='([^']+)'.*/\1 \2 \3/")"
+              echo "certificate:  none"
+              echo "expected:     9ae145a703a85902fe6d6ab3d886f6801873d717929deaa3e3d0b0a81de829fa"
+              echo "              (the certificate of the published 1.7.0 and 1.8.0)"
+              echo
+              echo "To make it an update, sign it outside CI with that keystore:"
+              echo "  python3 scripts/release/sign_apk.py <this file> dist \\"
+              echo "    --previous-apk Total-Music-1.8.0-universal.apk"
+              echo "and keep TOTAL_MUSIC_KEYSTORE / TOTAL_MUSIC_PASSWORD_FILE outside"
+              echo "the checkout, as that script requires."
+            } > delivery/unsigned-release/SIGNING-STATUS.txt
+            cat delivery/unsigned-release/SIGNING-STATUS.txt
+          else
+            echo "no universal release APK was produced" > delivery/unsigned-release/MISSING.txt
+          fi
+
+          for apk in $(find app/build/outputs/apk/prod/debug -name '*universal*debug.apk' 2>/dev/null | head -1) \
+                     $(find app/build/outputs/apk/prod/measurement -name '*universal*measurement.apk' 2>/dev/null | head -1); do
+            cp "$apk" delivery/test-apk/
+          done
+          cp ci-logs/apk-signature.txt delivery/test-apk/ 2>/dev/null || true
+          ( cd delivery/test-apk && sha256sum ./*.apk > SHA256SUMS )
+          {
+            echo "Total Music 1.8.1 — TEST build, do not ship"
+            echo
+            echo "Signed with the CI runner's throwaway Android debug certificate."
+            echo "It installs on a clean device and cannot be installed over a"
+            echo "published Total Music, and no future update can be signed with"
+            echo "the same key because that key is deleted with the runner."
+            echo
+            echo "Its purpose is to exercise the app: the rebirth shell on a real"
+            echo "Android 13, in both styles, and the R8 build (measurement) with"
+            echo "the shipped package name."
+          } > delivery/test-apk/TEST-ONLY.txt
+          cat delivery/test-apk/TEST-ONLY.txt
+          ls -l delivery/unsigned-release delivery/test-apk
+
+          # The comment quotes this, so the two downloads are named with their
+          # hashes in the place a reader looks first.
+          {
+            echo "### Deliverables"
+            echo
+            echo "Artifact \`total-music-181-release-unsigned\` — the release APK. **Not signed.**"
+            echo
+            echo '```'
+            ( cd delivery/unsigned-release && sha256sum ./*.apk 2>/dev/null || echo "(no release APK)" )
+            echo '```'
+            echo
+            echo "Artifact \`total-music-181-test-apk\` — installable test builds, debug certificate."
+            echo
+            echo '```'
+            ( cd delivery/test-apk && sha256sum ./*.apk 2>/dev/null || echo "(no test APK)" )
+            echo '```'
+          } > ci-logs/delivery-manifest.md
+          cat ci-logs/delivery-manifest.md
+
+      - name: Hand over the unsigned release APK
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: total-music-181-release-unsigned
+          path: delivery/unsigned-release/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Hand over the test APK
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: total-music-181-test-apk
+          path: delivery/test-apk/
+          if-no-files-found: warn
+          retention-days: 30
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -260,7 +362,7 @@ jobs:
           status, run_url = sys.argv[1], sys.argv[2]
           starts = re.compile(r"^(e: |FAILURE:|What went wrong|Caused by:|> Task .*FAILED|FAILED$|AssertionError|org\.gradle)")
           parts = [f"### 1.8.1 build: **{status}**", "", f"Run: {run_url}", ""]
-          for name in ("tests-summary.md", "apk-signature.txt"):
+          for name in ("tests-summary.md", "delivery-manifest.md", "apk-signature.txt"):
               path = f"ci-logs/{name}"
               if os.path.isfile(path):
                   parts += [open(path, encoding="utf-8").read(), ""]
