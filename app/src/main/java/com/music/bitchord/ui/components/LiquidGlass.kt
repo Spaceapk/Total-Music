@@ -171,7 +171,10 @@ fun Modifier.lightweightLiquidGlass(
 fun Modifier.liquidGlass(shape: CornerBasedShape, clear: Boolean = false): Modifier {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     if (reduceDynamicBlur || !isGlassSupported()) {
-        return background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape)
+        // Android 12 and older (and "reduce dynamic blur") cannot sample a
+        // backdrop, so the surface stays legible but translucent instead of
+        // an opaque panel — a glass-like alternative without RenderEffect.
+        return background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f), shape)
             .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
     }
     val backdrop = LocalAppBackdrop.current

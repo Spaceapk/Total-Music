@@ -347,9 +347,19 @@ internal fun RebirthGlassScene(
                             onOpenQueue = { onPage(RebirthPage.QUEUE) },
                         )
                         Spacer(Modifier.height(14.dp))
+                        RebirthGlassPanel(
+                            shape = RoundedCornerShape(20.dp),
+                            enabled = glassChrome,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        ) {
+                            RebirthVolumeRow(
+                                spec,
+                                Modifier.padding(horizontal = spec.gutter, vertical = 6.dp),
+                            )
+                        }
+                        Spacer(Modifier.height(10.dp))
                     }
                 }
-                RebirthVolumeRow(spec, Modifier.padding(horizontal = spec.gutter, vertical = 4.dp))
             }
         })
     }

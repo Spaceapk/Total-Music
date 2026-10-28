@@ -1,4 +1,4 @@
-## Total Music 1.8.1 — Explorar retirado y navegación del renacimiento
+## Total Music 1.8.1 — reproductor equilibrado y cristal con refracción
 
 - Se retira Explorar de la navegación de Google Expressive+ y Liquid Glass+: era una página que
   solo mostraba una carga sin fin. Quedan Inicio, Biblioteca, Buscar, las categorías (Canciones,
@@ -16,12 +16,20 @@
 - La página de Liquid Glass+ ocupa ahora la ventana completa y el minirreproductor y la cápsula
   flotan sobre ella, que es lo que les da algo real que refractar; las listas reservan el alto
   medido de esos controles para no quedar debajo.
-- versionCode 15 sobre el 14 de 1.8.0; mismo paquete y misma firma permanente para actualizar
-  sobre una instalación existente.
-- Verificado en CI (run 40591890427): compila, 1.079 pruebas unitarias sin fallos, lint sin
-  errores y dos pruebas de interfaz del shell en Android 13, una de ellas abriendo y cerrando
-  Ajustes sobre Liquid Glass+. Detalles, traza del cierre y límites en
-  `docs/verification-1.8.1.md`. No se presenta como versión verificada en un teléfono real.
+- Google Expressive+ equilibrado: la carátula ocupa el ancho usable, título, artista, barra de
+  progreso y controles se apilan sin huecos desproporcionados y el espacio sobrante queda abajo,
+  no entre los elementos; las funciones secundarias van agrupadas en pills al pie de la pantalla.
+- Liquid Glass+ más convincente: desenfoque real sobre el contenido dinámico, refracción con
+  dispersión cromática en Android 13+, reflejos finos en bordes y superficies, y una alternativa
+  translúcida (sin paneles lechosos) cuando el desenfoque no está disponible.
+- Barra inferior y minirreproductor más compactos: cápsulas de navegación reducidas, alto y
+  márgenes ajustados, y navegaciónBarPadding para que ni el minirreproductor ni la cápsula
+  invadan los controles del sistema ni las áreas seguras.
+- versionCode 19 sobre el 14 de 1.8.0; mismo paquete (`org.nexlibre.totalmusic`) y misma firma
+  permanente para actualizar sobre una instalación existente.
+- Verificado en CI: compila, pruebas unitarias sin fallos, lint sin errores y prueba del shell
+  en Android 13 en ambos estilos, abriendo y cerrando Ajustes y el Reproductor sobre la
+  Biblioteca. No se presenta como versión verificada en un teléfono real.
 
 ## Total Music 1.8.0 — renacimiento visual (preliminar, retirado)
 

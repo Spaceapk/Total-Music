@@ -174,18 +174,22 @@ internal fun RebirthExpressiveLibrary(data: RebirthLibraryData, actions: Rebirth
                 }
             }
         }
-        RebirthExpressiveMiniPlayer(
-            song = data.currentSong,
-            playing = data.isPlaying,
-            loading = data.loading,
-            onPlayPause = actions.onPlayPause,
-            onNext = actions.onNext,
-            onExpand = actions.onExpandPlayer,
-        )
-        RebirthExpressiveNav(
-            current = data.destination,
-            onDestination = actions.onDestination,
-        )
+        Box(Modifier.fillMaxWidth().navigationBarsPadding()) {
+            Column(Modifier.fillMaxWidth()) {
+                RebirthExpressiveMiniPlayer(
+                    song = data.currentSong,
+                    playing = data.isPlaying,
+                    loading = data.loading,
+                    onPlayPause = actions.onPlayPause,
+                    onNext = actions.onNext,
+                    onExpand = actions.onExpandPlayer,
+                )
+                RebirthExpressiveNav(
+                    current = data.destination,
+                    onDestination = actions.onDestination,
+                )
+            }
+        }
     }
 }
 

@@ -238,6 +238,7 @@ internal fun RebirthGlassLibrary(data: RebirthLibraryData, actions: RebirthLibra
             Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .navigationBarsPadding()
                 .onSizeChanged { chromeHeight = it.height },
         ) {
             RebirthGlassMiniPlayer(
@@ -766,6 +767,7 @@ internal fun RebirthGlassNav(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
+            .navigationBarsPadding()
             .then(if (glassEffects) Modifier.liquidGlass(shape, clear = true) else Modifier),
     ) {
         Row(
@@ -800,7 +802,7 @@ private fun DestinationButton(
         modifier = modifier.padding(horizontal = 4.dp).clip(shape).semantics { this.selected = selected; role = Role.Tab }.clickable { onDestination(destination) },
     ) {
         Column(
-            Modifier.heightIn(min = 60.dp).padding(horizontal = 4.dp, vertical = 8.dp),
+            Modifier.heightIn(min = 52.dp).padding(horizontal = 4.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
