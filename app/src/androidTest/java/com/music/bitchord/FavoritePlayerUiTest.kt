@@ -1,6 +1,12 @@
 package com.music.bitchord
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -35,7 +41,9 @@ class FavoritePlayerUiTest {
     @Test fun expressiveHeartWorksForLocalSongsWithoutSignIn() = toggle(PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS)
     @Test fun glassHeartWorksForLocalSongsWithoutSignIn() = toggle(PlayerVisualStyle.LIQUID_GLASS_PLUS)
 
-    private fun toggle(style: PlayerVisualStyle) {
+    @Test fun expressiveArtworkAndHeartFitLandscape() = toggle(PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS, landscape = true)
+
+    private fun toggle(style: PlayerVisualStyle, landscape: Boolean = false) {
         val previousStyle = AppSettings.playerVisualStyle.value
         val song = Song("content://media/test-favorite", "Prueba de favoritos", "Total Music", null,
             localUri = "content://media/test-favorite")
@@ -51,6 +59,7 @@ class FavoritePlayerUiTest {
                 add = stringResource(if (style == PlayerVisualStyle.ORIGINAL) Res.string.like else Res.string.rebirth_add_favorite)
                 remove = stringResource(if (style == PlayerVisualStyle.ORIGINAL) Res.string.remove_from_liked else Res.string.rebirth_remove_favorite)
                 MaterialTheme {
+                    Box(if (landscape) Modifier.requiredSize(640.dp, 360.dp) else Modifier) {
                     NowPlayingScreen(
                         song = song, isPlaying = false, isLoading = false, position = PlaybackPosition(),
                         durationMs = 60000, audioVersionSwitching = false, qualityUpgraded = false,
@@ -65,11 +74,16 @@ class FavoritePlayerUiTest {
                         onClearQueue = {}, onOpenMenu = {}, onOpenAlbum = {}, onOpenArtist = { _, _ -> },
                         onOpenPlaybackSource = {}, onListenTogether = {}, lyrics = null, lyricsSource = null,
                         lyricsProviderStates = emptyMap(), onSelectLyricsProvider = {}, lyricsUnavailable = true,
-                        lyricsOffsetOpen = false, onDismissLyricsOffset = {}, windowWidth = 320.dp, windowHeight = 640.dp,
+                        lyricsOffsetOpen = false, onDismissLyricsOffset = {}, windowWidth = if (landscape) 640.dp else 320.dp, windowHeight = if (landscape) 360.dp else 640.dp,
                     )
+                    }
                 }
             }
             compose.waitForIdle()
+            if (landscape) {
+                compose.onNodeWithTag("rebirth-artwork")
+                    .assertWidthIsEqualTo(180.dp).assertHeightIsEqualTo(180.dp)
+            }
             compose.onNodeWithContentDescription(add).performClick()
             compose.waitUntil(10000) { LikeState.overrides.value[song.videoId] == LikeStatus.LIKE }
             compose.onNodeWithContentDescription(remove).assertExists().performClick()
