@@ -117,14 +117,56 @@ style file: player_visual_style">GOOGLE_EXPRESSIVE_PLUS
 launch GOOGLE_EXPRESSIVE_PLUS: pid=alive crash=no
 ```
 
-## Artefactos
+## Disponibilidad de firma: comprobada, y no está
 
-Del run 40591890427, artefacto `total-music-181-apks`:
+Listar los secretos del repositorio exige permisos de administración que la integración no tiene
+(403), y eso es lo correcto: una clave que se puede leer desde CI es una clave que se filtra desde
+CI. Por eso la comprobación se hace dentro del propio runner
+([`total-music-181-signing-check.yml`](../.github/workflows/total-music-181-signing-check.yml),
+[run 40605768510](https://github.com/Spaceapk/Total-Music/actions/runs/40605768510)), que informa
+solo presencia y huella pública — nunca una contraseña, ni el keystore, ni material de clave:
 
-- `app-prod-universal-release-unsigned.apk` — SHA-256
-  `eda0539ce5766ed178d33f740f1a2e11ddaf1bbb93858bccf3c5f77b02239eb8`. **Sin firmar.**
-- `app-prod-universal-measurement.apk` y `app-prod-universal-debug.apk` — firmados con la clave de
-  depuración del runner, solo para pruebas; no sustituyen a la firma permanente.
+| Secreto candidato | Configurado |
+| --- | --- |
+| `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` | no |
+| `TOTAL_MUSIC_KEYSTORE_B64`, `TOTAL_MUSIC_KEYSTORE_PASSWORD` | no |
+| `SPACE_SPATIAL_KEYSTORE_B64`, `SPACE_SPATIAL_KEYSTORE_PASSWORD` | no |
+| `SPACE_KEYSTORE_B64`, `SPACE_KEYSTORE_PASSWORD` | no |
+| `TOTAL_MUSIC_CANDIDATE_URL` | sí (una URL de descarga, no una clave) |
+
+**Veredicto: la firma permanente no está disponible en CI.** Ningún keystore está configurado en los
+secretos de Actions de este repositorio, así que ningún APK puede salir firmado con la clave
+permanente desde aquí.
+
+## Artefactos: dos entregas separadas
+
+El APK release y el APK de prueba van en artefactos distintos, cada uno con sus sumas y un archivo
+de texto que dice qué es:
+
+- **`total-music-181-release-unsigned`** — `app-prod-universal-release-unsigned.apk`, **sin firmar**,
+  más `SHA256SUMS` y `SIGNING-STATUS.txt`. Es el único archivo que una firma permanente puede
+  convertir en actualización.
+- **`total-music-181-test-apk`** — `app-prod-universal-debug.apk` y
+  `app-prod-universal-measurement.apk`, firmados con el certificado de depuración del runner, más
+  `SHA256SUMS` y `TEST-ONLY.txt`. Instalan en un dispositivo limpio; **no** se instalan encima de un
+  Total Music publicado.
+- `total-music-181-apks` — el conjunto completo por ABI, el que consume el job de dispositivo.
+- `total-music-181-logs` — compilación, pruebas, lint y registro de firmas.
+
+Los SHA-256 exactos de cada entrega los imprime el comentario del run
+(«### Deliverables»), porque cambian con cada compilación.
+
+## Qué falta exactamente para una actualización compatible
+
+1. El keystore permanente (el del certificado `9ae145a7…`) y sus dos contraseñas, fuera de este
+   entorno. `.signing/space-release-key.cms` no sirve: es un `EnvelopedData` RSA-OAEP dirigido a
+   `CN=Space Music signing backup`, otra identidad y cifrada, y su clave privada tampoco está aquí.
+2. Con eso, firmar el APK sin firmar con `scripts/release/sign_apk.py` (que además comprueba
+   paquete, `versionCode` creciente y continuidad del certificado contra el APK anterior), o
+   exponer el keystore como los secretos `KEYSTORE_BASE64` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` /
+   `KEY_PASSWORD`, con lo que la compilación de CI lo firmaría directamente.
+3. Instalar el resultado sobre 1.8.0 en un dispositivo o emulador y comprobar `dumpsys package`
+   (`versionCode=15`, `versionName=1.8.1`) y que el arranque no cambia de identidad.
 
 ## Firma y actualización
 
@@ -134,7 +176,8 @@ Del run 40591890427, artefacto `total-music-181-apks`:
 - Con eso, un APK 1.8.1 firmado con la clave permanente es una actualización válida sobre 1.8.0 y
   sobre 1.7.0. Sin esa firma, no lo es: los APK de CI están firmados con la clave de depuración del
   runner y no se pueden instalar encima de una instalación existente.
-- No se ha generado ni sustituido ninguna clave, y no se ha publicado nada en GitHub Releases.
+- No se ha generado ni sustituido ninguna clave, no se ha publicado ninguna release y no se ha
+  integrado nada en `main`: el trabajo vive en el PR #5, sin fusionar.
 
 ## Límites
 

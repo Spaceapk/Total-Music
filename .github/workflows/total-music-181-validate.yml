@@ -51,6 +51,10 @@ on:
       - 'scripts/verify/rebirth_check.py'
       - 'scripts/verify/device_probe.py'
       - 'app/src/androidTest/**'
+      # This file, so a change to how the build is validated re-runs the
+      # validation. Without it the last edit to this workflow was the one push
+      # that produced no run at all.
+      - '.github/workflows/total-music-181-validate.yml'
   workflow_dispatch:
     inputs:
       pr:
