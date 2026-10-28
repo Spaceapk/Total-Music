@@ -1,3 +1,53 @@
+## Total Music 1.8.1 — reproductor equilibrado y cristal con refracción
+
+- Se retira Explorar de la navegación de Google Expressive+ y Liquid Glass+: era una página que
+  solo mostraba una carga sin fin. Quedan Inicio, Biblioteca, Buscar, las categorías (Canciones,
+  Álbumes, Artistas, Listas, Favoritos) y el Reproductor.
+- Una sesión guardada en Explorar vuelve a Inicio, y el acceso «abrir origen» de una canción
+  encolada desde Explorar lleva a la biblioteca de la que salió.
+- Se corrige el cierre inesperado de Liquid Glass+ al volver a Biblioteca desde Ajustes o el
+  Reproductor. La causa no era la navegación: la página se grababa en una capa de fondo y la
+  cápsula flotante que la navega tomaba esa misma capa como fondo, así que la capa se dibujaba
+  a sí misma. RenderThread recorría ese árbol hasta agotar la pila (SIGSEGV en
+  `RenderNode::prepareTreeImpl`, «stack pointer is not in a rw map; likely due to stack
+  overflow») y el proceso moría. Ahora la página se graba sola y la cápsula se dibuja encima,
+  fuera de la grabación; la biblioteca además se niega a muestrear la capa que está grabando,
+  de modo que un fallo así pierda el desenfoque en vez de matar la aplicación.
+- La página de Liquid Glass+ ocupa ahora la ventana completa y el minirreproductor y la cápsula
+  flotan sobre ella, que es lo que les da algo real que refractar; las listas reservan el alto
+  medido de esos controles para no quedar debajo.
+- Google Expressive+ equilibrado: la carátula ocupa el ancho usable, título, artista, barra de
+  progreso y controles se apilan sin huecos desproporcionados y el espacio sobrante queda abajo,
+  no entre los elementos; las funciones secundarias van agrupadas en pills al pie de la pantalla.
+- Liquid Glass+ más convincente: desenfoque real sobre el contenido dinámico, refracción con
+  dispersión cromática en Android 13+, reflejos finos en bordes y superficies, y una alternativa
+  translúcida (sin paneles lechosos) cuando el desenfoque no está disponible.
+- Barra inferior y minirreproductor más compactos: cápsulas de navegación reducidas, alto y
+  márgenes ajustados, y navegaciónBarPadding para que ni el minirreproductor ni la cápsula
+  invadan los controles del sistema ni las áreas seguras.
+- versionCode 19 sobre el 14 de 1.8.0; mismo paquete (`org.nexlibre.totalmusic`) y misma firma
+  permanente para actualizar sobre una instalación existente.
+- Verificado en CI: compila, pruebas unitarias sin fallos, lint sin errores y prueba del shell
+  en Android 13 en ambos estilos, abriendo y cerrando Ajustes y el Reproductor sobre la
+  Biblioteca. No se presenta como versión verificada en un teléfono real.
+
+## Total Music 1.8.0 — renacimiento visual (preliminar, retirado)
+
+- Composiciones independientes Google Expressive+ Reimagined y Liquid Glass+ Reimagined para
+  inicio, biblioteca, reproductor, ajustes y ecualizador, sobre una sola capa de estado.
+- Cola y listas con arrastre, controles de letras, hojas temáticas y 18 idiomas en el reproductor.
+- Retirado de la publicación: la compilación preliminar se cerró al iniciar en Android 13. Esta
+  rama es su continuación y la sustituye.
+
+## Total Music 1.7.0 — Visual Experience
+
+- Reproductores Original, Google Expressive+ y Liquid Glass+; Original conserva el aspecto de las instalaciones existentes.
+- Efectos de fondo dinámico, cristal, controles alternativos y transiciones animadas configurables por separado.
+- Seis widgets: Compacto 2×2, Clásico 4×2, Inmersivo 4×4, Minimal 4×1, Carátula dinámica y Panel de cristal.
+- Apariencia automática, clara u oscura configurable para cada widget.
+- Actualizaciones de controles y metadatos conectadas a la sesión multimedia Media3 existente.
+- Pendiente de validación completa en Android; los límites de compilación se documentan en el informe de verificación.
+
 ## 1.4.1 — Corrección de numeración y prueba de instalación
 
 - Aumenta versionCode a 9. Los APK 1.3.0 y 1.4.0 usaban el código 8.

@@ -200,4 +200,22 @@
     <string name="search_library_empty">מחפש את השירים בתיקיית המוזיקה המקומית שלכם.</string>
     <string name="search_library_hint">שירים, אמנים ואלבומים</string>
     <string name="search_library_no_results">אין דבר במוזיקה המקומית שתואם ל-„%1$s”.</string>
+    <string name="rebirth_playback_tools">כלי השמעה</string>
+    <string name="rebirth_lyrics_page">מילות השיר</string>
+    <string name="rebirth_output">פלט</string>
+    <string name="rebirth_tools_short">כלים</string>
+    <string name="rebirth_translate">תרגם</string>
+    <string name="rebirth_romanize">תעתיק ללטינית</string>
+    <string name="rebirth_queue_tracks">%1$d בתור</string>
+    <string name="rebirth_clear_added">נקה שנוספו</string>
+    <string name="rebirth_next_up_empty">אין שיר נוסף אחרי זה</string>
+    <string name="rebirth_equalizer">אקולייזר</string>
+    <string name="rebirth_classic_player">נגן קלאסי</string>
+    <string name="rebirth_classic_player_caption">שיתוף כרטיס מילות השיר ובקרות מילים מתקדמות</string>
+    <string name="rebirth_queue_locked">בהפעלה הזו התור עוקב אחרי המארח</string>
+    <string name="rebirth_queue_move_up">העבר למעלה</string>
+    <string name="rebirth_queue_move_down">העבר למטה</string>
+    <string name="rebirth_lyrics_sync_off">מילים מסונכרנות כבויות בהגדרות</string>
+    <string name="rebirth_lyrics_offset">היסט מילים</string>
+    <string name="rebirth_lyrics_offset_value">היסט %1$s</string>
 </resources>

@@ -200,4 +200,22 @@
     <string name="search_library_empty">Szukaj utworów w folderze muzyki lokalnej.</string>
     <string name="search_library_hint">Utwory, wykonawcy i albumy</string>
     <string name="search_library_no_results">NIC w muzyce lokalnej nie pasuje do „%1$s”.</string>
+    <string name="rebirth_playback_tools">Narzędzia odtwarzania</string>
+    <string name="rebirth_lyrics_page">Tekst utworu</string>
+    <string name="rebirth_output">Wyjście</string>
+    <string name="rebirth_tools_short">Narzędzia</string>
+    <string name="rebirth_translate">Przetłumacz</string>
+    <string name="rebirth_romanize">Romanizuj</string>
+    <string name="rebirth_queue_tracks">%1$d w kolejce</string>
+    <string name="rebirth_clear_added">Wyczyść dodane</string>
+    <string name="rebirth_next_up_empty">Nic po tym utworze</string>
+    <string name="rebirth_equalizer">Korektor</string>
+    <string name="rebirth_classic_player">Klasyczny odtwarzacz</string>
+    <string name="rebirth_classic_player_caption">Udostępnianie karty tekstu i zaawansowane ustawienia tekstu</string>
+    <string name="rebirth_queue_locked">W tej sesji kolejka podąża za hostem</string>
+    <string name="rebirth_queue_move_up">Przenieś w górę</string>
+    <string name="rebirth_queue_move_down">Przenieś w dół</string>
+    <string name="rebirth_lyrics_sync_off">Zsynchronizowane teksty są wyłączone w Ustawieniach</string>
+    <string name="rebirth_lyrics_offset">Przesunięcie tekstu</string>
+    <string name="rebirth_lyrics_offset_value">Przesunięcie %1$s</string>
 </resources>

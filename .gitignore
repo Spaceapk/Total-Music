@@ -38,6 +38,7 @@ keystore.properties
 
 # Project scratch / debug artifacts
 .shots/
+signing-secrets.md
 .tmp_verify/
 .debug/
 
