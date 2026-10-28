@@ -211,7 +211,7 @@ internal fun RebirthExpressiveScene(
                         BoxWithConstraints(Modifier.fillMaxWidth()) {
                             // Balance against the usable viewport; short windows
                             // and large text can scroll the complete group.
-                            val side = minOf((maxWidth - spec.gutter * 2).coerceAtLeast(0.dp), (availableHeight * 0.52f).coerceIn(140.dp, 420.dp))
+                            val side = minOf((maxWidth - spec.gutter * 2).coerceAtLeast(0.dp), (availableHeight * 0.50f).coerceIn(140.dp, 420.dp))
                             RebirthSleeve(
                                 song = song,
                                 playing = playing,
