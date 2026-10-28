@@ -78,8 +78,7 @@ internal fun LyricsOffsetSheet(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val playerForeground = if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current)
-        androidx.compose.material3.MaterialTheme.colorScheme.onSurface else Color.White
+    val playerForeground = playerSheetInk()
 
     val offsetMs by PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
@@ -256,8 +255,7 @@ private fun OffsetButton(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    val playerForeground = if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current)
-        androidx.compose.material3.MaterialTheme.colorScheme.onSurface else Color.White
+    val playerForeground = playerSheetInk()
 
     IconButton(
         onClick = onClick,

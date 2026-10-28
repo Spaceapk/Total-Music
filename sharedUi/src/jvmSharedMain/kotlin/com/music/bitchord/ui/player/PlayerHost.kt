@@ -136,6 +136,11 @@ object PlayerPlatform {
 
 /** The settings the player reads, named and typed as the phone's AppSettings has them. */
 interface PlayerSettingsSource {
+    val visualStyle: StateFlow<PlayerVisualStyle>
+    val dynamicBackground: StateFlow<Boolean>
+    val glassEffects: StateFlow<Boolean>
+    val alternativeControls: StateFlow<Boolean>
+    val animatedTransitions: StateFlow<Boolean>
     val animatedCanvas: StateFlow<Boolean>
     val audioQualityCellular: StateFlow<AudioQuality>
     val audioQualityWifi: StateFlow<AudioQuality>

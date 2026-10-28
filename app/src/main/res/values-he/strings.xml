@@ -1335,4 +1335,16 @@
     <string name="space_open_source_notice">Total Music היא גרסה ששונתה על בסיס Star Music ו-BitChord ברישיון GPL-3.0. שינויים: nexlibre, אוקטובר 2026. זכויות היוצרים של המחברים המקוריים נשמרות. ניתן להעתיק, לשנות ולהפיץ את התוכנה בהתאם לרישיון, ללא אחריות. קוד המקור וההודעות המקוריות זמינים במאגרים המקושרים. רישיון GPL מצורף לקריאה ללא חיבור לאינטרנט.</string>
     <string name="total_eq_10_bands">10 תחומים עצמאיים</string>
     <string name="total_accent">צבע הדגשה</string>
+    <string name="widget_immersive_label">סוחף 4×4</string>
+    <string name="widget_immersive_description">עטיפת אלבום גדולה עם פקדי נגינה ופרטי השיר.</string>
+    <string name="widget_dynamic_art_label">עטיפה דינמית</string>
+    <string name="widget_dynamic_art_description">עטיפה עם צבעים תואמים מאחורי פקדי הנגינה.</string>
+    <string name="widget_glass_panel_label">לוח זכוכית</string>
+    <string name="widget_glass_panel_description">עטיפה עם לוח נגינה שקוף למחצה.</string>
+    <string name="widget_config_title">התאמת הווידג׳ט</string>
+    <string name="widget_config_theme">המראה של הווידג׳ט הזה</string>
+    <string name="widget_theme_system">לפי המערכת</string>
+    <string name="widget_theme_light">בהיר</string>
+    <string name="widget_theme_dark">כהה</string>
+    <string name="widget_config_add">הוספת וידג׳ט</string>
 </resources>
