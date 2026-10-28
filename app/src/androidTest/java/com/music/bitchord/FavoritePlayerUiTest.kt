@@ -48,7 +48,23 @@ class FavoritePlayerUiTest {
 
     private fun toggle(style: PlayerVisualStyle, landscape: Boolean = false, tall: Boolean = false) {
         val previousStyle = AppSettings.playerVisualStyle.value
-        val song = Song("content://media/test-favorite", "Prueba de favoritos", "Total Music", null,
+        val art = java.io.File(compose.activity.filesDir, "visual-test-cover.png")
+        val bitmap = android.graphics.Bitmap.createBitmap(600, 600, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        paint.shader = android.graphics.LinearGradient(0f, 0f, 600f, 600f,
+            intArrayOf(0xFF163D78.toInt(), 0xFFC44372.toInt(), 0xFFF5AD65.toInt()), null,
+            android.graphics.Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, 0f, 600f, 600f, paint)
+        paint.shader = null
+        paint.color = android.graphics.Color.WHITE
+        paint.textSize = 54f
+        canvas.drawText("TOTAL MUSIC", 52f, 290f, paint)
+        paint.textSize = 28f
+        canvas.drawText("Visual Experience", 55f, 340f, paint)
+        art.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+        val song = Song("content://media/test-favorite", "Prueba de favoritos", "Total Music", android.net.Uri.fromFile(art).toString(),
             localUri = "content://media/test-favorite")
         val viewModel = ViewModelProvider(compose.activity,
             ViewModelProvider.AndroidViewModelFactory(compose.activity.application))[MainViewModel::class.java]
@@ -97,6 +113,15 @@ class FavoritePlayerUiTest {
             compose.onNodeWithContentDescription(remove).assertExists().performClick()
             compose.waitUntil(10000) { LikeState.overrides.value[song.videoId] == LikeStatus.INDIFFERENT }
             assertEquals(LikeStatus.INDIFFERENT, viewModel.likeStatusOf(song.videoId))
+            compose.waitForIdle()
+            val previews = java.io.File(compose.activity.filesDir, "player-previews").apply { mkdirs() }
+            val name = "${style.name}-${if (landscape) "landscape" else if (tall) "tall" else "portrait"}.png"
+            val screenshot = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+            checkNotNull(screenshot) { "The emulator did not return a screenshot" }
+            java.io.File(previews, name).outputStream().use {
+                screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+            }
+            screenshot.recycle()
         } finally {
             AppSettings.setPlayerVisualStyle(previousStyle)
             LikeState.set(song.videoId, LikeStatus.INDIFFERENT)
