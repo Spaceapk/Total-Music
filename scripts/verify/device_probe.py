@@ -426,4 +426,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-# Retry: re-run the Android 13 instrumented UI tests of the 1.8.1 validation.
