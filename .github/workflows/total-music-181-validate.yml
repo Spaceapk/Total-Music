@@ -356,7 +356,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '6' }}
+          PR_NUMBER: ${{ inputs.pr || '8' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           JOB_STATUS: ${{ job.status }}
         run: |
@@ -486,7 +486,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '6' }}
+          PR_NUMBER: ${{ inputs.pr || '8' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           LINT_OUTCOME: ${{ steps.lint.outcome }}
         run: |
@@ -575,7 +575,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '6' }}
+          PR_NUMBER: ${{ inputs.pr || '8' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -uo pipefail
@@ -744,7 +744,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '6' }}
+          PR_NUMBER: ${{ inputs.pr || '8' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUTCOME: ${{ steps.uitest.outcome }}
         run: |
