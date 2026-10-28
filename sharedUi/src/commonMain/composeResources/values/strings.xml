@@ -218,4 +218,6 @@
     <string name="rebirth_lyrics_sync_off">Synced lyrics are off in Settings</string>
     <string name="rebirth_lyrics_offset">Lyric offset</string>
     <string name="rebirth_lyrics_offset_value">Offset %1$s</string>
+    <string name="rebirth_add_favorite">Add to favorite songs</string>
+    <string name="rebirth_remove_favorite">Remove from favorite songs</string>
 </resources>
