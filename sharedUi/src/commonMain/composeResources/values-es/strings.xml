@@ -218,4 +218,6 @@
     <string name="rebirth_lyrics_sync_off">La letra sincronizada está desactivada en Ajustes</string>
     <string name="rebirth_lyrics_offset">Desfase de la letra</string>
     <string name="rebirth_lyrics_offset_value">Desfase %1$s</string>
+    <string name="rebirth_add_favorite">Agregar a canciones favoritas</string>
+    <string name="rebirth_remove_favorite">Quitar de canciones favoritas</string>
 </resources>
