@@ -53,6 +53,8 @@ import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.PlaybackPosition
 import com.music.bitchord.sharedui.resources.Res
 import com.music.bitchord.sharedui.resources.listen_together
+import com.music.bitchord.sharedui.resources.rebirth_add_favorite
+import com.music.bitchord.sharedui.resources.rebirth_remove_favorite
 import com.music.bitchord.sharedui.resources.now_playing
 import com.music.bitchord.sharedui.resources.queue
 import com.music.bitchord.sharedui.resources.rebirth_lyrics_page
@@ -118,11 +120,12 @@ internal fun RebirthExpressiveScene(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
-    Box(
+    BoxWithConstraints(
         modifier
             .fillMaxSize()
             .background(colors.background),
     ) {
+        val artworkHeight = (maxHeight * 0.43f).coerceIn(180.dp, 380.dp)
         // The optional dynamic backdrop: the same switch the glass scene reads,
         // painted as two soft pools of colour rather than a frost.
         if (dynamicBackground) {
@@ -206,7 +209,7 @@ internal fun RebirthExpressiveScene(
                         // at a third of what it would otherwise take; the
                         // transport below it never scrolls out of reach because
                         // the whole column scrolls.
-                        val artMax = if (maxHeight > 520.dp) 340.dp else 200.dp
+                        val artMax = artworkHeight
                         RebirthSleeve(
                             song = song,
                             playing = playing,
@@ -215,7 +218,7 @@ internal fun RebirthExpressiveScene(
                                 .padding(horizontal = spec.gutter)
                                 .fillMaxWidth()
                                 .heightIn(max = artMax)
-                                .aspectRatio(1.12f),
+                                .aspectRatio(1f),
                             corner = spec.artworkCorner,
                         )
                     }
@@ -224,7 +227,7 @@ internal fun RebirthExpressiveScene(
                             text = song.title,
                             style = spec.titleStyle,
                             color = colors.onSurface,
-                            maxLines = 3,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.clickable(onClick = onAlbum),
                         )
@@ -262,19 +265,12 @@ internal fun RebirthExpressiveScene(
                             expanded = true,
                             modifier = Modifier.padding(top = 8.dp),
                         )
-                        Spacer(Modifier.height(spec.gap))
-                        RebirthUpNext(
-                            queue = queue,
-                            queueIndex = queueIndex,
-                            spec = spec,
-                            onOpenQueue = { onPage(RebirthPage.QUEUE) },
-                        )
+
                         Spacer(Modifier.height(spec.gap))
                     }
                 }
             }
             if (page == RebirthPage.PLAYER) {
-                RebirthVolumeRow(spec, Modifier.padding(horizontal = spec.gutter))
                 ExpressiveActionBar(
                     queueSize = queue.size,
                     onQueue = { onPage(RebirthPage.QUEUE) },
@@ -336,7 +332,7 @@ private fun ExpressiveTopBar(
         IconButton(onClick = onLike) {
             Icon(
                 imageVector = if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                contentDescription = null,
+                contentDescription = stringResource(if (liked) Res.string.rebirth_remove_favorite else Res.string.rebirth_add_favorite),
                 tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -374,45 +370,13 @@ private fun ExpressiveActionBar(
             modifier = Modifier.weight(1f),
         )
         ExpressivePill(
-            icon = Icons.Rounded.Cast,
-            label = stringResource(Res.string.rebirth_output),
-            onClick = onOutput,
-            modifier = Modifier.weight(1f),
-        )
-        ExpressivePill(
             icon = Icons.Rounded.Tune,
             label = stringResource(Res.string.rebirth_tools_short),
             onClick = onTools,
             modifier = Modifier.weight(1f),
         )
     }
-    Row(
-        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            modifier = Modifier.clip(CircleShape).clickable(onClick = onListenTogether),
-        ) {
-            Row(
-                Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.GraphicEq,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
-                Text(
-                    text = stringResource(Res.string.listen_together),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-        }
-    }
+
 }
 
 @Composable

@@ -3,6 +3,11 @@ package com.music.bitchord.ui.player
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.GraphicEq
+import org.jetbrains.compose.resources.stringResource
+import com.music.bitchord.sharedui.resources.Res
+import com.music.bitchord.sharedui.resources.listen_together
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -218,7 +223,10 @@ internal fun RebirthPlayer(
             RebirthToolsSheet(
                 style = style,
                 hazeState = hazeState,
-                tools = rows,
+                tools = rows + RebirthTool(
+                    label = stringResource(Res.string.listen_together),
+                    icon = Icons.Rounded.GraphicEq,
+                ) { toolsOpen = false; onListenTogether() },
                 onDismiss = { toolsOpen = false },
             )
         }

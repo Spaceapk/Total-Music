@@ -89,6 +89,7 @@ internal fun RebirthToolsSheet(
                 Spacer(Modifier.height(6.dp))
             }
         }
+        RebirthVolumeRow(spec, Modifier.padding(horizontal = 12.dp))
         Spacer(Modifier.height(12.dp))
     }
 }

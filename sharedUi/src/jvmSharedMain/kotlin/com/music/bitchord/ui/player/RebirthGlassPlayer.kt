@@ -51,6 +51,8 @@ import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.PlaybackPosition
 import com.music.bitchord.sharedui.resources.Res
 import com.music.bitchord.sharedui.resources.listen_together
+import com.music.bitchord.sharedui.resources.rebirth_add_favorite
+import com.music.bitchord.sharedui.resources.rebirth_remove_favorite
 import com.music.bitchord.sharedui.resources.now_playing
 import com.music.bitchord.sharedui.resources.queue
 import com.music.bitchord.sharedui.resources.rebirth_lyrics_page
@@ -116,11 +118,12 @@ internal fun RebirthGlassScene(
 ) {
     val colors = MaterialTheme.colorScheme
     val glassChrome = glassEffects
-    Box(
+    BoxWithConstraints(
         modifier
             .fillMaxSize()
             .background(colors.background),
     ) {
+        val artworkLimit = (maxHeight * 0.42f).coerceIn(160.dp, 360.dp)
         if (dynamicBackground) {
             Box(
                 Modifier.fillMaxSize().background(
@@ -174,7 +177,7 @@ internal fun RebirthGlassScene(
                 IconButton(onClick = onLike) {
                     Icon(
                         imageVector = if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                        contentDescription = null,
+                        contentDescription = stringResource(if (liked) Res.string.rebirth_remove_favorite else Res.string.rebirth_add_favorite),
                         tint = if (liked) colors.primary else colors.onSurfaceVariant,
                     )
                 }
@@ -224,7 +227,7 @@ internal fun RebirthGlassScene(
                         // and 360 dp, so a tablet does not stretch a square to
                         // the size of a pillow and a short window still leaves
                         // room for the capsule and the tiles beneath it.
-                        val side = if (maxWidth < 360.dp) maxWidth else 360.dp
+                        val side = minOf(maxWidth, artworkLimit)
                         RebirthSleeve(
                             song = song,
                             playing = playing,
