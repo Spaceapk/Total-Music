@@ -93,6 +93,11 @@ fun EqualizerScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val rebirthStyle by AppSettings.playerVisualStyle.collectAsStateWithLifecycle()
+    if (rebirthStyle != com.music.bitchord.ui.player.PlayerVisualStyle.ORIGINAL) {
+        com.music.bitchord.ui.rebirth.RebirthEqualizer(rebirthStyle, contentPadding)
+        return
+    }
     val sessionId by AppSettings.audioSessionId.collectAsStateWithLifecycle()
     val enabled by AppSettings.equalizerEnabled.collectAsStateWithLifecycle()
     val mode by AppSettings.equalizerMode.collectAsStateWithLifecycle()

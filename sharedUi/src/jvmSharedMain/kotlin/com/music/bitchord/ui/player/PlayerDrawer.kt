@@ -108,8 +108,18 @@ fun PlayerDrawer(
     titleGap: Dp = 14.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val playerForeground = if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current)
-        androidx.compose.material3.MaterialTheme.colorScheme.onSurface else Color.White
+    // The drawer belongs to whichever player opened it. A rebirth player
+    // installs its style in [LocalPlayerStyle]; anything else is the original
+    // player, where the app-wide expressive switch still decides the ink.
+    val playerStyle = LocalPlayerStyle.current
+    val playerForeground = if (playerStyle != PlayerVisualStyle.ORIGINAL) {
+        playerSheetForeground(playerStyle)
+    } else if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current) {
+        androidx.compose.material3.MaterialTheme.colorScheme.onSurface
+    } else {
+        Color.White
+    }
+    val expressiveSheet = playerStyle == PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS
 
     val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
 
@@ -210,14 +220,27 @@ fun PlayerDrawer(
                 .fillMaxWidth()
                 .onSizeChanged { height = it.height }
                 .offset { IntOffset(0, offset.roundToInt()) }
-                .clip(DRAWER_SHAPE)
+                .clip(if (playerStyle == PlayerVisualStyle.ORIGINAL) DRAWER_SHAPE else playerSheetCorner(playerStyle))
                 .then(
-                    if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current) {
+                    when {
+                        // The expressive sheet is a page, not a pane of glass:
+                        // an opaque themed surface is what makes a drawer
+                        // opened from the editorial player read as part of it.
+                        expressiveSheet -> Modifier.background(playerSheetBackground(playerStyle))
+                        playerStyle == PlayerVisualStyle.LIQUID_GLASS_PLUS -> if (reduceDynamicBlur) {
+                            Modifier.background(playerSheetBackground(playerStyle))
+                        } else {
+                            Modifier
+                                .optimizedHazeEffect(
+                                    state = hazeState,
+                                    style = HazeMaterials.regular(Color(0xFF0B1622)),
+                                )
+                                .background(playerSheetBackground(playerStyle).copy(alpha = 0.86f))
+                        }
+                        com.music.bitchord.ui.theme.LocalGoogleExpressive.current ->
                             Modifier.background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerHigh)
-                        } else if (reduceDynamicBlur) {
-                        Modifier.background(Color(0xFF121212))
-                    } else {
-                        Modifier
+                        reduceDynamicBlur -> Modifier.background(Color(0xFF121212))
+                        else -> Modifier
                             .optimizedHazeEffect(
                                 state = hazeState,
                                 style = HazeMaterials.regular(Color(0xFF141414)),
@@ -259,10 +282,17 @@ fun PlayerDrawer(
             )
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
+                style = when (playerStyle) {
+                    PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS -> MaterialTheme.typography.headlineMedium
+                    PlayerVisualStyle.LIQUID_GLASS_PLUS -> MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    PlayerVisualStyle.ORIGINAL -> MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                },
                 color = playerForeground,
                 modifier = Modifier
                     .fillMaxWidth()

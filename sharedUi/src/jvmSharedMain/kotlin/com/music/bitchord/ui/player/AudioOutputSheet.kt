@@ -43,7 +43,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -132,8 +131,7 @@ internal fun AudioOutputSheet(
  */
 @Composable
 private fun AudioPipelineRow(onClick: () -> Unit) {
-    val playerForeground = if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current)
-        androidx.compose.material3.MaterialTheme.colorScheme.onSurface else Color.White
+    val playerForeground = playerSheetInk()
 
     val haptics = rememberHaptics()
     val outputFormat by PlayerPlatform.host.outputFormat.collectAsStateWithLifecycle()
@@ -202,8 +200,7 @@ private fun AudioPipelineRow(onClick: () -> Unit) {
  */
 @Composable
 private fun CastRow(cast: CastUi, onClick: () -> Unit) {
-    val playerForeground = if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current)
-        androidx.compose.material3.MaterialTheme.colorScheme.onSurface else Color.White
+    val playerForeground = playerSheetInk()
 
     val haptics = rememberHaptics()
     val casting = cast.connectedName != null
@@ -281,8 +278,7 @@ private fun OutputRow(
     accountName: String?,
     onSelect: () -> Unit,
 ) {
-    val playerForeground = if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current)
-        androidx.compose.material3.MaterialTheme.colorScheme.onSurface else Color.White
+    val playerForeground = playerSheetInk()
 
     val haptics = rememberHaptics()
     val active = device.isActive
@@ -363,8 +359,7 @@ private fun OutputRow(
  */
 @Composable
 private fun VolumeRow(routeKey: Any) {
-    val playerForeground = if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current)
-        androidx.compose.material3.MaterialTheme.colorScheme.onSurface else Color.White
+    val playerForeground = playerSheetInk()
 
     val system = PlayerPlatform.host.volume
     val systemLevel by system.level.collectAsStateWithLifecycle()

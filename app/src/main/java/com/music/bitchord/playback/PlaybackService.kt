@@ -2651,7 +2651,6 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun toggleFavoriteFromNotification(videoId: String) {
-        favoriteActionJob?.cancel()
         val previous = LikeState.overrides.value[videoId] ?: LikeStatus.INDIFFERENT
         val target = if (previous == LikeStatus.LIKE) {
             LikeStatus.INDIFFERENT
@@ -2663,10 +2662,11 @@ class PlaybackService : MediaLibraryService() {
         // the optimistic state with YouTube in the background.
         LikeState.set(videoId, target)
         refreshCustomLayouts()
+        if (videoId.startsWith("content:") || videoId.startsWith("file:")) return
         favoriteActionJob = scope.launch {
             YtMusicRepository.rate(videoId, target)
                 .onFailure {
-                    LikeState.set(videoId, previous)
+                    // Device favorites remain authoritative when offline.
                     refreshCustomLayouts()
                     TrackLog.w("BitChord", "notification favorite failed: ${it.message}", about = videoId)
                 }
