@@ -83,6 +83,24 @@ class Device:
         print(f"::group::{label}")
         return self.crash_seen
 
+    def screenshot(self, tag: str, directory: str) -> str:
+        """Save a real screen capture from the booted device, if any."""
+        import os
+
+        os.makedirs(directory, exist_ok=True)
+        path = f"{directory}/{self.package}-{tag}.png"
+        result = self.adb("exec-out", "screencap", "-p", timeout=60)
+        if (
+            result.returncode == 0
+            and result.stdout.startswith(b"\x89PNG\r\n\x1a\n")
+        ):
+            with open(path, "wb") as handle:
+                handle.write(result.stdout)
+            self.notes.append(f"screenshot: {path}")
+            return path
+        self.notes.append(f"screenshot {tag}: the device did not return a frame")
+        return ""
+
     def check(self, label: str, pid_before: str | None = None) -> bool:
         """Report a death or a new crash entry. True when the app is still up."""
         time.sleep(1)
@@ -278,7 +296,7 @@ class Device:
         return style in stored
 
 
-def run_flows(device: Device, flows: list[str], style: str) -> None:
+def run_flows(device: Device, flows: list[str], style: str, screenshots: str) -> None:
     print(f"== flows {flows} in {style} ==")
     device.mark(f"launch {style}")
     pid = device.launch(f"launch {style}")
@@ -289,6 +307,7 @@ def run_flows(device: Device, flows: list[str], style: str) -> None:
     settled = device.visible(r"^(Library|Biblioteca|Songs|Canciones)$", timeout=45)
     device.notes.append(f"{style}: library visible after launch = {settled}")
     device.check(f"launch {style}", pid)
+    device.screenshot(f"{style}-library", screenshots)
 
     if "categories" in flows:
         device.mark(f"categories {style}")
@@ -313,6 +332,7 @@ def run_flows(device: Device, flows: list[str], style: str) -> None:
             device.check(f"{style} returned from settings", pid)
         else:
             device.notes.append(f"{style}: no settings button found")
+        device.screenshot(f"{style}-settings", screenshots)
 
     if "player" in flows:
         device.mark(f"player {style}")
@@ -325,6 +345,7 @@ def run_flows(device: Device, flows: list[str], style: str) -> None:
         opened = device.tap(r"Probe Tone", last=True, timeout=20)
         time.sleep(4)
         device.check(f"{style} player opened", pid)
+        device.screenshot(f"{style}-player", screenshots)
         for _ in range(2):
             device.back()
             time.sleep(3)
@@ -354,6 +375,7 @@ def main() -> int:
     parser.add_argument("--apk", help="install this APK before probing")
     parser.add_argument("--styles", default="GOOGLE_EXPRESSIVE_PLUS,LIQUID_GLASS_PLUS")
     parser.add_argument("--flows", default="categories,settings,player,reopen")
+    parser.add_argument("--screenshots", default="screenshots", help="directory to write real screen captures to")
     parser.add_argument("--tone", action="store_true", help="push a decodable test track first")
     parser.add_argument("--launch-only", action="store_true")
     args = parser.parse_args()
@@ -388,7 +410,7 @@ def main() -> int:
             if not pid:
                 device.failures.append(f"startup {style}: the app did not stay up")
             continue
-        run_flows(device, flows, style)
+        run_flows(device, flows, style, args.screenshots)
 
     print("\n== notes ==")
     for note in device.notes:

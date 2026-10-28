@@ -32,7 +32,7 @@ on:
   # than main. Both are listed so the same file can be dispatched by hand once
   # it does reach main.
   push:
-    branches: [arena/c83a7b6e-total-music, work/1.8.1-favorites-refinement, work/player-glass-balance]
+    branches: [arena/c83a7b6e-total-music, work/1.8.1-favorites-refinement, work/player-glass-balance, arena/bac32391-total-magic]
     # Only a change that can affect the build starts this: an hour of Gradle,
     # lint and two emulators is not worth re-running for a comment or a probe
     # script. The published-APK probe has its own workflow and its own trigger.
@@ -59,7 +59,7 @@ on:
     inputs:
       pr:
         description: Pull request to report on
-        default: "6"
+        default: "8"
       published_probe:
         description: Reproduce the published 1.8.0 startup crash on an emulator
         type: boolean
@@ -555,7 +555,7 @@ jobs:
           echo "APK: $APK"
           python3 scripts/verify/device_probe.py --apk "$APK" --label release-like \
             --styles LIQUID_GLASS_PLUS,GOOGLE_EXPRESSIVE_PLUS --flows settings,player,categories \
-            --tone > probe-release-like.log 2>&1 || echo "probe reported failures"
+            --tone --screenshots screenshots > probe-release-like.log 2>&1 || echo "probe reported failures"
           tail -80 probe-release-like.log
       - name: Probe the debug build in both rebirth styles
         continue-on-error: true
@@ -569,7 +569,7 @@ jobs:
           python3 scripts/verify/device_probe.py --apk "$APK" --label debug \
             --package org.nexlibre.totalmusic.debug \
             --styles LIQUID_GLASS_PLUS,GOOGLE_EXPRESSIVE_PLUS --flows categories,settings,player,reopen \
-            --tone > probe-debug.log 2>&1 || echo "probe reported failures"
+            --tone --screenshots screenshots > probe-debug.log 2>&1 || echo "probe reported failures"
           tail -80 probe-debug.log
       - name: Publish what the emulator saw
         if: always()
@@ -620,6 +620,15 @@ jobs:
             probe-*.log
             device-properties.txt
             emulator.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Hand over the real screen captures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: total-music-181-screenshots
+          path: screenshots/
           if-no-files-found: warn
           retention-days: 30
 
