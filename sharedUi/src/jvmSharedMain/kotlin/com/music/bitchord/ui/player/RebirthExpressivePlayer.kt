@@ -39,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -209,16 +210,15 @@ internal fun RebirthExpressiveScene(
                         // at a third of what it would otherwise take; the
                         // transport below it never scrolls out of reach because
                         // the whole column scrolls.
-                        val artMax = artworkHeight
+                        val side = minOf((maxWidth - spec.gutter * 2).coerceAtLeast(0.dp), artworkHeight)
                         RebirthSleeve(
                             song = song,
                             playing = playing,
                             spec = spec,
                             modifier = Modifier
-                                .padding(horizontal = spec.gutter)
-                                .fillMaxWidth()
-                                .heightIn(max = artMax)
-                                .aspectRatio(1f),
+                                .size(side)
+                                .align(Alignment.Center)
+                                .testTag("rebirth-artwork"),
                             corner = spec.artworkCorner,
                         )
                     }
