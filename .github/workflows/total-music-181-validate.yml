@@ -32,7 +32,7 @@ on:
   # than main. Both are listed so the same file can be dispatched by hand once
   # it does reach main.
   push:
-    branches: [arena/c83a7b6e-total-music]
+    branches: [arena/c83a7b6e-total-music, work/1.8.1-favorites-refinement]
     # Only a change that can affect the build starts this: an hour of Gradle,
     # lint and two emulators is not worth re-running for a comment or a probe
     # script. The published-APK probe has its own workflow and its own trigger.
@@ -59,7 +59,7 @@ on:
     inputs:
       pr:
         description: Pull request to report on
-        default: "5"
+        default: "6"
       published_probe:
         description: Reproduce the published 1.8.0 startup crash on an emulator
         type: boolean
@@ -356,7 +356,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '5' }}
+          PR_NUMBER: ${{ inputs.pr || '6' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           JOB_STATUS: ${{ job.status }}
         run: |
@@ -486,7 +486,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '5' }}
+          PR_NUMBER: ${{ inputs.pr || '6' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           LINT_OUTCOME: ${{ steps.lint.outcome }}
         run: |
@@ -575,7 +575,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '5' }}
+          PR_NUMBER: ${{ inputs.pr || '6' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -uo pipefail
@@ -674,7 +674,7 @@ jobs:
           adb devices
           echo "booted"
 
-      - name: Compose and draw the rebirth shell
+      - name: Test favorites navigation and playlists on Android
         id: uitest
         continue-on-error: true
         run: |
@@ -685,7 +685,7 @@ jobs:
           ./gradlew :app:connectedProdDebugAndroidTest \
             -PspaceSpatialEdition=true \
             -Pandroid.injected.build.abi=x86_64 \
-            '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest' \
+            '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.DevicePlaylistStoreTest' \
             --max-workers=2 --build-cache --stacktrace 2>&1 | tee ui-test.log
 
       - name: Read the UI test results
@@ -728,7 +728,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '5' }}
+          PR_NUMBER: ${{ inputs.pr || '6' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUTCOME: ${{ steps.uitest.outcome }}
         run: |
