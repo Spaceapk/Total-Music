@@ -38,6 +38,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
@@ -121,12 +123,12 @@ internal fun RebirthExpressiveScene(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
+    val hideVolume by PlayerPlatform.host.settings.hideVolumeBar.collectAsStateWithLifecycle()
     BoxWithConstraints(
         modifier
             .fillMaxSize()
             .background(colors.background),
     ) {
-        val artworkHeight = (maxHeight * 0.43f).coerceIn(180.dp, 380.dp)
         // The optional dynamic backdrop: the same switch the glass scene reads,
         // painted as two soft pools of colour rather than a frost.
         if (dynamicBackground) {
@@ -198,75 +200,76 @@ internal fun RebirthExpressiveScene(
                     onOpenProviders = onOpenLyricsProviders,
                     modifier = Modifier.weight(1f),
                 )
-                RebirthPage.PLAYER -> Column(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    BoxWithConstraints(Modifier.fillMaxWidth()) {
-                        // A short window (a phone in landscape, or a large font
-                        // setting eating the vertical space) keeps the sleeve
-                        // at a third of what it would otherwise take; the
-                        // transport below it never scrolls out of reach because
-                        // the whole column scrolls.
-                        val side = minOf((maxWidth - spec.gutter * 2).coerceAtLeast(0.dp), artworkHeight)
-                        RebirthSleeve(
-                            song = song,
-                            playing = playing,
-                            spec = spec,
-                            modifier = Modifier
-                                .size(side)
-                                .align(Alignment.Center)
-                                .testTag("rebirth-artwork"),
-                            corner = spec.artworkCorner,
-                        )
-                    }
-                    Column(Modifier.padding(horizontal = spec.gutter, vertical = 16.dp)) {
-                        Text(
-                            text = song.title,
-                            style = spec.titleStyle,
-                            color = colors.onSurface,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.clickable(onClick = onAlbum),
-                        )
-                        Text(
-                            text = song.artist,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = colors.primary,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .padding(top = 4.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable(onClick = onArtist)
-                                .padding(vertical = 2.dp),
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        RebirthSeekBar(
-                            position = position,
-                            durationMs = durationMs,
-                            enabled = !locked,
-                            spec = spec,
-                            onSeek = transport.seek,
-                            trackId = song.videoId,
-                        )
-                        RebirthTransportRow(
-                            playing = playing,
-                            loading = loading,
-                            previousEnabled = previousEnabled,
-                            nextEnabled = nextEnabled,
-                            locked = locked,
-                            shuffled = shuffled,
-                            repeatMode = repeatMode,
-                            spec = spec,
-                            transport = transport,
-                            expanded = true,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
+                RebirthPage.PLAYER -> BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    val availableHeight = maxHeight
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .heightIn(min = availableHeight),
+                        verticalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        BoxWithConstraints(Modifier.fillMaxWidth()) {
+                            // Balance against the usable viewport; short windows
+                            // and large text can scroll the complete group.
+                            val side = minOf((maxWidth - spec.gutter * 2).coerceAtLeast(0.dp), (availableHeight * 0.52f).coerceIn(140.dp, 420.dp))
+                            RebirthSleeve(
+                                song = song,
+                                playing = playing,
+                                spec = spec,
+                                modifier = Modifier
+                                    .size(side)
+                                    .align(Alignment.Center)
+                                    .testTag("rebirth-artwork"),
+                                corner = spec.artworkCorner,
+                            )
+                        }
+                        Column(Modifier.padding(horizontal = spec.gutter, vertical = 16.dp)) {
+                            Text(
+                                text = song.title,
+                                style = spec.titleStyle,
+                                color = colors.onSurface,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.clickable(onClick = onAlbum),
+                            )
+                            Text(
+                                text = song.artist,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = colors.primary,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .padding(top = 4.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(onClick = onArtist)
+                                    .padding(vertical = 2.dp),
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            RebirthSeekBar(
+                                position = position,
+                                durationMs = durationMs,
+                                enabled = !locked,
+                                spec = spec,
+                                onSeek = transport.seek,
+                                trackId = song.videoId,
+                            )
+                            RebirthTransportRow(
+                                playing = playing,
+                                loading = loading,
+                                previousEnabled = previousEnabled,
+                                nextEnabled = nextEnabled,
+                                locked = locked,
+                                shuffled = shuffled,
+                                repeatMode = repeatMode,
+                                spec = spec,
+                                transport = transport,
+                                expanded = alternativeControls,
+                                modifier = Modifier.padding(top = 8.dp).testTag("expressive-transport"),
+                            )
 
-                        Spacer(Modifier.height(spec.gap))
+                            Spacer(Modifier.height(12.dp))
+                            if (!hideVolume) RebirthVolumeRow(spec)
+                        }
                     }
                 }
             }

@@ -1,5 +1,6 @@
 package com.music.bitchord.ui.player
 
+import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
@@ -29,6 +30,16 @@ import kotlinx.coroutines.flow.StateFlow
  * [PlayerPlatform.install] before the player is first drawn.
  */
 interface PlayerHost {
+    /** Only the background is recorded. Controls sampling it must be siblings. */
+    @Composable
+    fun GlassBackdrop(enabled: Boolean, background: @Composable () -> Unit, content: @Composable () -> Unit) {
+        androidx.compose.foundation.layout.Box(Modifier) { background(); content() }
+    }
+
+    @Composable
+    fun glassPanelModifier(shape: androidx.compose.foundation.shape.RoundedCornerShape): Modifier =
+        Modifier.background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.72f), shape)
+
     val settings: PlayerSettingsSource
 
     /** A Canvas already settled for [song], without a lookup. */

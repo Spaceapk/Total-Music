@@ -36,9 +36,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -118,248 +121,245 @@ internal fun RebirthGlassScene(
 ) {
     val colors = MaterialTheme.colorScheme
     val glassChrome = glassEffects
+    val reducedBlur by PlayerPlatform.host.settings.reduceDynamicBlur.collectAsStateWithLifecycle()
     BoxWithConstraints(
         modifier
             .fillMaxSize()
             .background(colors.background),
     ) {
         val artworkLimit = (maxHeight * 0.42f).coerceIn(160.dp, 360.dp)
-        if (dynamicBackground) {
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.radialGradient(
-                        colors = listOf(colors.primary.copy(alpha = 0.35f), colors.background),
-                        center = Offset(320f, 260f),
-                        radius = 1400f,
-                    ),
-                ),
-            )
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.radialGradient(
-                        colors = listOf(Color(0xFF4D7BE6).copy(alpha = 0.22f), Color.Transparent),
-                        center = Offset(980f, 1500f),
-                        radius = 1200f,
-                    ),
-                ),
-            )
-        }
-        Column(
-            Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding(),
-        ) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(
-                    onClick = { if (page == RebirthPage.PLAYER) onDismiss() else onPage(RebirthPage.PLAYER) },
-                ) {
-                    Icon(
-                        imageVector = if (page == RebirthPage.PLAYER) {
-                            Icons.Rounded.KeyboardArrowDown
-                        } else {
-                            Icons.AutoMirrored.Rounded.ArrowBack
-                        },
+        PlayerPlatform.host.GlassBackdrop(enabled = glassChrome, background = {
+            Box(Modifier.fillMaxSize().background(colors.background))
+            if (dynamicBackground) {
+                if (!reducedBlur) {
+                    val artwork = PlayerPlatform.host.rememberRemoteArtworkUrl(song)
+                    coil3.compose.AsyncImage(
+                        model = artwork,
                         contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().blur(48.dp),
                     )
+                    Box(Modifier.fillMaxSize().background(colors.background.copy(alpha = 0.58f)))
                 }
-                Text(
-                    text = song.albumName ?: song.artist,
-                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.radialGradient(
+                            colors = listOf(colors.primary.copy(alpha = 0.22f), Color.Transparent),
+                            center = Offset(320f, 260f),
+                            radius = 1400f,
+                        ),
+                    ),
                 )
-                IconButton(onClick = onLike) {
-                    Icon(
-                        imageVector = if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                        contentDescription = stringResource(if (liked) Res.string.rebirth_remove_favorite else Res.string.rebirth_add_favorite),
-                        tint = if (liked) colors.primary else colors.onSurfaceVariant,
-                    )
-                }
-                IconButton(onClick = onMenu) {
-                    Icon(Icons.Rounded.MoreVert, contentDescription = null)
-                }
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.radialGradient(
+                            colors = listOf(Color(0xFF4D7BE6).copy(alpha = 0.22f), Color.Transparent),
+                            center = Offset(980f, 1500f),
+                            radius = 1200f,
+                        ),
+                    ),
+                )
             }
-            GlassSegmentedPages(page = page, onPage = onPage, spec = spec)
-            when (page) {
-                RebirthPage.QUEUE -> RebirthQueuePage(
-                    queue = queue,
-                    queueIndex = queueIndex,
-                    locked = locked,
-                    spec = spec,
-                    onJump = onJump,
-                    onMove = onMove,
-                    onRemove = onRemove,
-                    onClear = onClear,
-                    onDragActiveChange = onDragActiveChange,
-                    modifier = Modifier.weight(1f),
-                )
-                RebirthPage.LYRICS -> RebirthLyricsPage(
-                    style = spec.style,
-                    song = song,
-                    lyrics = lyrics,
-                    lyricsSource = lyricsSource,
-                    lyricsUnavailable = lyricsUnavailable,
-                    position = position,
-                    enabled = !locked,
-                    spec = spec,
-                    onSeekLine = onSeekLine,
-                    onOpenOffset = onOpenLyricsOffset,
-                    onOpenProviders = onOpenLyricsProviders,
-                    modifier = Modifier.weight(1f),
-                )
-                RebirthPage.PLAYER -> Column(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = spec.gutter),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+        }, content = {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Spacer(Modifier.height(10.dp))
-                    BoxWithConstraints(Modifier.fillMaxWidth()) {
-                        // The sleeve takes the shorter of the window's width
-                        // and 360 dp, so a tablet does not stretch a square to
-                        // the size of a pillow and a short window still leaves
-                        // room for the capsule and the tiles beneath it.
-                        val side = minOf(maxWidth, artworkLimit)
-                        RebirthSleeve(
-                            song = song,
-                            playing = playing,
-                            spec = spec,
-                            modifier = Modifier.size(side).align(Alignment.Center),
-                            corner = spec.artworkCorner,
-                        )
-                    }
-                    Column(
-                        Modifier.fillMaxWidth().padding(top = 18.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                    IconButton(
+                        onClick = { if (page == RebirthPage.PLAYER) onDismiss() else onPage(RebirthPage.PLAYER) },
                     ) {
-                        Text(
-                            text = song.title,
-                            style = spec.titleStyle,
-                            color = colors.onSurface,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.clickable(onClick = onAlbum),
-                        )
-                        Text(
-                            text = song.artist,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .padding(top = 4.dp)
-                                .clip(CircleShape)
-                                .clickable(onClick = onArtist)
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                        Icon(
+                            imageVector = if (page == RebirthPage.PLAYER) {
+                                Icons.Rounded.KeyboardArrowDown
+                            } else {
+                                Icons.AutoMirrored.Rounded.ArrowBack
+                            },
+                            contentDescription = null,
                         )
                     }
-                    Spacer(Modifier.height(16.dp))
-                    Surface(
-                        shape = RoundedCornerShape(spec.panelCorner),
-                        color = if (glassChrome) {
-                            colors.surfaceContainerHigh.copy(alpha = 0.55f)
-                        } else {
-                            colors.surfaceContainerHigh
-                        },
-                        border = if (glassChrome) {
-                            BorderStroke(1.dp, colors.onSurface.copy(alpha = 0.08f))
-                        } else {
-                            null
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                            RebirthSeekBar(
-                                position = position,
-                                durationMs = durationMs,
-                                enabled = !locked,
-                                spec = spec,
-                                onSeek = transport.seek,
-                                trackId = song.videoId,
-                            )
-                            RebirthTransportRow(
-                                playing = playing,
-                                loading = loading,
-                                previousEnabled = previousEnabled,
-                                nextEnabled = nextEnabled,
-                                locked = locked,
-                                shuffled = shuffled,
-                                repeatMode = repeatMode,
-                                spec = spec,
-                                transport = transport,
-                                expanded = alternativeControls,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    GlassTileRow(
-                        queueSize = queue.size,
-                        onQueue = { onPage(RebirthPage.QUEUE) },
-                        onOutput = onOutput,
-                        onTools = onTools,
-                        glassChrome = glassChrome,
+                    Text(
+                        text = song.albumName ?: song.artist,
+                        modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    Spacer(Modifier.height(10.dp))
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = if (glassChrome) {
-                            colors.surfaceContainerHigh.copy(alpha = 0.5f)
-                        } else {
-                            colors.surfaceContainer
-                        },
-                        border = if (glassChrome) {
-                            BorderStroke(1.dp, colors.onSurface.copy(alpha = 0.07f))
-                        } else {
-                            null
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth().clickable(onClick = onListenTogether)
-                                .padding(vertical = 12.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.GraphicEq,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.size(8.dp))
-                            Text(
-                                text = stringResource(Res.string.listen_together),
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
+                    IconButton(onClick = onLike) {
+                        Icon(
+                            imageVector = if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            contentDescription = stringResource(if (liked) Res.string.rebirth_remove_favorite else Res.string.rebirth_add_favorite),
+                            tint = if (liked) colors.primary else colors.onSurfaceVariant,
+                        )
                     }
-                    Spacer(Modifier.height(12.dp))
-                    RebirthUpNext(
+                    IconButton(onClick = onMenu) {
+                        Icon(Icons.Rounded.MoreVert, contentDescription = null)
+                    }
+                }
+                GlassSegmentedPages(page = page, onPage = onPage, spec = spec, glassChrome = glassChrome)
+                when (page) {
+                    RebirthPage.QUEUE -> RebirthQueuePage(
                         queue = queue,
                         queueIndex = queueIndex,
+                        locked = locked,
                         spec = spec,
-                        onOpenQueue = { onPage(RebirthPage.QUEUE) },
+                        onJump = onJump,
+                        onMove = onMove,
+                        onRemove = onRemove,
+                        onClear = onClear,
+                        onDragActiveChange = onDragActiveChange,
+                        modifier = Modifier.weight(1f),
                     )
-                    Spacer(Modifier.height(14.dp))
+                    RebirthPage.LYRICS -> RebirthLyricsPage(
+                        style = spec.style,
+                        song = song,
+                        lyrics = lyrics,
+                        lyricsSource = lyricsSource,
+                        lyricsUnavailable = lyricsUnavailable,
+                        position = position,
+                        enabled = !locked,
+                        spec = spec,
+                        onSeekLine = onSeekLine,
+                        onOpenOffset = onOpenLyricsOffset,
+                        onOpenProviders = onOpenLyricsProviders,
+                        modifier = Modifier.weight(1f),
+                    )
+                    RebirthPage.PLAYER -> Column(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = spec.gutter),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Spacer(Modifier.height(10.dp))
+                        BoxWithConstraints(Modifier.fillMaxWidth()) {
+                            // The sleeve takes the shorter of the window's width
+                            // and 360 dp, so a tablet does not stretch a square to
+                            // the size of a pillow and a short window still leaves
+                            // room for the capsule and the tiles beneath it.
+                            val side = minOf(maxWidth, artworkLimit)
+                            RebirthSleeve(
+                                song = song,
+                                playing = playing,
+                                spec = spec,
+                                modifier = Modifier.size(side).align(Alignment.Center),
+                                corner = spec.artworkCorner,
+                            )
+                        }
+                        Column(
+                            Modifier.fillMaxWidth().padding(top = 18.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(
+                                text = song.title,
+                                style = spec.titleStyle,
+                                color = colors.onSurface,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.clickable(onClick = onAlbum),
+                            )
+                            Text(
+                                text = song.artist,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .padding(top = 4.dp)
+                                    .clip(CircleShape)
+                                    .clickable(onClick = onArtist)
+                                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                            )
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        RebirthGlassPanel(
+                            shape = RoundedCornerShape(spec.panelCorner),
+                            enabled = glassChrome,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                                RebirthSeekBar(
+                                    position = position,
+                                    durationMs = durationMs,
+                                    enabled = !locked,
+                                    spec = spec,
+                                    onSeek = transport.seek,
+                                    trackId = song.videoId,
+                                )
+                                RebirthTransportRow(
+                                    playing = playing,
+                                    loading = loading,
+                                    previousEnabled = previousEnabled,
+                                    nextEnabled = nextEnabled,
+                                    locked = locked,
+                                    shuffled = shuffled,
+                                    repeatMode = repeatMode,
+                                    spec = spec,
+                                    transport = transport,
+                                    expanded = alternativeControls,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(14.dp))
+                        GlassTileRow(
+                            queueSize = queue.size,
+                            onQueue = { onPage(RebirthPage.QUEUE) },
+                            onOutput = onOutput,
+                            onTools = onTools,
+                            glassChrome = glassChrome,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        RebirthGlassPanel(
+                            shape = RoundedCornerShape(20.dp),
+                            enabled = glassChrome,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().clickable(onClick = onListenTogether)
+                                    .padding(vertical = 12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.GraphicEq,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.size(8.dp))
+                                Text(
+                                    text = stringResource(Res.string.listen_together),
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        RebirthUpNext(
+                            queue = queue,
+                            queueIndex = queueIndex,
+                            spec = spec,
+                            onOpenQueue = { onPage(RebirthPage.QUEUE) },
+                        )
+                        Spacer(Modifier.height(14.dp))
+                    }
                 }
+                RebirthVolumeRow(spec, Modifier.padding(horizontal = spec.gutter, vertical = 4.dp))
             }
-            RebirthVolumeRow(spec, Modifier.padding(horizontal = spec.gutter, vertical = 4.dp))
-        }
+        })
     }
 }
 
 @Composable
-private fun GlassSegmentedPages(page: RebirthPage, onPage: (RebirthPage) -> Unit, spec: RebirthSpec) {
-    Surface(
+private fun GlassSegmentedPages(page: RebirthPage, onPage: (RebirthPage) -> Unit, spec: RebirthSpec, glassChrome: Boolean) {
+    RebirthGlassPanel(
         shape = RoundedCornerShape(40.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
+        enabled = glassChrome,
         modifier = Modifier.padding(horizontal = spec.gutter, vertical = 6.dp).fillMaxWidth(),
     ) {
         Row(Modifier.padding(4.dp)) {
@@ -460,18 +460,9 @@ private fun GlassTile(
     glassChrome: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
+    RebirthGlassPanel(
         shape = RoundedCornerShape(20.dp),
-        color = if (glassChrome) {
-            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f)
-        } else {
-            MaterialTheme.colorScheme.surfaceContainer
-        },
-        border = if (glassChrome) {
-            BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f))
-        } else {
-            null
-        },
+        enabled = glassChrome,
         modifier = modifier,
     ) {
         Column(
