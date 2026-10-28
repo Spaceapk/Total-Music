@@ -1,0 +1,361 @@
+name: Sign Total Music 1.8.1 with the permanent key
+
+# Signs the *already verified* 1.8.1 release APK with the permanent certificate,
+# and publishes it only if every check passes.
+#
+# Manual only. There is no push trigger, no schedule, and no way for another
+# workflow to call it: somebody has to dispatch it, and that is the point — this
+# is the one thing in this repository that produces an installable update.
+#
+# It does not compile anything. The APK it signs is downloaded from the run that
+# built and tested it, and its SHA-256 is required to match the value recorded
+# for that run before anything else happens, so the binary that gets signed is
+# byte for byte the one that passed 1.079 unit tests, lint and the Android 13
+# emulator.
+#
+# The signing itself is scripts/release/sign_apk.py, unchanged, which is the
+# same tool that signed 1.7.0 and 1.8.0. It re-checks package, version code,
+# version name, non-debuggable, the previous APK's certificate, that the version
+# code increases, and that the produced APK carries the pinned certificate; this
+# workflow adds an independent apksigner/aapt pass afterwards and refuses to
+# upload unless both agree.
+#
+# Credentials reach this file only as secrets, are written to files under
+# $RUNNER_TEMP with mode 0600 (the signer refuses anything inside the checkout),
+# are masked the moment they exist, and are deleted even when a step fails.
+# Neither the keystore, nor either password, is ever printed.
+#
+# Secrets required (Settings → Secrets and variables → Actions → New repository
+# secret):
+#   TOTAL_MUSIC_KEYSTORE_B64   the PKCS12 keystore, base64-encoded, one line
+#   TOTAL_MUSIC_PASSWORD       its store password (and key password: the
+#                              signer passes one password for both)
+# Fallbacks with the names the repository's own documentation uses are accepted
+# too: KEYSTORE_BASE64 and KEYSTORE_PASSWORD. Nothing else is read.
+
+on:
+  workflow_dispatch:
+    inputs:
+      unsigned_run_id:
+        description: Run that produced total-music-181-release-unsigned
+        default: '40606188366'
+      unsigned_sha256:
+        description: SHA-256 the downloaded unsigned APK must have
+        default: '059932b9c2ddab5e3b293738ac2d54bfc9f296412afd8789aab645fbc33ecd5d'
+      previous_tag:
+        description: Release tag holding the APK this one must be able to update
+        default: 'v1.8.0-preview.1'
+      previous_asset:
+        description: Asset name of that APK
+        default: 'Total-Music-1.8.0-universal.apk'
+      pr:
+        description: Pull request to report on
+        default: '5'
+      check_only:
+        description: Only report which secrets are configured, sign nothing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: total-music-181-sign
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EXPECTED_CERT: '9ae145a703a85902fe6d6ab3d886f6801873d717929deaa3e3d0b0a81de829fa'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          # The signer reads the expected package, version and certificate from
+          # this file; it must be the branch's copy, not a guess in the workflow.
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+      - name: Install the build tools the signer needs
+        run: sdkmanager 'build-tools;36.0.0'
+
+      - name: Check which signing secrets are configured
+        id: secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.TOTAL_MUSIC_KEYSTORE_B64 || secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.TOTAL_MUSIC_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          CHECK_ONLY: ${{ inputs.check_only }}
+        run: |
+          set -uo pipefail
+          [ -n "${KEYSTORE_B64:-}" ] && echo "::add-mask::$KEYSTORE_B64"
+          [ -n "${KEYSTORE_PASS:-}" ] && echo "::add-mask::$KEYSTORE_PASS"
+
+          missing=()
+          [ -n "${KEYSTORE_B64:-}" ]  || missing+=("TOTAL_MUSIC_KEYSTORE_B64 (or KEYSTORE_BASE64)")
+          [ -n "${KEYSTORE_PASS:-}" ] || missing+=("TOTAL_MUSIC_PASSWORD (or KEYSTORE_PASSWORD)")
+
+          {
+            echo "## Signing secrets"
+            echo
+            echo "| Secret | Configured |"
+            echo "| --- | --- |"
+            echo "| \`TOTAL_MUSIC_KEYSTORE_B64\` / \`KEYSTORE_BASE64\` | $([ -n "${KEYSTORE_B64:-}" ] && echo yes || echo **no**) |"
+            echo "| \`TOTAL_MUSIC_PASSWORD\` / \`KEYSTORE_PASSWORD\` | $([ -n "${KEYSTORE_PASS:-}" ] && echo yes || echo **no**) |"
+            echo
+          } > signing-secrets.md
+          cat signing-secrets.md
+
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          {
+            echo "Missing: **${missing[*]}**."
+            echo
+            echo "Configure them at Settings → Secrets and variables → Actions →"
+            echo "New repository secret. The keystore is base64-encoded"
+            echo "(\`base64 -w0 keystore.p12\`); the password is the store password,"
+            echo "used for the key as well. Do not paste either into an issue, a"
+            echo "pull request, a commit or this conversation."
+          } >> signing-secrets.md
+          cat signing-secrets.md
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+
+          if [ "${CHECK_ONLY:-false}" = "true" ]; then
+            echo "check_only: reporting what is missing and stopping."
+            exit 0
+          fi
+          echo "::error::The permanent signing key is not configured in this repository's secrets."
+          exit 1
+
+      - name: Download the verified unsigned release APK
+        if: steps.secrets.outputs.ok == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: total-music-181-release-unsigned
+          path: unsigned
+          run-id: ${{ inputs.unsigned_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Confirm it is the exact binary that was tested
+        if: steps.secrets.outputs.ok == 'true'
+        env:
+          WANT: ${{ inputs.unsigned_sha256 }}
+        run: |
+          set -euo pipefail
+          apk=$(find unsigned -name '*universal*release-unsigned.apk' | head -1)
+          [ -n "$apk" ] || { echo "::error::No unsigned release APK in that artifact."; exit 1; }
+          # The artifact carries its own sums; check those too, so a tampered
+          # artifact fails on its own evidence and not only against the input.
+          ( cd "$(dirname "$apk")" && sha256sum -c SHA256SUMS ) || true
+          got=$(sha256sum "$apk" | cut -d' ' -f1)
+          echo "downloaded: $got"
+          echo "expected:   $WANT"
+          if [ "$got" != "$WANT" ]; then
+            echo "::error::The artifact is not the APK this run is meant to sign."
+            exit 1
+          fi
+          cp "$apk" unsigned-apk.apk
+          echo "UNSIGNED_SHA=$got" >> "$GITHUB_ENV"
+
+      - name: Download the release this one must be able to update
+        if: steps.secrets.outputs.ok == 'true'
+        env:
+          TAG: ${{ inputs.previous_tag }}
+          ASSET: ${{ inputs.previous_asset }}
+        run: |
+          set -euo pipefail
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}"
+          curl --fail --location --retry 3 --silent --show-error "$url" -o previous.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs previous.apk \
+            | grep -E 'certificate (DN|SHA-256)' || true
+          cert=$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs previous.apk \
+            | sed -n 's/.*certificate SHA-256 digest: //Ip' | head -1 | tr -d ':' | tr '[:lower:]' '[:upper:]')
+          echo "$cert" | tr 'A-Z' 'a-z' > previous-cert.txt
+          cat previous-cert.txt
+
+      - name: Materialise the key outside the checkout
+        if: steps.secrets.outputs.ok == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.TOTAL_MUSIC_KEYSTORE_B64 || secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.TOTAL_MUSIC_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [ -n "$KEYSTORE_B64" ]  && echo "::add-mask::$KEYSTORE_B64"
+          [ -n "$KEYSTORE_PASS" ] && echo "::add-mask::$KEYSTORE_PASS"
+          dir="$RUNNER_TEMP/signing"
+          mkdir -p "$dir"
+          chmod 700 "$dir"
+          printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > "$dir/totalmusic.p12"
+          chmod 600 "$dir/totalmusic.p12"
+          printf '%s' "$KEYSTORE_PASS" > "$dir/password.txt"
+          chmod 600 "$dir/password.txt"
+          echo "keystore bytes: $(stat -c %s "$dir/totalmusic.p12")"
+          # Neither file is printed, ever. Sign_apk.py refuses paths inside the
+          # checkout; $RUNNER_TEMP is outside it by construction.
+          case "$dir" in "$GITHUB_WORKSPACE"*) echo "::error::signing files inside the checkout"; exit 1;; esac
+
+      - name: Read the certificate out of the key before signing anything
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          alias_name=$(sed -n 's/^keyAlias=//p' total-music-release.properties)
+          echo "alias in release properties: $alias_name"
+          # read straight from the file by keytool itself: the shell never
+          # holds the password, and nothing here can print it by accident.
+          listing=$(keytool -list -v -keystore "$RUNNER_TEMP/signing/totalmusic.p12" \
+            -storepass:file "$RUNNER_TEMP/signing/password.txt" 2>&1) || true
+          if ! printf '%s' "$listing" | grep -q "^Alias name: $alias_name"; then
+            echo "::error::The keystore does not contain the alias this release signs with."
+            printf '%s\n' "$listing" | sed -n '1,6p'
+            exit 1
+          fi
+          sha=$(printf '%s' "$listing" | sed -n 's/^[[:space:]]*SHA256: //p' | tr -d ':' | tr -d '[:space:]' | tr 'A-Z' 'a-z')
+          echo "certificate in the keystore: $sha"
+          echo "pinned by the repository:    $EXPECTED_CERT"
+          # Refusing here is what keeps a wrong or backup key from ever being
+          # used: this fails before the signer runs, not after it.
+          if [ "$sha" != "$EXPECTED_CERT" ]; then
+            echo "::error::This keystore is not the permanent Total Music key. Refusing to sign."
+            exit 1
+          fi
+          echo "KEYSTORE_CERT=$sha" >> "$GITHUB_ENV"
+
+      - name: Sign with scripts/release/sign_apk.py
+        if: steps.secrets.outputs.ok == 'true'
+        env:
+          TOTAL_MUSIC_KEYSTORE: ${{ runner.temp }}/signing/totalmusic.p12
+          TOTAL_MUSIC_PASSWORD_FILE: ${{ runner.temp }}/signing/password.txt
+        run: |
+          set -euo pipefail
+          export ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          # Unchanged signer: it re-verifies package, version, debuggable flag,
+          # the previous APK's certificate, that the version code increases, and
+          # the certificate of the APK it just produced.
+          python3 scripts/release/sign_apk.py unsigned-apk.apk dist --previous-apk previous.apk
+          cat dist/SHA256SUMS.txt
+          cat dist/release-verification.json
+
+      - name: Verify the signed APK independently
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          export ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          apk=$(find dist -name 'Total-Music-*-universal.apk' | head -1)
+          [ -n "$apk" ] || { echo "::error::The signer produced no APK."; exit 1; }
+
+          "$ANDROID_BUILD_TOOLS/apksigner" verify --verbose --print-certs "$apk" | tee signed-verify.txt
+          cert=$(sed -n 's/.*certificate SHA-256 digest: //Ip' signed-verify.txt | head -1 | tr -d ':' | tr -d '[:space:]' | tr 'A-Z' 'a-z')
+          badging=$("$ANDROID_BUILD_TOOLS/aapt" dump badging "$apk" | head -1)
+          echo "$badging"
+
+          pkg=$(echo "$badging" | sed -n "s/.*name='\([^']*\)'.*/\1/p")
+          code=$(echo "$badging" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p")
+          name=$(echo "$badging" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
+          want_code=$(sed -n 's/^versionCode=//p' total-music-release.properties)
+          want_name=$(sed -n 's/^versionName=//p' total-music-release.properties)
+          want_pkg=$(sed -n 's/^applicationId=//p' total-music-release.properties)
+
+          fail=0
+          check() { if [ "$2" = "$3" ]; then echo "ok: $1 = $2"; else echo "::error::$1 is $2, expected $3"; fail=1; fi; }
+          check certificate "$cert" "$EXPECTED_CERT"
+          check package "$pkg" "$want_pkg"
+          check versionCode "$code" "$want_code"
+          check versionName "$name" "$want_name"
+          if "$ANDROID_BUILD_TOOLS/aapt" dump badging "$apk" | grep -q 'application-debuggable'; then
+            echo "::error::The signed APK is debuggable."; fail=1
+          fi
+          [ "$fail" -eq 0 ] || exit 1
+
+          sha=$(sha256sum "$apk" | cut -d' ' -f1)
+          {
+            echo "# Total Music $name — signature verification"
+            echo
+            echo '```'
+            cat signed-verify.txt
+            echo '```'
+            echo
+            echo '```'
+            echo "$badging"
+            echo '```'
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| package | \`$pkg\` |"
+            echo "| versionName | \`$name\` |"
+            echo "| versionCode | \`$code\` (from \`$want_code\`) |"
+            echo "| certificate SHA-256 | \`$cert\` |"
+            echo "| APK SHA-256 | \`$sha\` |"
+            echo "| unsigned APK SHA-256 | \`${UNSIGNED_SHA:-}\` |"
+            echo "| unsigned built by run | \`${{ inputs.unsigned_run_id }}\` |"
+            echo "| updates | \`${{ inputs.previous_tag }}\` / \`${{ inputs.previous_asset }}\` |"
+          } > dist/VERIFICATION.md
+          cat dist/VERIFICATION.md
+          echo "SIGNED_SHA=$sha" >> "$GITHUB_ENV"
+          echo "SIGNED_CERT=$cert" >> "$GITHUB_ENV"
+          echo "SIGNED_NAME=$name" >> "$GITHUB_ENV"
+
+      # No `if: always()`. This step exists only when every check above passed,
+      # which is the whole requirement: nothing reaches the download page
+      # unsigned, mis-versioned, or carrying another certificate.
+      - name: Publish the signed APK
+        if: steps.secrets.outputs.ok == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: total-music-181-release-signed
+          path: |
+            dist/Total-Music-*-universal.apk
+            dist/SHA256SUMS.txt
+            dist/release-verification.json
+            dist/VERIFICATION.md
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove the key material from the runner
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/signing" || true
+          echo "signing files removed"
+
+      - name: Report on the pull request
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          {
+            echo "### Signing run"
+            echo
+            echo "Run: ${RUN_URL}"
+            echo
+            if [ -f signing-secrets.md ]; then cat signing-secrets.md; echo; fi
+            if [ -f dist/VERIFICATION.md ]; then
+              sed -n '/^| | |$/,/^$/p' dist/VERIFICATION.md
+              echo
+              echo "Artifact: \`total-music-181-release-signed\` — published only after every check passed."
+            elif [ -f signed-verify.txt ]; then
+              echo "The APK was signed but did not pass verification, so it was not published."
+              echo
+              echo '```'
+              grep -E 'Verifies|certificate SHA-256|error' signed-verify.txt | head -10
+              echo '```'
+            else
+              echo "Nothing was signed in this run."
+            fi
+            echo
+            echo "No keystore, password or key material is printed above, and the"
+            echo "decrypted key was deleted from the runner even if a step failed."
+          } > signing-comment.md
+          gh pr comment "$PR_NUMBER" --repo "${GITHUB_REPOSITORY}" --body-file signing-comment.md

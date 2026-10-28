@@ -85,6 +85,49 @@ VALIDATION_WORKFLOWS = (
 # may not sign an APK, generate a key, tag, push, publish or call the API, and
 # it may not write a keystore inside the checkout — only under $RUNNER_TEMP.
 SIGNING_CHECK_WORKFLOWS = (".github/workflows/total-music-181-signing-check.yml",)
+
+# The one workflow allowed to *sign*, and why that is allowed at all: it is
+# manual, it signs the artefact a previous run already built and tested rather
+# than rebuilding it, it uses the repository's own signer, it refuses any key
+# whose certificate is not the pinned one, and it publishes nothing until
+# apksigner and aapt agree. It never touches a branch, a tag or a release.
+#
+# An exception that is only a name is a hole, so both halves are checked: the
+# forbidden list is the ways out (publish, push, generate a key, fall back to
+# another identity, print the decrypted key), and the required list is the
+# safeguards that have to still be there for the exception to remain legitimate.
+SIGNING_WORKFLOWS = (".github/workflows/total-music-181-sign.yml",)
+FORBIDDEN_IN_SIGNING = (
+    "gh release",
+    "action-gh-release",
+    "upload-release",
+    "softprops/",
+    "git push",
+    "git tag",
+    "git checkout -b",
+    "pull_request_target",
+    "keytool -genkey",
+    "keystore.properties",
+    "signingConfig",
+    "android.injected.signing",
+    # Another identity is not a fallback; refusing it is the whole point.
+    "SPACE_KEYSTORE_B64",
+    "SPACE_SPATIAL_KEYSTORE_B64",
+    "space-release-key.cms",
+    # Printing the decrypted pair would defeat the masking.
+    'cat "$RUNNER_TEMP/signing',
+    "cat $RUNNER_TEMP/signing",
+)
+REQUIRED_IN_SIGNING = (
+    "workflow_dispatch",
+    "scripts/release/sign_apk.py",
+    "apksigner",
+    "aapt",
+    "::add-mask::",
+    "RUNNER_TEMP",
+    "9ae145a703a85902fe6d6ab3d886f6801873d717929deaa3e3d0b0a81de829fa",
+    "--previous-apk",
+)
 FORBIDDEN_IN_SIGNING_CHECK = (
     "gh release",
     "gh api",
@@ -881,6 +924,33 @@ def check_signing_check_workflow(path: str) -> None:
     note(f"{path}: read-only signing check, and it cannot sign or publish.")
 
 
+def check_signing_workflow(path: str) -> None:
+    """
+    The one workflow that may sign, and what it must keep doing to qualify.
+
+    Both halves are asserted: nothing that publishes or moves a branch, no second
+    identity to fall back to, no printing of the decrypted key — and on the other
+    side, the manual trigger, the repository's own signer, the pinned
+    certificate, the previous APK, and the two verification tools that have to
+    agree before an artifact exists.
+    """
+    full = os.path.join(ROOT, path)
+    if not os.path.isfile(full):
+        return
+    with open(full, encoding="utf-8") as handle:
+        text = handle.read()
+    for marker in FORBIDDEN_IN_SIGNING:
+        if marker in text:
+            fail(f"{path}: contains `{marker}`, which a signing workflow may not do.")
+    for marker in REQUIRED_IN_SIGNING:
+        if marker not in text:
+            fail(f"{path}: no longer contains `{marker}`, which its exception depends on.")
+    # A workflow that could run itself on a push is not manual.
+    if re.search(r"^\s*push:\s*$", text, re.M):
+        fail(f"{path}: runs on push; signing must be dispatched by hand.")
+    note(f"{path}: manual signing workflow, and its safeguards are present.")
+
+
 def check_protected_paths(base: str) -> None:
     command = ["git", "-C", ROOT, "diff", "--name-only", base, "--"]
     try:
@@ -889,6 +959,9 @@ def check_protected_paths(base: str) -> None:
         note(f"Protected-path check skipped: `git diff {base}` failed (unknown base?).")
         return
     for path in changed:
+        if path in SIGNING_WORKFLOWS:
+            check_signing_workflow(path)
+            continue
         if path in SIGNING_CHECK_WORKFLOWS:
             check_signing_check_workflow(path)
             continue
@@ -906,6 +979,9 @@ def check_protected_paths(base: str) -> None:
         capture_output=True, text=True, check=False,
     ).stdout.split()
     for path in untracked:
+        if path in SIGNING_WORKFLOWS:
+            check_signing_workflow(path)
+            continue
         if path in SIGNING_CHECK_WORKFLOWS:
             check_signing_check_workflow(path)
             continue
