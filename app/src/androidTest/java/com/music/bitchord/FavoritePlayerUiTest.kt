@@ -30,6 +30,7 @@ import com.music.bitchord.ui.player.NowPlayingScreen
 import com.music.bitchord.ui.player.PlayerVisualStyle
 import org.jetbrains.compose.resources.stringResource
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -43,7 +44,9 @@ class FavoritePlayerUiTest {
 
     @Test fun expressiveArtworkAndHeartFitLandscape() = toggle(PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS, landscape = true)
 
-    private fun toggle(style: PlayerVisualStyle, landscape: Boolean = false) {
+    @Test fun expressiveTransportUsesTheLowerHalfOfTallScreens() = toggle(PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS, tall = true)
+
+    private fun toggle(style: PlayerVisualStyle, landscape: Boolean = false, tall: Boolean = false) {
         val previousStyle = AppSettings.playerVisualStyle.value
         val song = Song("content://media/test-favorite", "Prueba de favoritos", "Total Music", null,
             localUri = "content://media/test-favorite")
@@ -59,7 +62,7 @@ class FavoritePlayerUiTest {
                 add = stringResource(if (style == PlayerVisualStyle.ORIGINAL) Res.string.like else Res.string.rebirth_add_favorite)
                 remove = stringResource(if (style == PlayerVisualStyle.ORIGINAL) Res.string.remove_from_liked else Res.string.rebirth_remove_favorite)
                 MaterialTheme {
-                    Box(if (landscape) Modifier.requiredSize(640.dp, 360.dp) else Modifier) {
+                    Box(if (landscape) Modifier.requiredSize(640.dp, 360.dp) else if (tall) Modifier.requiredSize(360.dp, 900.dp) else Modifier) {
                     NowPlayingScreen(
                         song = song, isPlaying = false, isLoading = false, position = PlaybackPosition(),
                         durationMs = 60000, audioVersionSwitching = false, qualityUpgraded = false,
@@ -81,8 +84,13 @@ class FavoritePlayerUiTest {
             }
             compose.waitForIdle()
             if (landscape) {
-                compose.onNodeWithTag("rebirth-artwork")
-                    .assertWidthIsEqualTo(180.dp).assertHeightIsEqualTo(180.dp)
+                val sleeve = compose.onNodeWithTag("rebirth-artwork").fetchSemanticsNode().boundsInRoot
+                assertEquals(sleeve.width, sleeve.height, 1f)
+                assertTrue("Landscape sleeve must leave room for controls", sleeve.height > 0f && sleeve.height <= with(compose.density) { 180.dp.toPx() })
+            }
+            if (tall) {
+                val transport = compose.onNodeWithTag("expressive-transport").fetchSemanticsNode().boundsInRoot
+                assertTrue("Transport must occupy the lower half", transport.center.y > with(compose.density) { 450.dp.toPx() })
             }
             compose.onNodeWithContentDescription(add).performClick()
             compose.waitUntil(10000) { LikeState.overrides.value[song.videoId] == LikeStatus.LIKE }
