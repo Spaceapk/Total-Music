@@ -32,7 +32,7 @@ on:
   # than main. Both are listed so the same file can be dispatched by hand once
   # it does reach main.
   push:
-    branches: [arena/c83a7b6e-total-music, work/1.8.1-favorites-refinement]
+    branches: [arena/c83a7b6e-total-music, work/1.8.1-favorites-refinement, work/player-glass-balance]
     # Only a change that can affect the build starts this: an hour of Gradle,
     # lint and two emulators is not worth re-running for a comment or a probe
     # script. The published-APK probe has its own workflow and its own trigger.
@@ -397,7 +397,7 @@ jobs:
               body = body[:60000] + "\n… truncated"
           sys.stdout.write(body)
           PY
-          gh pr comment "$PR_NUMBER" --body-file ci-logs/comment.md || echo "could not comment"
+          if [ "$GITHUB_REF_NAME" != "work/player-glass-balance" ]; then gh pr comment "$PR_NUMBER" --body-file ci-logs/comment.md || echo "could not comment"; fi
 
       - name: Fail when the unit tests failed
         if: steps.tests.outcome == 'failure'
@@ -507,7 +507,7 @@ jobs:
               echo "</details>"
             fi
           } > ci-logs/lint-comment.md
-          gh pr comment "$PR_NUMBER" --body-file ci-logs/lint-comment.md || echo "could not comment"
+          if [ "$GITHUB_REF_NAME" != "work/player-glass-balance" ]; then gh pr comment "$PR_NUMBER" --body-file ci-logs/lint-comment.md || echo "could not comment"; fi
 
   device:
     # The 1.8.1 candidate, doing the two things that were reported broken.
@@ -611,7 +611,7 @@ jobs:
           print("\n".join(parts)[:60000])
           PY
           tail -40 device-comment.md
-          gh pr comment "$PR_NUMBER" --body-file device-comment.md || echo "could not comment"
+          if [ "$GITHUB_REF_NAME" != "work/player-glass-balance" ]; then gh pr comment "$PR_NUMBER" --body-file device-comment.md || echo "could not comment"; fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -688,6 +688,13 @@ jobs:
             '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.DevicePlaylistStoreTest' \
             --max-workers=2 --build-cache --stacktrace 2>&1 | tee ui-test.log
 
+      - name: Collect player visual previews
+        if: always()
+        run: |
+          mkdir -p player-previews
+          adb exec-out run-as org.nexlibre.totalmusic tar -cf - files/player-previews > player-previews.tar || true
+          tar -xf player-previews.tar -C player-previews --strip-components=2 || true
+
       - name: Read the UI test results
         if: always()
         run: |
@@ -747,7 +754,7 @@ jobs:
               echo "</details>"
             fi
           } > ui-test-comment.md
-          gh pr comment "$PR_NUMBER" --body-file ui-test-comment.md || echo "could not comment"
+          if [ "$GITHUB_REF_NAME" != "work/player-glass-balance" ]; then gh pr comment "$PR_NUMBER" --body-file ui-test-comment.md || echo "could not comment"; fi
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
@@ -759,6 +766,7 @@ jobs:
             app/build/outputs/androidTest-results/
             app/build/reports/androidTests/
             emulator-ui.log
+            player-previews/
           if-no-files-found: warn
           retention-days: 30
 
