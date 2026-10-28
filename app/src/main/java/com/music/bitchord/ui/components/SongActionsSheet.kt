@@ -297,7 +297,7 @@ fun SongActionsSheet(
             GroupSeparator(palette)
         }
 
-        if (signedIn && !isOffline) {
+        run {
             ActionRow(
                 icon = if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                 label = if (liked) stringResource(R.string.remove_from_liked) else stringResource(R.string.like),
@@ -305,6 +305,8 @@ fun SongActionsSheet(
                 accent = palette.accent,
                 onClick = onToggleLike,
             )
+        }
+        if (signedIn && !isOffline) {
             ActionRow(
                 icon = if (disliked) Icons.Rounded.ThumbDown else Icons.Rounded.ThumbDownOffAlt,
                 label = if (disliked) stringResource(R.string.undo_dislike) else stringResource(R.string.dislike),
