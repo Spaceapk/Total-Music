@@ -45,14 +45,14 @@ class Device:
 
     # ---- plumbing ---------------------------------------------------------
 
-    def adb(self, *args: str, timeout: int = 60, check: bool = False) -> subprocess.CompletedProcess:
+    def adb(self, *args: str, timeout: int = 60, check: bool = False, binary: bool = False) -> subprocess.CompletedProcess:
         command = ["adb"]
         if self.serial:
             command += ["-s", self.serial]
         command += list(args)
-        result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(command, capture_output=True, text=not binary, timeout=timeout)
         if check and result.returncode != 0:
-            raise RuntimeError(f"{' '.join(command)} failed: {result.stderr.strip()}")
+            raise RuntimeError(f"{' '.join(command)} failed: {result.stderr.strip() if isinstance(result.stderr, str) else result.stderr.decode('utf-8', 'replace').strip()}")
         return result
 
     def shell(self, command: str, timeout: int = 60) -> str:
@@ -89,7 +89,7 @@ class Device:
 
         os.makedirs(directory, exist_ok=True)
         path = f"{directory}/{self.package}-{tag}.png"
-        result = self.adb("exec-out", "screencap", "-p", timeout=60)
+        result = self.adb("exec-out", "screencap", "-p", timeout=60, binary=True)
         if (
             result.returncode == 0
             and result.stdout.startswith(b"\x89PNG\r\n\x1a\n")
