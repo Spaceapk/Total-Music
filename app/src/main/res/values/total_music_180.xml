@@ -1,7 +1,7 @@
 <!-- Rebirth (1.8.0) strings. Outside Spanish these fall back to English on purpose:
      translation is tracked per key in docs/design/1.8.0/IMPLEMENTATION_HANDOFF.md. -->
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="rebirth_favorites">Favorites</string>
+    <string name="rebirth_favorites">Favorite songs</string>
     <string name="rebirth_home_subtitle">The music you carry</string>
     <string name="rebirth_home_hero">Press play on your day</string>
     <string name="rebirth_home_collection">Your collection</string>
