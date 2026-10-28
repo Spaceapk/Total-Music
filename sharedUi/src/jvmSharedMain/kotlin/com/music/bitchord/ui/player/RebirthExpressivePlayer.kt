@@ -206,7 +206,7 @@ internal fun RebirthExpressiveScene(
                         Modifier.fillMaxWidth()
                             .verticalScroll(rememberScrollState())
                             .heightIn(min = availableHeight),
-                        verticalArrangement = Arrangement.Top,
+                        verticalArrangement = Arrangement.Center,
                     ) {
                         BoxWithConstraints(Modifier.fillMaxWidth()) {
                             // Balance against the usable viewport; short windows
