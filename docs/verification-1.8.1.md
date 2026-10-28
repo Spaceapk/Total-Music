@@ -211,9 +211,11 @@ Los SHA-256 exactos de cada entrega los imprime el comentario del run
    entorno. `.signing/space-release-key.cms` no sirve: es un `EnvelopedData` RSA-OAEP dirigido a
    `CN=Space Music signing backup`, otra identidad y cifrada, y su clave privada tampoco está aquí.
 2. Con eso, firmar el APK sin firmar con `scripts/release/sign_apk.py` (que además comprueba
-   paquete, `versionCode` creciente y continuidad del certificado contra el APK anterior), o
-   exponer el keystore como los secretos `KEYSTORE_BASE64` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` /
-   `KEY_PASSWORD`, con lo que la compilación de CI lo firmaría directamente.
+   paquete, `versionCode` creciente y continuidad del certificado contra el APK anterior). Para CI
+   hay un workflow manual preparado que hace exactamente eso y publica el APK sólo si todo pasa:
+   `.github/workflows/total-music-181-sign.yml` (ver la sección siguiente). Sólo necesita dos
+   secretos: `TOTAL_MUSIC_KEYSTORE_B64` y `TOTAL_MUSIC_PASSWORD`, con `KEYSTORE_BASE64` y
+   `KEYSTORE_PASSWORD` aceptados como alternativa.
 3. Instalar el resultado sobre 1.8.0 en un dispositivo o emulador y comprobar `dumpsys package`
    (`versionCode=15`, `versionName=1.8.1`) y que el arranque no cambia de identidad.
 
@@ -227,6 +229,51 @@ Los SHA-256 exactos de cada entrega los imprime el comentario del run
   runner y no se pueden instalar encima de una instalación existente.
 - No se ha generado ni sustituido ninguna clave, no se ha publicado ninguna release y no se ha
   integrado nada en `main`: el trabajo vive en el PR #5, sin fusionar.
+
+## Firma manual en CI: el workflow está listo y no se puede disparar todavía
+
+`.github/workflows/total-music-181-sign.yml` (361 líneas, 15 pasos) firma el APK ya verificado con
+`scripts/release/sign_apk.py` sin modificarlo y lo publica como artefacto sólo cuando todas las
+comprobaciones coinciden. No compila nada: descarga el APK del run 40606188366 y exige que su
+SHA-256 sea `059932b9c2ddab5e3b293738ac2d54bfc9f296412afd8789aab645fbc33ecd5d`, es decir, byte a
+byte el binario que pasó las 1.079 pruebas, el lint y el emulador. Es sólo `workflow_dispatch`: no
+hay disparador por `push`, ni por horario, ni `workflow_call`.
+
+Lo que comprueba, en orden, y que rechaza la ejecución si no se cumple: los secretos presentes; el
+SHA-256 del APK descargado (y sus propios `SHA256SUMS`); el certificado del APK anterior
+(`v1.8.0-preview.1`); que el alias del keystore sea `totalmusic-release`; que el certificado del
+keystore sea exactamente `9ae145a7…` y **no** el de respaldo (`dbb5b7c0…`); y, tras firmar, una
+segunda pasada independiente de `apksigner`/`aapt` que confirma `org.nexlibre.totalmusic`,
+`versionCode=15`, `versionName=1.8.1` y el certificado fijado. Si las dos pasadas no coinciden, no
+se sube nada.
+
+**Por qué no se ha ejecutado.** GitHub sólo registra `workflow_dispatch` para los ficheros que
+existen en la rama por defecto. Comprobado: `gh workflow view total-music-181-sign.yml` devuelve
+404, el fichero no existe en `main` (404) y los workflows que sí están registrados rechazan el
+disparo con 403 porque el token de este entorno no tiene `actions: write`. Como la instrucción es no
+tocar `main` y no forzar permisos, el workflow queda preparado y sin disparar. Para ejecutarlo hace
+falta, en este orden:
+
+1. Que el fichero llegue a `main` (decisión del propietario; hoy vive en el PR #5, sin fusionar).
+2. Ajustes → Secretos y variables → Actions → Nuevo secreto de repositorio:
+   `TOTAL_MUSIC_KEYSTORE_B64` (el `.p12` en base64, `base64 -w0`) y `TOTAL_MUSIC_PASSWORD` (la
+   contraseña del almacén, que el firmador usa también para la clave). Ni el keystore ni la
+   contraseña se pegan en un issue, un PR, un commit o este chat.
+3. Actions → «Sign Total Music 1.8.1 with the permanent key» → Run workflow, primero con
+   `check_only=true` (informa de qué falta y para) y después sin él.
+
+Mientras tanto, sin tocar `main`, el camino que funciona hoy es el documentado en
+`docs/TOTAL_MUSIC_RELEASES.md`: firmar en local con `sign_apk.py` usando el keystore que está en
+los archivos privados del propietario.
+
+La puerta de secretos no se ha dado por buena de palabra: se ha ejecutado el propio bloque del
+workflow, extraído del YAML, en tres casos. Sin secretos y `check_only=true` → marca ambos como
+`no`, escribe `ok=false` y termina con éxito (informativo). Con los dos presentes → `ok=true`. Sin
+secretos y `check_only=false` → `ok=false` y sale con error 1 sin firmar. Los rechazos de
+certificado, alias y SHA se probaron del mismo modo con `keytool` y `sha256sum` simulados: alias
+equivocado, certificado de respaldo y SHA distinto abortan; el alias y el certificado correctos
+pasan.
+
 
 ## Límites
 

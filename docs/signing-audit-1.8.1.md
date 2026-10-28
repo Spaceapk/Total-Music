@@ -102,9 +102,13 @@ Variables de entorno exactas: `TOTAL_MUSIC_KEYSTORE`, `TOTAL_MUSIC_PASSWORD_FILE
 
 Si en lugar de firmar localmente se quisiera que firmara CI, habría que añadir
 esos dos valores como secretos del repositorio **y** autorizar un workflow de
-publicación, que hoy no existe y que el gate de esta rama prohíbe a propósito
-(«CI outputs […] an unsigned release preparation, never a stable release»). Esa
-es una decisión tuya, no algo que haya que dar por hecho.
+publicación. Ese workflow ya está escrito en esta rama
+(`.github/workflows/total-music-181-sign.yml`, manual, con el certificado fijado
+y con el gate permitiéndolo de forma explícita), pero **no se ha disparado**:
+GitHub sólo registra `workflow_dispatch` para ficheros que existen en la rama por
+defecto, así que no se puede ejecutar hasta que llegue a `main`, y eso no se ha
+hecho. Detalle y comprobaciones en `docs/verification-1.8.1.md`. Sigue siendo una
+decisión tuya, no algo que haya que dar por hecho.
 
 ## 5. El comando exacto, verificado contra el código
 
