@@ -60,6 +60,8 @@ fun RebirthLocalExperience(
     emptyMessage: String? = null,
     onShuffle: ((List<Song>) -> Unit)? = null,
     onOpenGlobalSearch: (() -> Unit)? = null,
+    destination: RebirthDestination? = null,
+    onDestinationChange: (RebirthDestination) -> Unit = {},
 ) {
     val context = LocalContext.current
     val store = remember(context) { DevicePlaylistStore.forDevice(context) }
@@ -71,7 +73,12 @@ fun RebirthLocalExperience(
     val adaptiveGlass by TotalMusicSettings.adaptiveGlass.collectAsStateWithLifecycle()
     val reduceBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
 
-    var destination by rememberSaveable { mutableStateOf(RebirthDestination.HOME) }
+    var savedDestination by rememberSaveable { mutableStateOf(RebirthDestination.HOME) }
+    val currentDestination = destination ?: savedDestination
+    fun navigate(target: RebirthDestination) {
+        savedDestination = target
+        onDestinationChange(target)
+    }
     var category by rememberSaveable { mutableStateOf(RebirthCategory.SONGS) }
     var query by rememberSaveable { mutableStateOf("") }
     var collectionId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -86,13 +93,13 @@ fun RebirthLocalExperience(
     // search page rather than replacing the page the reader was on.
     LaunchedEffect(initialQuery) {
         if (initialQuery.isNotBlank()) {
-            destination = RebirthDestination.SEARCH
+            navigate(RebirthDestination.SEARCH)
             query = initialQuery
         }
     }
     // A query or a closed collection invalidates a selection made under it; so
     // does leaving the page the selection was made on.
-    LaunchedEffect(query, collectionId, destination, category) { selection = emptyList() }
+    LaunchedEffect(query, collectionId, currentDestination, category) { selection = emptyList() }
 
     val (albums, artists, saved) = remember(songs, playlists) { rebirthCollections(songs, playlists) }
     val opened = remember(collectionId, albums, artists, saved) {
@@ -122,11 +129,11 @@ fun RebirthLocalExperience(
     }
     val canReorder = rebirthCanReorder(query, openedSort)
 
-    BackHandler(selection.isNotEmpty() || opened != null || destination != RebirthDestination.HOME) {
+    BackHandler(selection.isNotEmpty() || opened != null || currentDestination != RebirthDestination.HOME) {
         when {
             selection.isNotEmpty() -> selection = emptyList()
             opened != null -> collectionId = null
-            else -> destination = RebirthDestination.HOME
+            else -> navigate(RebirthDestination.HOME)
         }
     }
 
@@ -150,7 +157,7 @@ fun RebirthLocalExperience(
     val data = RebirthLibraryData(
         style = style,
         glass = glass,
-        destination = destination,
+        destination = currentDestination,
         category = category,
         query = query,
         songs = songs,
@@ -184,7 +191,7 @@ fun RebirthLocalExperience(
         onPlayPause = onPlayPause,
         onNext = onNext,
         onExpandPlayer = onExpandPlayer,
-        onDestination = { destination = it; collectionId = null },
+        onDestination = { navigate(it); collectionId = null },
         onCategory = { category = it; collectionId = null },
         onQuery = { query = it },
         onOpenCollection = { collection -> collectionId = collection?.id },

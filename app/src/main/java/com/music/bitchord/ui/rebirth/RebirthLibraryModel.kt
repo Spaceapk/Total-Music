@@ -16,7 +16,7 @@ import com.music.bitchord.ui.player.PlayerVisualStyle
  * what is on this device" without stealing the meaning of the app's own search
  * tab, which stays one tap away in the shell's bar.
  */
-internal enum class RebirthDestination { HOME, LIBRARY, SEARCH }
+enum class RebirthDestination { HOME, LIBRARY, SEARCH }
 
 /** What the library page is listing. */
 internal enum class RebirthCategory { SONGS, ALBUMS, ARTISTS, PLAYLISTS, FAVORITES }

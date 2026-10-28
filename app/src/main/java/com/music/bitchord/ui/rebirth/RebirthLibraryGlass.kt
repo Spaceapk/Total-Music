@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -62,6 +63,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -744,7 +749,7 @@ private fun GlassCollection(data: RebirthLibraryData, actions: RebirthLibraryAct
  * device that cannot sample, the same shape is drawn as a flat surface.
  */
 @Composable
-private fun RebirthGlassNav(
+internal fun RebirthGlassNav(
     current: RebirthDestination,
     onDestination: (RebirthDestination) -> Unit,
     glassEffects: Boolean,
@@ -767,9 +772,9 @@ private fun RebirthGlassNav(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            DestinationButton(RebirthDestination.HOME, current, onDestination, Icons.Rounded.Home)
-            DestinationButton(RebirthDestination.LIBRARY, current, onDestination, Icons.Rounded.LibraryMusic)
-            DestinationButton(RebirthDestination.SEARCH, current, onDestination, Icons.Rounded.Search)
+            DestinationButton(RebirthDestination.HOME, current, onDestination, Icons.Rounded.Home, Modifier.weight(1f))
+            DestinationButton(RebirthDestination.LIBRARY, current, onDestination, Icons.Rounded.LibraryMusic, Modifier.weight(1f))
+            DestinationButton(RebirthDestination.SEARCH, current, onDestination, Icons.Rounded.Search, Modifier.weight(1f))
         }
     }
 }
@@ -780,6 +785,7 @@ private fun DestinationButton(
     current: RebirthDestination,
     onDestination: (RebirthDestination) -> Unit,
     icon: ImageVector,
+    modifier: Modifier = Modifier,
 ) {
     val selected = destination == current
     val shape = CircleShape
@@ -790,11 +796,12 @@ private fun DestinationButton(
         } else {
             MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f)
         },
-        modifier = Modifier.clip(shape).clickable { onDestination(destination) },
+        modifier = modifier.padding(horizontal = 4.dp).clip(shape).semantics { this.selected = selected; role = Role.Tab }.clickable { onDestination(destination) },
     ) {
-        Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            Modifier.heightIn(min = 60.dp).padding(horizontal = 4.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
             Icon(
                 imageVector = icon,
@@ -802,12 +809,14 @@ private fun DestinationButton(
                 tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
-            if (selected) {
-                Spacer(Modifier.width(6.dp))
+            run {
+                Spacer(Modifier.size(4.dp))
                 Text(
                     text = destination.label(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

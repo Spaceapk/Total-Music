@@ -31,6 +31,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -198,6 +202,7 @@ private fun ExpressiveNavItem(
                     androidx.compose.ui.graphics.Color.Transparent
                 },
             )
+            .semantics { this.selected = selected; role = Role.Tab }
             .clickable { onDestination(destination) }
             .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center,
