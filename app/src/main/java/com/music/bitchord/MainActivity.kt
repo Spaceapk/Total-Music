@@ -485,7 +485,10 @@ private fun BitChordApp(
     // solid (see [Modifier.liquidGlass]) and the whole-page layer recording
     // below goes with them, which is the part that costs a draw pass.
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    val glassSamplesBackdrop = glassActive && isGlassSupported() && !reduceDynamicBlur
+    val rebirthGlassEffects by AppSettings.playerGlassEffects.collectAsStateWithLifecycle()
+    val glassSamplesBackdrop = (glassActive ||
+        (rebirthStyle == com.music.bitchord.ui.player.PlayerVisualStyle.LIQUID_GLASS_PLUS && rebirthGlassEffects)) &&
+        isGlassSupported() && !reduceDynamicBlur
     // What folds [GlassNavBar] between its expanded and inline shapes. Held here
     // rather than inside the bar because the page's scroll is what drives it,
     // and the page is a sibling of the bar rather than a child.
@@ -501,6 +504,8 @@ private fun BitChordApp(
     }
     // LocalMusicScreen uses 0=songs, 1=artists, 2=albums, 3=playlists.
     var spaceLibraryTab by rememberSaveable { mutableIntStateOf(0) }
+    val rebirthNavigationState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+    var rebirthDestination by rememberSaveable { mutableStateOf(com.music.bitchord.ui.rebirth.RebirthDestination.HOME) }
     var spaceQuery by rememberSaveable { mutableStateOf("") }
     /**
      * Whether the player's sheet is up. The player is always a full-screen
@@ -2825,6 +2830,9 @@ private fun BitChordApp(
                     } else if (key == "equalizer") {
                         EqualizerScreen(contentPadding = listPadding)
                     } else if (key == "settings") {
+                        androidx.compose.material3.MaterialTheme(
+                            colorScheme = if (rebirthEnabled) com.music.bitchord.ui.player.rebirthColors(rebirthStyle, MaterialTheme.colorScheme) else MaterialTheme.colorScheme,
+                        ) {
                         SettingsScreen(
                             windowWidth = windowWidth,
                             signedIn = signedIn,
@@ -2861,6 +2869,7 @@ private fun BitChordApp(
                             onAppLanguage = { showAppLanguage = true },
                             contentPadding = listPadding,
                         )
+                        }
                     } else if (page != null && page.browseId.isDeviceFolder()) {
                         // Local Music and Downloads — both the tabbed Songs / Artists /
                         // Albums view. Two folders of tracks already on the device, so
@@ -3061,11 +3070,14 @@ private fun BitChordApp(
                                 if (!LocalMediaRepository.hasStoragePermission(context)) {
                                     androidx.compose.material3.Button(onClick = { mediaPermissionLauncher.launch(mediaPermission) }) { Text(stringResource(R.string.library)) }
                                 }
-                                if (rebirthEnabled) com.music.bitchord.ui.rebirth.RebirthLocalExperience(
+                                if (rebirthEnabled) {
+                                    rebirthNavigationState.SaveableStateProvider("rebirth-library") {
+                                    com.music.bitchord.ui.rebirth.RebirthLocalExperience(
                                     style = rebirthStyle, songs = deviceSongs, currentSong = player.song,
                                     isPlaying = player.isPlaying, loading = playPauseBusy,
                                     favoriteIds = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys,
                                     initialQuery = spaceQuery,
+                                    destination = rebirthDestination, onDestinationChange = { rebirthDestination = it },
                                     onPlay = { songs, index -> playFrom(songs, index, QueueSource(libraryLabel, PlaybackSourceType.BROWSE, "local:all")) },
                                     onSongMenu = openSongMenu, onSettings = { showSettings = true },
                                     onPlayPause = { togglePlayPause() },
@@ -3083,7 +3095,9 @@ private fun BitChordApp(
                                         searchFocusRequested = true
                                         selectedTab = TAB_SEARCH
                                     },
-                                ) else LocalMusicScreen(
+                                    )
+                                    }
+                                } else LocalMusicScreen(
                                     songs = deviceSongs,
                                     navigationTab = spaceLibraryTab,
                                     onOpenSettings = { showSettings = true },
@@ -3823,12 +3837,39 @@ private fun BitChordApp(
                         .align(Alignment.BottomCenter)
                         .widthIn(max = FLOATING_BAR_MAX_WIDTH)
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .padding(horizontal = if (rebirthEnabled) 0.dp else 10.dp, vertical = if (rebirthEnabled) 0.dp else 6.dp)
+                        .then(if (rebirthEnabled) Modifier.navigationBarsPadding() else Modifier)
                         .onSizeChanged { floatingBarsHeight.intValue = it.height },
                 ) {
                     QueueActionNoticeHost(queueNotice)
                     if (rebirthRootVisible) {
                         // The new shell owns its navigation and cover lifecycle.
+                    } else if (rebirthEnabled) {
+                        androidx.compose.material3.MaterialTheme(
+                            colorScheme = com.music.bitchord.ui.player.rebirthColors(rebirthStyle, MaterialTheme.colorScheme),
+                        ) {
+                            val navigate: (com.music.bitchord.ui.rebirth.RebirthDestination) -> Unit = { destination ->
+                                onTabSelected(TAB_HOME)
+                                rebirthDestination = destination
+                            }
+                            if (rebirthStyle == com.music.bitchord.ui.player.PlayerVisualStyle.LIQUID_GLASS_PLUS) {
+                                com.music.bitchord.ui.rebirth.RebirthGlassMiniPlayer(
+                                    player.song, player.isPlaying, playPauseBusy,
+                                    { togglePlayPause() },
+                                    { if (!controlsLocked) controller?.seekToNextMediaItem() else showHostOnlyNotice() },
+                                    { showNowPlaying = true },
+                                )
+                                com.music.bitchord.ui.rebirth.RebirthGlassNav(rebirthDestination, navigate, glassEffects = rebirthGlassEffects && !reduceDynamicBlur && isGlassSupported())
+                            } else {
+                                com.music.bitchord.ui.rebirth.RebirthExpressiveMiniPlayer(
+                                    player.song, player.isPlaying, playPauseBusy,
+                                    { togglePlayPause() },
+                                    { if (!controlsLocked) controller?.seekToNextMediaItem() else showHostOnlyNotice() },
+                                    { showNowPlaying = true },
+                                )
+                                com.music.bitchord.ui.rebirth.RebirthExpressiveNav(rebirthDestination, navigate)
+                            }
+                        }
                     } else if ((glassActive || expressiveNavigation) && adaptiveGlass) {
                         GlassNavBar(
                             materialSurface = expressiveNavigation && !glassActive,
