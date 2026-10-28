@@ -1,8 +1,8 @@
 [
   {
-    "versionCode": 15,
+    "versionCode": 17,
     "versionName": "1.8.1",
-    "notes": "Correcciones sobre 1.8.0. Se retira Explorar de la navegación de Google Expressive+ y Liquid Glass+ (solo mostraba una carga sin fin): quedan Biblioteca, Álbumes, Artistas, Listas, Buscar y el Reproductor. Se corrige el cierre inesperado al volver a Biblioteca desde Ajustes o el Reproductor. Se conservan reproducción en segundo plano, ecualizador de 10 bandas, orden de la biblioteca, listas, widgets, colores dinámicos, modo AMOLED y controles multimedia. Mismo paquete y misma firma permanente para actualizar sobre 1.8.0."
+    "notes": "Correcciones sobre 1.8.0. Se retira Explorar de la navegación de Google Expressive+ y Liquid Glass+ (solo mostraba una carga sin fin): quedan Biblioteca, Álbumes, Artistas, Listas, Buscar y el Reproductor. Se corrige el cierre inesperado al volver a Biblioteca desde Ajustes o el Reproductor. Se conservan reproducción en segundo plano, ecualizador de 10 bandas, orden de la biblioteca, listas, widgets, colores dinámicos, modo AMOLED y controles multimedia. Mismo paquete y misma firma permanente para actualizar sobre 1.8.0. Favoritos del dispositivo sin inicio de sesión, conservados al cerrar la aplicación y compartidos entre todos los reproductores. Se añade Canciones favoritas a Biblioteca. Google Expressive+ da más espacio a la carátula y agrupa las funciones secundarias en Herramientas. Liquid Glass+ ajusta las proporciones del reproductor y mantiene tres destinos de navegación con tamaños estables. Ajustes conserva la navegación del estilo activo y el estado de la biblioteca."
   },
   {
     "versionCode": 14,
