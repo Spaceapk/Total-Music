@@ -12,6 +12,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,7 +49,12 @@ class FavoritePlayerUiTest {
 
     @Test fun expressiveTransportUsesTheLowerHalfOfTallScreens() = toggle(PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS, tall = true)
 
-    private fun toggle(style: PlayerVisualStyle, landscape: Boolean = false, tall: Boolean = false) {
+    @Test fun expressiveArtworkSwipesRespectDirection() = toggle(PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS, gestures = true)
+    @Test fun glassArtworkSwipesRespectDirection() = toggle(PlayerVisualStyle.LIQUID_GLASS_PLUS, gestures = true)
+
+    private fun toggle(style: PlayerVisualStyle, landscape: Boolean = false, tall: Boolean = false, gestures: Boolean = false) {
+        var nextCalls = 0
+        var previousCalls = 0
         val previousStyle = AppSettings.playerVisualStyle.value
         val art = java.io.File(compose.activity.filesDir, "visual-test-cover.png")
         val bitmap = android.graphics.Bitmap.createBitmap(600, 600, android.graphics.Bitmap.Config.ARGB_8888)
@@ -82,12 +90,12 @@ class FavoritePlayerUiTest {
                     NowPlayingScreen(
                         song = song, isPlaying = false, isLoading = false, position = PlaybackPosition(),
                         durationMs = 60000, audioVersionSwitching = false, qualityUpgraded = false,
-                        queue = listOf(song), queueIndex = 0, hasPrevious = false, hasNext = false,
+                        queue = listOf(song), queueIndex = 0, hasPrevious = gestures, hasNext = gestures,
                         repeatMode = 0, shuffleEnabled = false, autoplayEnabled = false,
                         signedIn = false, accountName = null,
                         likeStatus = ratings[song.videoId] ?: LikeStatus.INDIFFERENT,
                         onToggleLike = { viewModel.toggleLike(song.videoId) },
-                        onPlayPause = {}, onNext = {}, onPrevious = {}, onBlockedControl = {},
+                        onPlayPause = {}, onNext = { nextCalls++ }, onPrevious = { previousCalls++ }, onBlockedControl = {},
                         onSeek = {}, onSeekFraction = {}, onToggleShuffle = {}, onCycleRepeat = {},
                         onToggleAutoplay = {}, onJumpTo = {}, onRemoveFromQueue = {}, onMoveInQueue = { _, _ -> },
                         onClearQueue = {}, onOpenMenu = {}, onOpenAlbum = {}, onOpenArtist = { _, _ -> },
@@ -99,6 +107,12 @@ class FavoritePlayerUiTest {
                 }
             }
             compose.waitForIdle()
+            if (gestures) {
+                compose.onNodeWithTag("rebirth-artwork").performTouchInput { swipeLeft() }
+                compose.runOnIdle { assertEquals(1, nextCalls); assertEquals(0, previousCalls) }
+                compose.onNodeWithTag("rebirth-artwork").performTouchInput { swipeRight() }
+                compose.runOnIdle { assertEquals(1, nextCalls); assertEquals(1, previousCalls) }
+            }
             if (landscape) {
                 val sleeve = compose.onNodeWithTag("rebirth-artwork").fetchSemanticsNode().boundsInRoot
                 assertEquals(sleeve.width, sleeve.height, 1f)

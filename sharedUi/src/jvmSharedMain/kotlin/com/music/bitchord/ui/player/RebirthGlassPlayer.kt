@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
@@ -249,7 +250,7 @@ internal fun RebirthGlassScene(
                                 song = song,
                                 playing = playing,
                                 spec = spec,
-                                modifier = Modifier.size(side).align(Alignment.Center),
+                                modifier = Modifier.size(side).align(Alignment.Center).testTag("rebirth-artwork"),
                                 corner = spec.artworkCorner,
                                 onNext = { if (nextEnabled && !locked) transport.next() },
                                 onPrevious = { if (previousEnabled && !locked) transport.previous() },
