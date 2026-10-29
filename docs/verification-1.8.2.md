@@ -1,5 +1,7 @@
 # Total Music 1.8.2 — Favorites & Experience
 
+> Continuación posterior: [validación Android 13 ampliada](validation-followup-1.8.2.md) (25 ejecuciones instrumentadas aprobadas, incluida reproducción real y reinicio de proceso) y [estado preciso de la recuperación de firma](signing-status-1.8.2.md). Este informe original conserva sus artefactos y límites históricos.
+
 ## Base y alcance
 
 - PR: https://github.com/Spaceapk/Total-Music/pull/9
