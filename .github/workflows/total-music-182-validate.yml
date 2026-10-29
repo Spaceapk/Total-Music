@@ -644,6 +644,15 @@ jobs:
           ./gradlew :app:assembleProdDebug :app:assembleProdDebugAndroidTest \
             -PspaceSpatialEdition=true -Pandroid.injected.build.abi=x86_64 \
             --max-workers=2 --build-cache --stacktrace
+          # Preserve APKs before the connected-test plugin's cleanup phase.
+          python3 - <<'PYCACHE'
+          import os, pathlib, shutil
+          target = pathlib.Path(os.environ['RUNNER_TEMP']) / 'ui-apks'
+          target.mkdir(exist_ok=True)
+          for apk in pathlib.Path('app/build/outputs/apk').rglob('*.apk'):
+              shutil.copy2(apk, target / apk.name)
+          print('Cached UI APKs:', [p.name for p in target.glob('*.apk')])
+          PYCACHE
           # Do not retain the compiler heap while Android and the playback service run.
           ./gradlew --stop
 
@@ -693,16 +702,20 @@ jobs:
           # Injected-ABI builds may use a plain prod-debug name, not an ABI split.
           # Instrumentation APKs are testOnly and explicitly require adb install -t.
           python3 - <<'PYINSTALL'
-          import pathlib, subprocess
-          candidates = sorted(pathlib.Path('app/build/outputs/apk/prod/debug').glob('*.apk'))
-          eligible = [p for p in candidates if 'x86_64' in p.name or 'universal' in p.name or p.name == 'app-prod-debug.apk']
-          tests = sorted(pathlib.Path('app/build/outputs/apk/androidTest').rglob('*androidTest.apk'))
-          print('Target APK candidates:', [str(p) for p in candidates], flush=True)
-          print('Instrumentation APK candidates:', [str(p) for p in tests], flush=True)
-          if not eligible or not tests:
-              raise SystemExit('Missing target or instrumentation APK')
-          for apk in (eligible[0], tests[0]):
-              subprocess.run(['adb', 'install', '-r', '-t', str(apk)], check=True)
+          import os, pathlib, subprocess
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'ui-apks'
+          candidates = sorted(root.glob('*.apk'))
+          print('Cached APKs:', [str(p) for p in candidates], flush=True)
+          for package, is_test in [('org.nexlibre.totalmusic', False), ('org.nexlibre.totalmusic.test', True)]:
+              installed = subprocess.run(['adb', 'shell', 'pm', 'path', package], capture_output=True, text=True, check=True).stdout
+              print(package + ': ' + installed.strip(), flush=True)
+              if 'package:' in installed:
+                  continue
+              eligible = [p for p in candidates if ('androidTest' in p.name) == is_test and
+                  (is_test or 'x86_64' in p.name or 'universal' in p.name or p.name == 'app-prod-debug.apk')]
+              if not eligible:
+                  raise SystemExit('No installed package or cached APK for ' + package)
+              subprocess.run(['adb', 'install', '-r', '-t', str(eligible[0])], check=True)
           PYINSTALL
           python3 - <<'PYRESTART'
           import pathlib, re, subprocess
