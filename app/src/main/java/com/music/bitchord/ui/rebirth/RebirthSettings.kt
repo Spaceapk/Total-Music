@@ -250,40 +250,7 @@ private fun GlassSettingsHome(padding: PaddingValues, onEqualizer: () -> Unit, o
  */
 @Composable
 private fun PlayerStylePicker(glass: Boolean = false) {
-    val style by AppSettings.playerVisualStyle.collectAsStateWithLifecycle()
-    Column {
-        Text(
-            text = stringResource(R.string.rebirth_player_style),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        // Three chips whose names are fixed product words. At a 200 % font
-        // scale they do not fit a narrow phone side by side, so the unweighted
-        // row scrolls; the weighted one (glass) truncates instead, because a
-        // weighted child inside a scrollable row would measure at infinity.
-        Row(
-            Modifier.fillMaxWidth().then(
-                if (glass) Modifier else Modifier.horizontalScroll(rememberScrollState()),
-            ),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            PlayerVisualStyle.entries.forEach { entry ->
-                FilterChip(
-                    selected = style == entry,
-                    onClick = { AppSettings.setPlayerVisualStyle(entry) },
-                    label = {
-                        Text(
-                            text = entry.label(),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    modifier = if (glass) Modifier.weight(1f) else Modifier,
-                )
-            }
-        }
-    }
+    AppearanceThemePicker()
 }
 
 private fun PlayerVisualStyle.label(): String = when (this) {

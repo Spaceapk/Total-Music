@@ -720,29 +720,8 @@ fun SettingsScreen(
         }
 
         SearchableSettingsGroup(search, header = stringResource(R.string.appearance)) {
-            val expressive by com.music.bitchord.data.settings.TotalMusicSettings.expressive.collectAsStateWithLifecycle()
-            // The keyword list carries the *localized* title as well as the
-            // English and Spanish aliases: the search reads these strings and
-            // nothing else, so a row that omits its own visible label cannot
-            // be found by typing it.
-            val appearanceTitle = stringResource(R.string.total_appearance_style)
-            row(appearanceTitle, "Google Expressive", "Material You", "Material 3", "Estilo") {
-                SettingsRow(icon = Icons.Rounded.Brightness4, title = stringResource(R.string.total_appearance_style))
-                SegmentedControl(
-                    options = listOf(stringResource(R.string.total_original_theme), "Google Expressive"),
-                    selectedIndex = if (expressive) 1 else 0,
-                    onSelect = { com.music.bitchord.data.settings.TotalMusicSettings.setExpressive(it == 1) },
-                    modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
-                )
-            }
-            row(stringResource(R.string.rebirth_visual_experience), "Reproductor", "player style", "Liquid Glass+", "Google Expressive+", "visual experience") {
-                SettingsRow(icon = Icons.Rounded.LibraryMusic, title = stringResource(R.string.rebirth_visual_experience))
-                SegmentedControl(
-                    options = listOf("Original", "Google Expressive+", "Liquid Glass+"),
-                    selectedIndex = PlayerVisualStyle.entries.indexOf(playerVisualStyle).coerceAtLeast(0),
-                    onSelect = { AppSettings.setPlayerVisualStyle(PlayerVisualStyle.entries[it]) },
-                    modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
-                )
+            row(stringResource(R.string.appearance_and_themes), "Google Expressive", "Liquid Glass", "temas", "themes") {
+                com.music.bitchord.ui.rebirth.AppearanceThemePicker()
             }
             row(stringResource(R.string.rebirth_effect_background), "Fondo dinámico", "player background", "artwork", "fondo") {
                 SettingsRow(

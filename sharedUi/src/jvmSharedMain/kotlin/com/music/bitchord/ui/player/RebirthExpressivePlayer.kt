@@ -221,6 +221,8 @@ internal fun RebirthExpressiveScene(
                                     .align(Alignment.Center)
                                     .testTag("rebirth-artwork"),
                                 corner = spec.artworkCorner,
+                                onNext = { if (nextEnabled && !locked) transport.next() },
+                                onPrevious = { if (previousEnabled && !locked) transport.previous() },
                             )
                         }
                         Column(Modifier.padding(horizontal = spec.gutter, vertical = 16.dp)) {

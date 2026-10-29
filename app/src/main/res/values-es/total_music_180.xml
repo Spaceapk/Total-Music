@@ -1,6 +1,6 @@
 <!-- Cadenas de 1.8.0 (Renacimiento). Ver docs/design/1.8.0/IMPLEMENTATION_HANDOFF.md. -->
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="rebirth_favorites">Canciones favoritas</string>
+    <string name="rebirth_favorites">Mis favoritas</string>
     <string name="rebirth_home_subtitle">La música que va contigo</string>
     <string name="rebirth_home_hero">Dale play a tu día</string>
     <string name="rebirth_home_collection">Tu colección</string>

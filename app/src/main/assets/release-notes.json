@@ -1,5 +1,10 @@
 [
   {
+    "versionCode": 20,
+    "versionName": "1.8.2",
+    "notes": "Favorites & Experience: Mis favoritas en Biblioteca con persistencia compartida, gestos horizontales en las carátulas de los reproductores + y selector centralizado Apariencia y temas con cuatro experiencias existentes. Conserva las mejoras de 1.8.1."
+  },
+  {
     "versionCode": 19,
     "versionName": "1.8.1",
     "notes": "Correcciones sobre 1.8.0. Se retira Explorar de la navegación de Google Expressive+ y Liquid Glass+ (solo mostraba una carga sin fin): quedan Inicio, Biblioteca, Buscar, Álbumes, Artistas, Listas, Favoritos y el Reproductor. Se corrige el cierre inesperado al volver a Biblioteca desde Ajustes o el Reproductor. El reproductor Google Expressive+ se reparte sin huecos sobrantes: carátula, título, artista, progreso y controles bien proporcionados sobre la altura disponible. Liquid Glass+ muestra cristal sobre el contenido dinámico: desenfoque del fondo, refracción y reflejos delicados en bordes y superficies, con alternativa translúcida en Android 13 y versiones anteriores. Barra inferior y minirreproductor más compactos, con márgenes del sistema y áreas seguras, sin invadir los controles de navegación. Conservan reproducción en segundo plano, ecualizador de diez bandas, orden de álbumes por número de pista, listas y selección múltiple, widgets, colores dinámicos y modo AMOLED, favoritos persistentes y controles multimedia. Mismo paquete y misma firma permanente para actualizar sobre 1.8.0. Favoritos del dispositivo sin inicio de sesión, conservados al cerrar la aplicación y compartidos entre todos los reproductores. Se añade Canciones favoritas a Biblioteca."

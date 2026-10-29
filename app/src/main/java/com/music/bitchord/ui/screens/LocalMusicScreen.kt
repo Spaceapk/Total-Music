@@ -392,7 +392,7 @@ fun LocalMusicScreen(
 
         if (!isDownloads) androidx.compose.material3.FilterChip(
             selected = favoritesOnly,
-            onClick = { favoritesOnly = !favoritesOnly; leaveDrillDown() },
+            onClick = { favoritesOnly = !favoritesOnly; internalTab = LOCAL_TAB_SONGS; leaveDrillDown() },
             label = { Text(stringResource(R.string.rebirth_favorites)) },
             modifier = Modifier.padding(horizontal = PAGE_GUTTER),
         )

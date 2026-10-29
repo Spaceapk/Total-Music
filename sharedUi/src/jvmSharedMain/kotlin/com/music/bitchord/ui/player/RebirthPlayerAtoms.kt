@@ -298,11 +298,14 @@ internal fun RebirthSleeve(
     modifier: Modifier = Modifier,
     corner: Dp = spec.artworkCorner,
     showCanvas: Boolean = true,
+    onNext: () -> Unit = {},
+    onPrevious: () -> Unit = {},
 ) {
     val art = PlayerPlatform.host.rememberRemoteArtworkUrl(song)
     val canvas = if (showCanvas) rememberCanvasArtwork(song) else null
     Box(
         modifier
+            .artworkTrackSwipe(onNext, onPrevious)
             .clip(RoundedCornerShape(corner))
             .background(MaterialTheme.colorScheme.primaryContainer),
         contentAlignment = Alignment.Center,

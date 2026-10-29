@@ -251,6 +251,8 @@ internal fun RebirthGlassScene(
                                 spec = spec,
                                 modifier = Modifier.size(side).align(Alignment.Center),
                                 corner = spec.artworkCorner,
+                                onNext = { if (nextEnabled && !locked) transport.next() },
+                                onPrevious = { if (previousEnabled && !locked) transport.previous() },
                             )
                         }
                         Column(
