@@ -637,6 +637,16 @@ jobs:
           sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
           if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
 
+      - name: Compile instrumented APKs before allocating emulator memory
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:assembleProdDebug :app:assembleProdDebugAndroidTest \
+            -PspaceSpatialEdition=true -Pandroid.injected.build.abi=x86_64 \
+            --max-workers=2 --build-cache --stacktrace
+          # Do not retain the compiler heap while Android and the playback service run.
+          ./gradlew --stop
+
       - name: Boot Android 13
         run: |
           set -euo pipefail
@@ -646,9 +656,9 @@ jobs:
           mkdir -p "$ANDROID_AVD_HOME"
           echo no | avdmanager create avd -n ui -k 'system-images;android-33;google_apis;x86_64' --force
           echo "disk.dataPartition.size=6G" >> "$ANDROID_AVD_HOME/ui.avd/config.ini"
-          echo "hw.ramSize=3072" >> "$ANDROID_AVD_HOME/ui.avd/config.ini"
+          echo "hw.ramSize=2048" >> "$ANDROID_AVD_HOME/ui.avd/config.ini"
           "$ANDROID_HOME/emulator/emulator" -avd ui -no-window -no-audio -no-boot-anim \
-            -no-snapshot -no-metrics -gpu swiftshader_indirect -cores 4 -memory 3072 \
+            -no-snapshot -no-metrics -gpu swiftshader_indirect -cores 2 -memory 2048 \
             > emulator-ui.log 2>&1 &
           timeout 300 adb wait-for-device
           timeout 900 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
@@ -668,6 +678,7 @@ jobs:
           # One ABI: the emulator is x86_64, and building the other three native
           # ABIs would add minutes to prove nothing.
           ./gradlew :app:connectedProdDebugAndroidTest \
+            '-Dorg.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8' \
             -PspaceSpatialEdition=true \
             -Pandroid.injected.build.abi=x86_64 \
             '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.FavoritePlaybackJourneyTest,com.music.bitchord.LocalPlaybackServiceTest#largeLocalQueueSurvivesPlaybackAndActivityRecreation,com.music.bitchord.DevicePlaylistStoreTest' \
