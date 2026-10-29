@@ -206,7 +206,12 @@ fun LocalMusicScreen(
     } else {
         AppSettings.localMusicViewType.collectAsStateWithLifecycle()
     }
-    val sortedSongs = remember(songs, sortOrder) { songs.sortedForLibrary(sortOrder) }
+    val favoriteRatings by com.music.bitchord.data.LikeState.overrides.collectAsStateWithLifecycle()
+    var favoritesOnly by rememberSaveable { mutableStateOf(false) }
+    val sortedSongs = remember(songs, sortOrder, favoritesOnly, favoriteRatings) {
+        songs.filter { !favoritesOnly || favoriteRatings[it.videoId] == com.music.bitchord.data.model.LikeStatus.LIKE }
+            .sortedForLibrary(sortOrder)
+    }
     // Shared by selection and the album page. Search text changes only filter
     // this index; they do not regroup and sort the entire library each time.
     val indexedAlbums = remember(sortedSongs, collections) { lazy { albumEntries(sortedSongs, collections) } }
@@ -384,6 +389,17 @@ fun LocalMusicScreen(
                 bottom = 4.dp,
             ),
         )
+
+        if (!isDownloads) androidx.compose.material3.FilterChip(
+            selected = favoritesOnly,
+            onClick = { favoritesOnly = !favoritesOnly; internalTab = LOCAL_TAB_SONGS; leaveDrillDown() },
+            label = { Text(stringResource(R.string.rebirth_favorites)) },
+            modifier = Modifier.padding(horizontal = PAGE_GUTTER),
+        )
+
+        if (favoritesOnly && !isDownloads) {
+            DrillDownActionRow(sortedSongs.filter { searchQuery.isBlank() || it.matchesSearch(searchQuery) }, onSongClick, onShuffle)
+        }
 
         // ── Tab row ──────────────────────────────────────────────────────────
         if (navigationTab == null) TabRow(

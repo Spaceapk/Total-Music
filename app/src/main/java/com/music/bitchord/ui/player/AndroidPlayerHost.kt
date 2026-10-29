@@ -1,5 +1,8 @@
 package com.music.bitchord.ui.player
 
+import androidx.compose.foundation.layout.fillMaxSize
+import com.music.bitchord.ui.components.backdrop.backdrops.layerBackdrop
+import com.music.bitchord.ui.components.liquidGlass
 import android.content.Context
 import android.database.ContentObserver
 import android.media.AudioFormat
@@ -48,7 +51,36 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val main = Handler(Looper.getMainLooper())
 
+    @Composable
+    override fun GlassBackdrop(enabled: Boolean, background: @Composable () -> Unit, content: @Composable () -> Unit) {
+        val reduced by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+        val backdrop = com.music.bitchord.ui.components.backdrop.backdrops.rememberLayerBackdrop()
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.music.bitchord.ui.components.LocalAppBackdrop provides backdrop,
+        ) {
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+                androidx.compose.foundation.layout.Box(
+                    Modifier.fillMaxSize().then(
+                        if (enabled && !reduced && com.music.bitchord.ui.components.isGlassSupported())
+                            Modifier.layerBackdrop(backdrop) else Modifier,
+                    ),
+                ) { background() }
+                // Never record this sibling: it samples the background above.
+                content()
+            }
+        }
+    }
+
+    @Composable
+    override fun glassPanelModifier(shape: androidx.compose.foundation.shape.RoundedCornerShape): Modifier =
+        Modifier.liquidGlass(shape, clear = true)
+
     override val settings: PlayerSettingsSource = object : PlayerSettingsSource {
+        override val visualStyle get() = AppSettings.playerVisualStyle
+        override val dynamicBackground get() = AppSettings.playerDynamicBackground
+        override val glassEffects get() = AppSettings.playerGlassEffects
+        override val alternativeControls get() = AppSettings.playerAlternativeControls
+        override val animatedTransitions get() = AppSettings.playerAnimatedTransitions
         override val animatedCanvas get() = AppSettings.animatedCanvas
         override val audioQualityCellular get() = AppSettings.audioQualityCellular
         override val audioQualityWifi get() = AppSettings.audioQualityWifi

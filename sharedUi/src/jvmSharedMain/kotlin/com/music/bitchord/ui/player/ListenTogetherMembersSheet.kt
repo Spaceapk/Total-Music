@@ -26,7 +26,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -81,8 +80,7 @@ internal fun ListenTogetherMembersSheet(
 /** One member. The playing style mirrors [OutputRow] — a lit row for the one that's you. */
 @Composable
 private fun MemberDrawerRow(member: PartyMember, isYou: Boolean) {
-    val playerForeground = if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current)
-        androidx.compose.material3.MaterialTheme.colorScheme.onSurface else Color.White
+    val playerForeground = playerSheetInk()
 
     Row(
         modifier = Modifier
@@ -149,8 +147,7 @@ private fun MemberDrawerRow(member: PartyMember, isYou: Boolean) {
 /** Drills into the full Listen Together settings page — party size, server, leaving. */
 @Composable
 private fun ManageRow(code: String?, onClick: () -> Unit) {
-    val playerForeground = if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current)
-        androidx.compose.material3.MaterialTheme.colorScheme.onSurface else Color.White
+    val playerForeground = playerSheetInk()
 
     val haptics = rememberHaptics()
     Row(

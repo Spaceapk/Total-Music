@@ -624,21 +624,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     fun likeStatusOf(videoId: String): LikeStatus =
-        likeStatuses.value[videoId] ?: LikeStatus.INDIFFERENT
+        LikeState.overrides.value[videoId] ?: likeStatuses.value[videoId] ?: LikeStatus.INDIFFERENT
 
     /**
      * Sets (or clears) the thumbs rating on [videoId].
      *
-     * Written to the screen first and rolled back if YouTube refuses. A rating
+     * Persisted on the device first. YouTube sync is optional and never rolls back a device choice. A rating
      * is a one-tap, low-stakes action taken while a song is playing; waiting
      * on a round trip before the heart fills reads as the tap not having
      * registered, and people tap again.
      */
     fun setLike(videoId: String, status: LikeStatus) {
-        if (!requireSignIn()) return
         val previous = likeStatusOf(videoId)
         if (previous == status) return
         LikeState.set(videoId, status)
+        // Local hearts work without an account, and a cloud failure cannot erase them.
+        if (!_signedIn.value || videoId.startsWith("content:") || videoId.startsWith("file:")) return
         viewModelScope.launch {
             YtMusicRepository.rate(videoId, status).fold(
                 onSuccess = {
@@ -652,7 +653,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (unliked) forgetFromLibrary(videoId)
                 },
                 onFailure = {
-                    LikeState.set(videoId, previous)
+                    libraryStale = true // Keep the device choice; a later cloud refresh must not undo it.
                 },
             )
         }
