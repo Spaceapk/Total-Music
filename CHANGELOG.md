@@ -1,3 +1,10 @@
+## Total Music 1.8.2 — Favorites & Experience
+
+- Mis favoritas conserva el almacenamiento compartido de 1.8.1 y añade reproducción de la colección y mezcla en las bibliotecas clásicas y +.
+- Gestos izquierda/siguiente y derecha/anterior sobre la carátula de los dos reproductores +, conectados al transporte existente; el reproductor clásico conserva sus gestos.
+- Apariencia y temas reúne las cuatro experiencias en tarjetas adaptables sin sustituir sus composiciones ni efectos; selección inmediata con preferencias existentes.
+- Paquete sin cambios y versionCode 20. Compilación CI, 1085 unitarias, 20 instrumentadas y lint sin errores. Firma permanente e instalación de actualización pendientes: véase `docs/verification-1.8.2.md`.
+
 ## Total Music 1.8.1 — reproductor equilibrado y cristal con refracción
 
 - Se retira Explorar de la navegación de Google Expressive+ y Liquid Glass+: era una página que
