@@ -681,12 +681,17 @@ jobs:
             '-Dorg.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8' \
             -PspaceSpatialEdition=true \
             -Pandroid.injected.build.abi=x86_64 \
-            '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.FavoritePlaybackJourneyTest,com.music.bitchord.LocalPlaybackServiceTest#largeLocalQueueSurvivesPlaybackAndActivityRecreation,com.music.bitchord.DevicePlaylistStoreTest' \
+            '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.FavoritePlaybackJourneyTest,com.music.bitchord.DevicePlaylistStoreTest' \
             --max-workers=2 --build-cache --stacktrace 2>&1 | tee ui-test.log
 
       - name: Verify favorites and appearance after a real process restart
         if: steps.uitest.outcome == 'success'
         run: |
+          set -euo pipefail
+          ./gradlew --stop
+          # Ensure both APKs remain installed even if the Gradle test installer cleaned up.
+          adb install -r "$(find app/build/outputs/apk/prod/debug -name '*x86_64-debug.apk' | head -1)"
+          adb install -r "$(find app/build/outputs/apk/androidTest -name '*androidTest.apk' | head -1)"
           python3 - <<'PYRESTART'
           import pathlib, re, subprocess
           logs = []
@@ -702,6 +707,24 @@ jobs:
               if result.returncode or not re.search(r'OK \(1 test\)', result.stdout):
                   raise SystemExit('Process-restart assertion failed; see process-restart.log')
           PYRESTART
+
+      - name: Exercise large-queue recreation in an isolated instrumentation process
+        id: stress
+        if: steps.uitest.outcome == 'success'
+        continue-on-error: true
+        run: |
+          python3 - <<'PYSTRESS'
+          import pathlib, re, subprocess
+          subprocess.run(['adb', 'shell', 'am', 'force-stop', 'org.nexlibre.totalmusic'], check=True)
+          result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-r', '-e', 'class',
+              'com.music.bitchord.LocalPlaybackServiceTest#largeLocalQueueSurvivesPlaybackAndActivityRecreation',
+              'org.nexlibre.totalmusic.test/androidx.test.runner.AndroidJUnitRunner'],
+              capture_output=True, text=True, timeout=180)
+          pathlib.Path('large-queue.log').write_text(result.stdout + result.stderr)
+          print(result.stdout + result.stderr)
+          if result.returncode or not re.search(r'OK \(1 test\)', result.stdout):
+              raise SystemExit('Isolated large-queue regression failed; see large-queue.log')
+          PYSTRESS
 
       - name: Collect player visual previews
         if: always()
@@ -759,6 +782,20 @@ jobs:
             echo "Run: ${RUN_URL}"
             echo
             cat ui-test-summary.md 2>/dev/null || echo "no summary"
+            if [ -f process-restart.log ]; then
+              echo '<details><summary>Process restart assertions</summary>'
+              echo '```'
+              cat process-restart.log
+              echo '```'
+              echo '</details>'
+            fi
+            if [ -f large-queue.log ]; then
+              echo '<details><summary>Isolated large-queue regression</summary>'
+              echo '```'
+              tail -80 large-queue.log
+              echo '```'
+              echo '</details>'
+            fi
             if [ "${OUTCOME}" != "success" ]; then
               echo
               echo "<details><summary>ui-test.log, interesting lines</summary>"
@@ -779,6 +816,7 @@ jobs:
             ui-test.log
             ui-test-summary.md
             process-restart.log
+            large-queue.log
             app/build/outputs/androidTest-results/
             app/build/reports/androidTests/
             emulator-ui.log
@@ -787,7 +825,7 @@ jobs:
           retention-days: 30
 
       - name: Fail when the UI test failed
-        if: steps.uitest.outcome != 'success'
+        if: steps.uitest.outcome != 'success' || steps.stress.outcome != 'success'
         run: |
           echo "The rebirth shell UI test did not pass; see the comment and ui-test-summary.md."
           exit 1
