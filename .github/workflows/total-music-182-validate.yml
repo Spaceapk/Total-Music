@@ -670,7 +670,7 @@ jobs:
           ./gradlew :app:connectedProdDebugAndroidTest \
             -PspaceSpatialEdition=true \
             -Pandroid.injected.build.abi=x86_64 \
-            '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.DevicePlaylistStoreTest' \
+            '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.FavoritePlaybackJourneyTest,com.music.bitchord.LocalPlaybackServiceTest#largeLocalQueueSurvivesPlaybackAndActivityRecreation,com.music.bitchord.DevicePlaylistStoreTest' \
             --max-workers=2 --build-cache --stacktrace 2>&1 | tee ui-test.log
 
       - name: Collect player visual previews
