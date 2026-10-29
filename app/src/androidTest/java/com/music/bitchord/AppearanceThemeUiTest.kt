@@ -31,6 +31,9 @@ class AppearanceThemeUiTest {
                 compose.runOnIdle {
                     assertEquals(style, AppSettings.playerVisualStyle.value)
                     assertEquals(expressive, TotalMusicSettings.expressive.value)
+                    val prefs = compose.activity.getSharedPreferences("bitchord_settings", 0)
+                    assertEquals(style.name, prefs.getString("player_visual_style", null))
+                    assertEquals(expressive, prefs.getBoolean("google_expressive", !expressive))
                 }
             }
         } finally {

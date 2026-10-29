@@ -719,7 +719,8 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.appearance)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.appearance_and_themes)) {
+            val expressive by com.music.bitchord.data.settings.TotalMusicSettings.expressive.collectAsStateWithLifecycle()
             row(stringResource(R.string.appearance_and_themes), "Google Expressive", "Liquid Glass", "temas", "themes") {
                 com.music.bitchord.ui.rebirth.AppearanceThemePicker()
             }
