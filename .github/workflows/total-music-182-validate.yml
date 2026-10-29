@@ -649,7 +649,7 @@ jobs:
           import os, pathlib, shutil
           target = pathlib.Path(os.environ['RUNNER_TEMP']) / 'ui-apks'
           target.mkdir(exist_ok=True)
-          for apk in pathlib.Path('app/build/outputs/apk').rglob('*.apk'):
+          for apk in pathlib.Path('app').rglob('*.apk'):
               shutil.copy2(apk, target / apk.name)
           print('Cached UI APKs:', [p.name for p in target.glob('*.apk')])
           PYCACHE
@@ -688,6 +688,7 @@ jobs:
           # ABIs would add minutes to prove nothing.
           ./gradlew :app:connectedProdDebugAndroidTest \
             '-Dorg.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8' \
+            -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
             -PspaceSpatialEdition=true \
             -Pandroid.injected.build.abi=x86_64 \
             '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.FavoritePlaybackJourneyTest,com.music.bitchord.DevicePlaylistStoreTest' \
