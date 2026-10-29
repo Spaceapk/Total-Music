@@ -397,6 +397,10 @@ fun LocalMusicScreen(
             modifier = Modifier.padding(horizontal = PAGE_GUTTER),
         )
 
+        if (favoritesOnly && !isDownloads) {
+            DrillDownActionRow(sortedSongs.filter { searchQuery.isBlank() || it.matchesSearch(searchQuery) }, onSongClick, onShuffle)
+        }
+
         // ── Tab row ──────────────────────────────────────────────────────────
         if (navigationTab == null) TabRow(
             selectedTabIndex = selectedTab,

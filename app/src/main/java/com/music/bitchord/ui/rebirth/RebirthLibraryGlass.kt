@@ -498,6 +498,11 @@ private fun GlassRows(data: RebirthLibraryData, actions: RebirthLibraryActions, 
         ),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        if (data.category == RebirthCategory.FAVORITES) {
+            item(key = "favorites-playback") {
+                FavoriteCollectionActions(data.visible, actions.onPlay, actions.onShuffle)
+            }
+        }
         itemsIndexed(data.visible, key = { _, song -> song.videoId }) { index, song ->
             GlassTrackRow(
                 song = song,

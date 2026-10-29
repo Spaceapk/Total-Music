@@ -105,7 +105,7 @@ private fun ExpressiveSettingsHome(padding: PaddingValues, onEqualizer: () -> Un
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Black,
         )
-        PlayerStylePicker()
+
         RebirthSectionHeader(title = stringResource(R.string.rebirth_visual_experience))
         EffectRow(
             title = stringResource(R.string.rebirth_effect_background),
@@ -193,7 +193,7 @@ private fun GlassSettingsHome(padding: PaddingValues, onEqualizer: () -> Unit, o
                 )
             }
         }
-        PlayerStylePicker(glass = true)
+
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GlassToggle(
                 title = stringResource(R.string.rebirth_effect_background),
@@ -242,23 +242,6 @@ private fun GlassSettingsHome(padding: PaddingValues, onEqualizer: () -> Unit, o
     }
 }
 
-/**
- * Which player the app draws with.
- *
- * The three names are product names and stay untranslated, as they do in the
- * settings row that has offered them since 1.7.0.
- */
-@Composable
-private fun PlayerStylePicker(glass: Boolean = false) {
-    AppearanceThemePicker()
-}
-
-private fun PlayerVisualStyle.label(): String = when (this) {
-    PlayerVisualStyle.ORIGINAL -> "Original"
-    PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS -> "Google Expressive+"
-    PlayerVisualStyle.LIQUID_GLASS_PLUS -> "Liquid Glass+"
-}
-
 @Composable
 private fun SettingsGroupRows(onSection: (Int) -> Unit, glass: Boolean) {
     val groups = listOf(
@@ -287,7 +270,7 @@ private fun SettingsGroupRows(onSection: (Int) -> Unit, glass: Boolean) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = stringResource(group),
+                        text = stringResource(if (group == R.string.appearance) R.string.appearance_and_themes else group),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = 2,

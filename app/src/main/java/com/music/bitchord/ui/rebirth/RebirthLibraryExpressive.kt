@@ -404,6 +404,11 @@ private fun ExpressiveRows(data: RebirthLibraryData, actions: RebirthLibraryActi
         Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp),
     ) {
+        if (data.category == RebirthCategory.FAVORITES) {
+            item(key = "favorites-playback") {
+                FavoriteCollectionActions(data.visible, actions.onPlay, actions.onShuffle)
+            }
+        }
         itemsIndexed(data.visible, key = { _, song -> song.videoId }) { index, song ->
             ExpressiveTrackRow(
                 song = song,

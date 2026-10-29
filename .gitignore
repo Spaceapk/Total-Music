@@ -54,3 +54,7 @@ signing-secrets.md
 *signing-password*
 private-signing/
 
+
+# Python validation caches
+__pycache__/
+*.pyc
