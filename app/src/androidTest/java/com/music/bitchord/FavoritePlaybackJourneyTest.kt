@@ -158,6 +158,8 @@ class FavoritePlaybackJourneyTest {
                 QueueShuffle.setEnabled(oldShuffle)
                 AppSettings.setShuffleEnabled(oldPersistedShuffle)
             }
+            LikeState.attachPersistence(emptyMap(), null)
+            LikeState.clear()
             DeviceFavoriteStore.initialize(context)
             context.deleteSharedPreferences(filename)
             tone.delete()

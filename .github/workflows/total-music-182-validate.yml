@@ -673,6 +673,25 @@ jobs:
             '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.FavoritePlaybackJourneyTest,com.music.bitchord.LocalPlaybackServiceTest#largeLocalQueueSurvivesPlaybackAndActivityRecreation,com.music.bitchord.DevicePlaylistStoreTest' \
             --max-workers=2 --build-cache --stacktrace 2>&1 | tee ui-test.log
 
+      - name: Verify favorites and appearance after a real process restart
+        if: steps.uitest.outcome == 'success'
+        run: |
+          python3 - <<'PYRESTART'
+          import pathlib, re, subprocess
+          logs = []
+          for method in ('aWriteBeforeProcessDeath', 'bReadInNewProcessAndCleanUp'):
+              subprocess.run(['adb', 'shell', 'am', 'force-stop', 'org.nexlibre.totalmusic'], check=True)
+              result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-r', '-e', 'class',
+                  'com.music.bitchord.FavoriteProcessRestartTest#' + method,
+                  'org.nexlibre.totalmusic.test/androidx.test.runner.AndroidJUnitRunner'],
+                  capture_output=True, text=True, timeout=120)
+              logs.append(method + '\n' + result.stdout + result.stderr)
+              pathlib.Path('process-restart.log').write_text('\n'.join(logs))
+              print(logs[-1])
+              if result.returncode or not re.search(r'OK \(1 test\)', result.stdout):
+                  raise SystemExit('Process-restart assertion failed; see process-restart.log')
+          PYRESTART
+
       - name: Collect player visual previews
         if: always()
         run: |
@@ -748,6 +767,7 @@ jobs:
           path: |
             ui-test.log
             ui-test-summary.md
+            process-restart.log
             app/build/outputs/androidTest-results/
             app/build/reports/androidTests/
             emulator-ui.log
