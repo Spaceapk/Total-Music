@@ -688,10 +688,22 @@ jobs:
         if: steps.uitest.outcome == 'success'
         run: |
           set -euo pipefail
+          exec > >(tee process-restart-setup.log) 2>&1
           ./gradlew --stop
-          # Ensure both APKs remain installed even if the Gradle test installer cleaned up.
-          adb install -r "$(find app/build/outputs/apk/prod/debug -name '*x86_64-debug.apk' | head -1)"
-          adb install -r "$(find app/build/outputs/apk/androidTest -name '*androidTest.apk' | head -1)"
+          # Injected-ABI builds may use a plain prod-debug name, not an ABI split.
+          # Instrumentation APKs are testOnly and explicitly require adb install -t.
+          python3 - <<'PYINSTALL'
+          import pathlib, subprocess
+          candidates = sorted(pathlib.Path('app/build/outputs/apk/prod/debug').glob('*.apk'))
+          eligible = [p for p in candidates if 'x86_64' in p.name or 'universal' in p.name or p.name == 'app-prod-debug.apk']
+          tests = sorted(pathlib.Path('app/build/outputs/apk/androidTest').rglob('*androidTest.apk'))
+          print('Target APK candidates:', [str(p) for p in candidates], flush=True)
+          print('Instrumentation APK candidates:', [str(p) for p in tests], flush=True)
+          if not eligible or not tests:
+              raise SystemExit('Missing target or instrumentation APK')
+          for apk in (eligible[0], tests[0]):
+              subprocess.run(['adb', 'install', '-r', '-t', str(apk)], check=True)
+          PYINSTALL
           python3 - <<'PYRESTART'
           import pathlib, re, subprocess
           logs = []
@@ -782,6 +794,13 @@ jobs:
             echo "Run: ${RUN_URL}"
             echo
             cat ui-test-summary.md 2>/dev/null || echo "no summary"
+            if [ -f process-restart-setup.log ]; then
+              echo '<details><summary>Process restart setup</summary>'
+              echo '```'
+              tail -60 process-restart-setup.log
+              echo '```'
+              echo '</details>'
+            fi
             if [ -f process-restart.log ]; then
               echo '<details><summary>Process restart assertions</summary>'
               echo '```'
@@ -816,6 +835,7 @@ jobs:
             ui-test.log
             ui-test-summary.md
             process-restart.log
+            process-restart-setup.log
             large-queue.log
             app/build/outputs/androidTest-results/
             app/build/reports/androidTests/
