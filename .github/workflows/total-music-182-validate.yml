@@ -1,30 +1,7 @@
 name: Total Music 1.8.2 validation
 
-# 1.8.2 exists for three things: Google Expressive+ must no longer offer the
-# Explore page that only ever loaded, Liquid Glass+ must stop closing when you
-# come back from Settings or the player, and the APK must be built and checked.
-#
-# The agent's sandbox cannot reach Gradle, Google, Maven or the Android SDK, so
-# everything below happens here. Three jobs, deliberately separate so that one
-# environment running out of memory cannot hide another's result:
-#
-#   build          compile the whole app, run every unit test, assemble the
-#                  debug APK, the R8 (minified, non-debuggable) probe APK and
-#                  the unsigned release APK, and package them with the
-#                  repository's own tool.
-#   lint           Android lint on its own runner, bounded in memory, so a lint
-#                  failure is a lint result rather than a dead build job.
-#   device         Android 13 emulator: install the 1.8.2 build and drive the
-#                  Settings and player round trips in both rebirth styles, on
-#                  both the R8 release-like build and the debug one.
-#
-# The published 1.8.0 reproduction lives in its own workflow
-# (total-music-182-published.yml): it needs no Gradle, answers in ten minutes,
-# and its result does not change as this branch changes.
-#
-# Nothing here publishes a release, pushes a tag or signs with any key: the
-# permanent keystore is not in this repository or in CI, and the debug-key APKs
-# are labelled test-only wherever they appear.
+# Favorites & Experience validation on the finished 1.8.1 integration base.
+# No publishing and no permanent signing credentials. APKs stay explicitly test-only/unsigned.
 
 on:
   # Pushing the 1.8.2 branch is the trigger: `workflow_dispatch` only starts a
@@ -563,11 +540,10 @@ jobs:
           set -uo pipefail
           APK=$(find apks -name '*universal*debug.apk' | head -1)
           echo "APK: $APK"
-          # The debug build type carries the `.debug` application id suffix, so
-          # the probe has to be told which package it is driving or it would
-          # look for a package that this APK does not install as.
+          # prodDebug uses the shipped package; only the dedicated benchmark
+          # variant carries a .debug suffix (see app/build.gradle.kts).
           python3 scripts/verify/device_probe.py --apk "$APK" --label debug \
-            --package org.nexlibre.totalmusic.debug \
+            --package org.nexlibre.totalmusic \
             --styles LIQUID_GLASS_PLUS,GOOGLE_EXPRESSIVE_PLUS --flows categories,settings,player,reopen \
             --tone --screenshots screenshots > probe-debug.log 2>&1 || echo "probe reported failures"
           tail -80 probe-debug.log
