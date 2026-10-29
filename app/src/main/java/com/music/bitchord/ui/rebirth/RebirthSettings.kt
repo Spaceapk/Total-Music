@@ -248,7 +248,7 @@ private fun SettingsGroupRows(onSection: (Int) -> Unit, glass: Boolean) {
         R.string.playback,
         R.string.audio_quality,
         R.string.downloads,
-        R.string.appearance,
+        R.string.appearance_and_themes,
         R.string.performance,
         R.string.local_music,
         R.string.storage,
@@ -270,7 +270,7 @@ private fun SettingsGroupRows(onSection: (Int) -> Unit, glass: Boolean) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = stringResource(if (group == R.string.appearance) R.string.appearance_and_themes else group),
+                        text = stringResource(group),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = 2,
