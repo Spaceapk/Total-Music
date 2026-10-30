@@ -200,4 +200,22 @@
     <string name="search_library_empty">Cari lagu di folder Musik Lokal Anda.</string>
     <string name="search_library_hint">Lagu, Artis, dan Album</string>
     <string name="search_library_no_results">Tidak ada di Musik Lokal yang cocok dengan “%1$s”.</string>
+    <string name="rebirth_playback_tools">Alat pemutaran</string>
+    <string name="rebirth_lyrics_page">Lirik</string>
+    <string name="rebirth_output">Keluaran</string>
+    <string name="rebirth_tools_short">Alat</string>
+    <string name="rebirth_translate">Terjemahkan</string>
+    <string name="rebirth_romanize">Romanisasi</string>
+    <string name="rebirth_queue_tracks">%1$d di antrean</string>
+    <string name="rebirth_clear_added">Hapus yang ditambahkan</string>
+    <string name="rebirth_next_up_empty">Tidak ada lagu setelah ini</string>
+    <string name="rebirth_equalizer">Ekualiser</string>
+    <string name="rebirth_classic_player">Pemutar klasik</string>
+    <string name="rebirth_classic_player_caption">Berbagi kartu lirik dan kontrol lirik lanjutan</string>
+    <string name="rebirth_queue_locked">Antrean mengikuti host dalam sesi ini</string>
+    <string name="rebirth_queue_move_up">Pindah ke atas</string>
+    <string name="rebirth_queue_move_down">Pindah ke bawah</string>
+    <string name="rebirth_lyrics_sync_off">Lirik tersinkron nonaktif di Setelan</string>
+    <string name="rebirth_lyrics_offset">Offset lirik</string>
+    <string name="rebirth_lyrics_offset_value">Offset %1$s</string>
 </resources>

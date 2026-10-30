@@ -93,9 +93,10 @@ internal object MediaWidgetArt {
         bandPx: Int,
         key: String?,
         cornerRadiusPx: Float,
+        dynamicArt: Boolean = false,
     ): Bitmap {
-        peek(key, widthPx, heightPx, bandPx)?.let { return it }
-        val cacheKey = key?.let { cacheKey(it, widthPx, heightPx, bandPx) }
+        peek(key, widthPx, heightPx, bandPx, dynamicArt)?.let { return it }
+        val cacheKey = key?.let { cacheKey(it, widthPx, heightPx, bandPx, dynamicArt) }
 
         val cover = if (isCoolingOff(key)) null else loadArtwork(context, artworkUrl, maxOf(widthPx, heightPx))
         // A cover that was asked for and didn't arrive is a failure, not an
@@ -118,6 +119,7 @@ internal object MediaWidgetArt {
         val blurRegion = (bandPx * BLUR_REGION_SCALE).coerceIn(1, heightPx)
         canvas.blurBottom(composed, blurRegion, bandPx)
         canvas.scrimBottom(bandPx)
+        if (dynamicArt && cover != null) canvas.tintBottom(bandPx, cover.sampledAccent())
 
         val rounded = composed.withRoundedCorners(cornerRadiusPx)
         composed.recycle()
@@ -135,8 +137,40 @@ internal object MediaWidgetArt {
      * two shows: a play/pause tap — which changes one glyph and nothing else —
      * would blink the cover away and back again.
      */
-    fun peek(key: String?, widthPx: Int, heightPx: Int, bandPx: Int): Bitmap? =
-        key?.let { composites[cacheKey(it, widthPx, heightPx, bandPx)] }?.takeIf { !it.isRecycled }
+    fun peek(key: String?, widthPx: Int, heightPx: Int, bandPx: Int, dynamicArt: Boolean = false): Bitmap? =
+        key?.let { composites[cacheKey(it, widthPx, heightPx, bandPx, dynamicArt)] }?.takeIf { !it.isRecycled }
+
+    private fun cacheKey(key: String, widthPx: Int, heightPx: Int, bandPx: Int, dynamicArt: Boolean) =
+        "art|$key|$widthPx|$heightPx|$bandPx|dynamic=$dynamicArt"
+
+    private fun Bitmap.sampledAccent(): Int {
+        val stepX = (width / 8).coerceAtLeast(1)
+        val stepY = (height / 8).coerceAtLeast(1)
+        var red = 0L
+        var green = 0L
+        var blue = 0L
+        var count = 0
+        for (y in stepY / 2 until height step stepY) {
+            for (x in stepX / 2 until width step stepX) {
+                val pixel = getPixel(x, y)
+                if (Color.alpha(pixel) < 128) continue
+                red += Color.red(pixel); green += Color.green(pixel); blue += Color.blue(pixel)
+                count++
+            }
+        }
+        if (count == 0) return Color.rgb(115, 88, 220)
+        return Color.rgb((red / count).toInt(), (green / count).toInt(), (blue / count).toInt())
+    }
+
+    private fun Canvas.tintBottom(bandPx: Int, accent: Int) {
+        val height = clipBounds.height().toFloat()
+        val start = (height - bandPx * 2.4f).coerceAtLeast(0f)
+        val tint = Color.argb(82, Color.red(accent), Color.green(accent), Color.blue(accent))
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(0f, start, 0f, height, Color.TRANSPARENT, tint, Shader.TileMode.CLAMP)
+        }
+        drawRect(0f, start, clipBounds.width().toFloat(), height, paint)
+    }
 
     /**
      * The cover cut to a [sizePx] circle, for the 4×1 widget.
@@ -271,9 +305,6 @@ internal object MediaWidgetArt {
         failures.remove(key)
         return false
     }
-
-    private fun cacheKey(key: String, widthPx: Int, heightPx: Int, bandPx: Int) =
-        "$key|$widthPx|$heightPx|$bandPx"
 
     // ---- artwork ----
 

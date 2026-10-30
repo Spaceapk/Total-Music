@@ -27,10 +27,10 @@ import kotlin.math.roundToInt
  * The home-screen widget: the cover of what's playing, with a transport across
  * the foot of it.
  *
- * Two providers, [MediaWidgetSquare] and [MediaWidgetWide], so the picker offers
- * a square one and a full-width one — but they are the same widget, and both can
- * be resized across the whole range. What they differ in is the size they arrive
- * at. Which of the two layouts a given instance draws is decided from its
+ * Separate providers let the picker offer compact, classic, immersive,
+ * artwork-forward and glass-panel variants. The compact and classic providers
+ * remain resizable across their shared range. Which of the two layouts a given
+ * instance draws is decided from its
  * *measured* width ([WIDE_LAYOUT_MIN_DP]), not from which provider it came from,
  * so a square dragged out to four cells sets its title beside the buttons and
  * picks up the artist, and a wide one squeezed back to two stacks the title over
@@ -50,6 +50,8 @@ abstract class MediaWidget : AppWidgetProvider() {
      * the best available guess.
      */
     protected abstract val fallbackWidthDp: Int
+    protected open val fallbackHeightDp: Int = FALLBACK_HEIGHT_DP
+    protected abstract val design: MediaWidgetDesign
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         renderAsync(context, ids)
@@ -68,6 +70,7 @@ abstract class MediaWidget : AppWidgetProvider() {
     /** A widget that has been dragged off the home screen has no last cover. */
     override fun onDeleted(context: Context, ids: IntArray) {
         for (id in ids) lastArt.remove(id)
+        MediaWidgetPreferences.delete(context, ids)
     }
 
     override fun onDisabled(context: Context) {
@@ -88,9 +91,11 @@ abstract class MediaWidget : AppWidgetProvider() {
         val pending = goAsync()
         val app = context.applicationContext
         val fallback = fallbackWidthDp
+        val fallbackHeight = fallbackHeightDp
+        val widgetDesign = design
         scope.launch {
             try {
-                render(app, ids, fallback, SystemClock.elapsedRealtime() + BROADCAST_BUDGET_MS)
+                render(app, ids, fallback, fallbackHeight, widgetDesign, SystemClock.elapsedRealtime() + BROADCAST_BUDGET_MS)
             } finally {
                 runCatching { pending.finish() }
             }
@@ -132,7 +137,7 @@ abstract class MediaWidget : AppWidgetProvider() {
             MediaWidgetPill.refresh(app)
             scope.launch {
                 val manager = runCatching { AppWidgetManager.getInstance(app) }.getOrNull() ?: return@launch
-                for ((provider, fallbackWidthDp) in PROVIDERS) {
+                for ((provider, fallbackWidthDp, fallbackHeightDp, design) in PROVIDERS) {
                     val ids = runCatching {
                         manager.getAppWidgetIds(ComponentName(app, provider))
                     }.getOrNull()
@@ -141,7 +146,7 @@ abstract class MediaWidget : AppWidgetProvider() {
                     // hot path — it runs on every track change, play and pause —
                     // so it is also the one where starving the second widget of
                     // its render would be noticed most.
-                    render(app, ids, fallbackWidthDp, deadline = null)
+                    render(app, ids, fallbackWidthDp, fallbackHeightDp, design, deadline = null)
                 }
             }
         }
@@ -159,6 +164,8 @@ abstract class MediaWidget : AppWidgetProvider() {
             context: Context,
             ids: IntArray,
             fallbackWidthDp: Int,
+            fallbackHeightDp: Int,
+            design: MediaWidgetDesign,
             deadline: Long?,
         ) {
             val manager = runCatching { AppWidgetManager.getInstance(context) }.getOrNull() ?: return
@@ -175,7 +182,9 @@ abstract class MediaWidget : AppWidgetProvider() {
                 // showing, which is the same thing they would keep if their
                 // render had timed out.
                 if (budget <= 0L) return
-                withTimeoutOrNull(budget) { render(context, manager, id, snapshot, key, fallbackWidthDp) }
+                withTimeoutOrNull(budget) {
+                    render(context, manager, id, snapshot, key, fallbackWidthDp, fallbackHeightDp, design)
+                }
             }
         }
 
@@ -186,9 +195,12 @@ abstract class MediaWidget : AppWidgetProvider() {
             snapshot: MediaWidgetSnapshot,
             key: String,
             fallbackWidthDp: Int,
+            fallbackHeightDp: Int,
+            design: MediaWidgetDesign,
         ) {
-            val size = measure(context, manager, id, fallbackWidthDp)
-            val cached = MediaWidgetArt.peek(key, size.widthPx, size.heightPx, size.bandPx)
+            val size = measure(context, manager, id, fallbackWidthDp, fallbackHeightDp)
+            val dynamicArt = design == MediaWidgetDesign.DYNAMIC_ART
+            val cached = MediaWidgetArt.peek(key, size.widthPx, size.heightPx, size.bandPx, dynamicArt)
             if (cached == null) {
                 // The picture still has to be drawn, and that can mean a network
                 // fetch. Push the transport now so a tap is answered in a frame;
@@ -204,7 +216,7 @@ abstract class MediaWidget : AppWidgetProvider() {
                 // the old cover for the fraction of a second the new one takes is
                 // the smaller wrong: it is briefly the wrong picture rather than
                 // durably no picture.
-                manager.push(id, views(context, snapshot, size, lastArt[id]))
+                manager.push(id, views(context, id, snapshot, size, lastArt[id], design))
             }
             val art = cached ?: MediaWidgetArt.render(
                 context = context,
@@ -214,23 +226,47 @@ abstract class MediaWidget : AppWidgetProvider() {
                 bandPx = size.bandPx,
                 key = key,
                 cornerRadiusPx = size.cornerRadiusPx,
+                dynamicArt = dynamicArt,
             )
             lastArt[id] = art
-            manager.push(id, views(context, snapshot, size, art))
+            manager.push(id, views(context, id, snapshot, size, art, design))
         }
 
         // ---- views ----
 
         private fun views(
             context: Context,
+            widgetId: Int,
             snapshot: MediaWidgetSnapshot,
             size: WidgetSize,
             art: Bitmap?,
+            design: MediaWidgetDesign,
         ): RemoteViews {
             val layout =
                 if (size.wide) R.layout.widget_media_wide else R.layout.widget_media_compact
             val views = RemoteViews(context.packageName, layout)
             art?.let { views.setImageViewBitmap(R.id.widget_art, it) }
+
+            val dark = when (MediaWidgetPreferences.theme(context, widgetId)) {
+                WidgetThemeMode.SYSTEM -> (context.resources.configuration.uiMode and
+                    android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                    android.content.res.Configuration.UI_MODE_NIGHT_YES
+                WidgetThemeMode.LIGHT -> false
+                WidgetThemeMode.DARK -> true
+            }
+            views.setInt(
+                R.id.widget_band,
+                "setBackgroundResource",
+                when (design) {
+                    MediaWidgetDesign.GLASS_PANEL ->
+                        if (dark) R.drawable.widget_band_glass_dark else R.drawable.widget_band_glass
+                    MediaWidgetDesign.DYNAMIC_ART -> 0
+                    else -> if (dark) R.drawable.widget_band_dark else R.drawable.widget_band_light
+                },
+            )
+            val foreground = if (dark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
+            views.setInt(R.id.widget_title, "setTextColor", foreground)
+            if (size.wide) views.setInt(R.id.widget_artist, "setTextColor", foreground)
 
             // Both layouts carry the title; only the wide one has room for the
             // artist beneath it.
@@ -368,6 +404,7 @@ abstract class MediaWidget : AppWidgetProvider() {
             manager: AppWidgetManager,
             id: Int,
             fallbackWidthDp: Int,
+            fallbackHeightDp: Int,
         ): WidgetSize {
             val options = runCatching { manager.getAppWidgetOptions(id) }.getOrNull()
             val landscape =
@@ -385,7 +422,7 @@ abstract class MediaWidget : AppWidgetProvider() {
                 } else {
                     AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT
                 },
-            )?.takeIf { it > 0 } ?: FALLBACK_HEIGHT_DP
+            )?.takeIf { it > 0 } ?: fallbackHeightDp
 
             val wide = widthDp >= WIDE_LAYOUT_MIN_DP
             val resources = context.resources
@@ -415,8 +452,11 @@ abstract class MediaWidget : AppWidgetProvider() {
         // ---- constants ----
 
         private val PROVIDERS = listOf(
-            MediaWidgetSquare::class.java to SQUARE_WIDTH_DP,
-            MediaWidgetWide::class.java to WIDE_WIDTH_DP,
+            WidgetProviderSpec(MediaWidgetSquare::class.java, SQUARE_WIDTH_DP, FALLBACK_HEIGHT_DP, MediaWidgetDesign.COMPACT),
+            WidgetProviderSpec(MediaWidgetWide::class.java, WIDE_WIDTH_DP, FALLBACK_HEIGHT_DP, MediaWidgetDesign.CLASSIC),
+            WidgetProviderSpec(MediaWidgetImmersive::class.java, WIDE_WIDTH_DP, 250, MediaWidgetDesign.IMMERSIVE),
+            WidgetProviderSpec(MediaWidgetDynamicArt::class.java, WIDE_WIDTH_DP, FALLBACK_HEIGHT_DP, MediaWidgetDesign.DYNAMIC_ART),
+            WidgetProviderSpec(MediaWidgetGlassPanel::class.java, WIDE_WIDTH_DP, FALLBACK_HEIGHT_DP, MediaWidgetDesign.GLASS_PANEL),
         )
 
         private val TRANSPORT =
@@ -472,9 +512,39 @@ private const val FALLBACK_HEIGHT_DP = 110
 /** The 2×2 entry in the picker. See `res/xml/widget_media_square.xml`. */
 class MediaWidgetSquare : MediaWidget() {
     override val fallbackWidthDp = SQUARE_WIDTH_DP
+    override val design = MediaWidgetDesign.COMPACT
 }
 
 /** The 4×2 entry in the picker. See `res/xml/widget_media_wide.xml`. */
 class MediaWidgetWide : MediaWidget() {
     override val fallbackWidthDp = WIDE_WIDTH_DP
+    override val design = MediaWidgetDesign.CLASSIC
 }
+
+/** Tall cover-first player widget. */
+class MediaWidgetImmersive : MediaWidget() {
+    override val fallbackWidthDp = WIDE_WIDTH_DP
+    override val fallbackHeightDp = 250
+    override val design = MediaWidgetDesign.IMMERSIVE
+}
+
+/** Artwork-forward widget with a color-fading transport band. */
+class MediaWidgetDynamicArt : MediaWidget() {
+    override val fallbackWidthDp = WIDE_WIDTH_DP
+    override val design = MediaWidgetDesign.DYNAMIC_ART
+}
+
+/** Widget with a translucent system or per-instance glass panel. */
+class MediaWidgetGlassPanel : MediaWidget() {
+    override val fallbackWidthDp = WIDE_WIDTH_DP
+    override val design = MediaWidgetDesign.GLASS_PANEL
+}
+
+enum class MediaWidgetDesign { COMPACT, CLASSIC, IMMERSIVE, DYNAMIC_ART, GLASS_PANEL }
+
+private data class WidgetProviderSpec(
+    val provider: Class<out MediaWidget>,
+    val fallbackWidthDp: Int,
+    val fallbackHeightDp: Int,
+    val design: MediaWidgetDesign,
+)

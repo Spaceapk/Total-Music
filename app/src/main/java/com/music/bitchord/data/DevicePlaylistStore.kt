@@ -10,7 +10,37 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-enum class PlaylistSort { MANUAL, TITLE_ASC, TITLE_DESC, ARTIST, RECENTLY_ADDED }
+enum class PlaylistSort {
+    MANUAL,
+    TITLE_ASC,
+    TITLE_DESC,
+    ARTIST_ASC,
+    ARTIST_DESC,
+    ALBUM_ASC,
+    ALBUM_DESC,
+    TRACK_ASC,
+    TRACK_DESC,
+    RECENTLY_ADDED,
+    ;
+
+    companion object {
+        /**
+         * Read a persisted order, including the `ARTIST` name written before
+         * 1.8.4. `ARTIST` meant artist ascending, so reopening an older
+         * playlist keeps the order its owner chose instead of resetting it.
+         */
+        fun fromPersisted(value: String?): PlaylistSort = when (value) {
+            "ARTIST" -> ARTIST_ASC
+            else -> PlaylistSort.entries.firstOrNull { it.name == value } ?: MANUAL
+        }
+    }
+}
+
+/** A usable track number; zero and negative values are missing tags, not track 0. */
+private fun Song.numberedTrack(): Int? = localTrackNumber?.takeIf { it > 0 }
+
+/** Same rule as `AlbumOrdering`: a missing disc number means disc one. */
+private fun Song.numberedDisc(): Int = localDiscNumber?.takeIf { it > 0 } ?: 1
 
 data class DevicePlaylist(
     val id: String,
@@ -20,22 +50,84 @@ data class DevicePlaylist(
     // Membership insertion order is independent of the user's manual running order.
     val addedUris: List<String> = songs.mapNotNull { it.localUri },
 ) {
+    /**
+     * The playlist in the order its own picker asks for.
+     *
+     * Album order is groups of *(album, artist)*: two records that happen to
+     * share a name are two records, so one artist's never interleaves with the
+     * other's. Inside a group, discs and track numbers are compared as numbers
+     * (so 2 comes before 10), and a track with no number goes last — the same
+     * rule as `AlbumOrdering`, so the library and a playlist cannot disagree.
+     *
+     * Artist order is artist, then album, then disc and track, which is what
+     * "by artist" has to mean to stay readable: grouping by the artist but
+     * sorting his records alphabetically by song title is not an artist order.
+     *
+     * Descending reverses the group key only. A record's tracks never run
+     * backwards just because its artist is listed Z–A.
+     */
     fun sortedSongs(): List<Song> {
+        if (sort == PlaylistSort.MANUAL) return songs
         val collator = java.text.Collator.getInstance().apply { strength = java.text.Collator.PRIMARY }
         val byTitle = Comparator<Song> { a, b -> collator.compare(a.title, b.title) }
+        val byArtist = Comparator<Song> { a, b -> collator.compare(a.artist, b.artist) }
+        val byAlbum = Comparator<Song> { a, b ->
+            collator.compare(a.albumName.orEmpty(), b.albumName.orEmpty())
+        }
+        val untaggedLast = compareBy<Song> { it.numberedTrack() == null }
+        val discAndTrack = untaggedLast
+            .thenBy { it.numberedDisc() }
+            .thenBy { it.numberedTrack() ?: Int.MAX_VALUE }
+            .thenComparing(byTitle)
+        // Untagged tracks stay last in both directions: reversing a missing
+        // number would otherwise promote them to the top of the list.
+        val discAndTrackDescending = untaggedLast
+            .thenByDescending { it.numberedDisc() }
+            .thenByDescending { it.numberedTrack() ?: -1 }
+            .thenComparing(byTitle)
+        // The album group is the name *and* its artist, so homonymous albums
+        // remain separate groups. Descending reverses the name only; the
+        // artist is still ascending inside it.
+        val albumGroup = byAlbum.thenComparing(byArtist)
+        val albumGroupDescending = byAlbum.reversed().thenComparing(byArtist)
         return when (sort) {
             PlaylistSort.MANUAL -> songs
             PlaylistSort.TITLE_ASC -> songs.sortedWith(byTitle)
             PlaylistSort.TITLE_DESC -> songs.sortedWith(byTitle.reversed())
-            PlaylistSort.ARTIST -> songs.sortedWith(Comparator<Song> { a, b ->
-                collator.compare(a.artist, b.artist).takeIf { it != 0 } ?: byTitle.compare(a, b)
-            })
+            PlaylistSort.ARTIST_ASC -> songs.sortedWith(
+                byArtist.thenComparing(byAlbum).thenComparing(discAndTrack),
+            )
+            PlaylistSort.ARTIST_DESC -> songs.sortedWith(
+                byArtist.reversed().thenComparing(byAlbum).thenComparing(discAndTrack),
+            )
+            PlaylistSort.ALBUM_ASC -> songs.sortedWith(albumGroup.thenComparing(discAndTrack))
+            PlaylistSort.ALBUM_DESC -> songs.sortedWith(albumGroupDescending.thenComparing(discAndTrack))
+            PlaylistSort.TRACK_ASC -> songs.sortedWith(discAndTrack)
+            PlaylistSort.TRACK_DESC -> songs.sortedWith(discAndTrackDescending)
             PlaylistSort.RECENTLY_ADDED -> {
                 val positions = addedUris.withIndex().associate { it.value to it.index }
-                songs.sortedByDescending { positions[it.localUri] ?: -1 }
+                songs.sortedWith(
+                    compareByDescending<Song> { positions[it.localUri] ?: -1 }.thenComparing(byTitle),
+                )
             }
         }
     }
+}
+
+/**
+ * [uris] with the entry at [from] moved to [to], or null when the request is
+ * stale or impossible.
+ *
+ * Kept as a plain list edit so the drag, the store and its tests all agree on
+ * what "one move" means, without a Compose layout or an Android context.
+ */
+internal fun movedPlaylistOrder(uris: List<String>, from: Int, to: Int): List<String>? {
+    if (from !in uris.indices || to !in uris.indices || from == to) return null
+    // A playlist cannot hold the same local file twice; if one somehow does,
+    // an index-based move would be ambiguous and is refused rather than
+    // dropping or duplicating a song.
+    if (uris.toSet().size != uris.size) return null
+    return uris.toMutableList().apply { add(to, removeAt(from)) }
 }
 
 /** Star Music device-only playlists. Atomic writes preserve the previous file on failure. */
@@ -69,7 +161,7 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
                     localUri = s.getString("uri"), localPath = optional("path"), downloadFormat = optional("format"),
                     localTrackNumber = s.optInt("track").takeIf { it > 0 },
                     localDiscNumber = s.optInt("disc").takeIf { it > 0 })
-            }, sort = runCatching { PlaylistSort.valueOf(p.optString("sort")) }.getOrDefault(PlaylistSort.MANUAL),
+            }, sort = PlaylistSort.fromPersisted(p.optString("sort")),
                 addedUris = p.optJSONArray("addedUris")?.let { uris ->
                     (0 until uris.length()).map { uris.getString(it) }
                 } ?: (0 until tracks.length()).map { tracks.getJSONObject(it).getString("uri") })
@@ -142,11 +234,29 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
             p.copy(songs = uris.map { existing.getValue(it) }, sort = PlaylistSort.MANUAL)
         } else p
     } }
+    /**
+     * Moves the row at [from] to [to] in the order currently on screen and
+     * stores that visible order as the manual one.
+     *
+     * Dragging is also how a playlist returns to manual order: when another
+     * criterion is active the rows are shown sorted, and the drop persists
+     * exactly what the reader arranged instead of discarding the gesture. The
+     * indexes are row positions in [DevicePlaylist.sortedSongs], not storage
+     * positions — the two differ whenever the playlist is not in manual order.
+     */
     fun move(id: String, from: Int, to: Int) = update { list -> list.map { p ->
-        if (p.id == id && from in p.songs.indices && to in p.songs.indices) {
-            val tracks = p.songs.toMutableList()
-            tracks.add(to, tracks.removeAt(from))
-            p.copy(songs = tracks)
-        } else p
+        if (p.id != id) return@map p
+        val visible = p.sortedSongs().mapNotNull { it.localUri }
+        val moved = if (visible.size == p.songs.size) {
+            movedPlaylistOrder(visible, from, to)
+        } else {
+            null
+        }
+        val byUri = p.songs.associateBy { it.localUri }
+        if (moved == null || byUri.size != p.songs.size || moved.any { it !in byUri }) {
+            p
+        } else {
+            p.copy(songs = moved.map(byUri::getValue), sort = PlaylistSort.MANUAL)
+        }
     } }
 }

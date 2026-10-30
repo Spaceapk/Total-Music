@@ -49,7 +49,7 @@ class DevicePlaylistStoreTest {
             repeat(3) { store.createWithSongs("List $it", listOf(z, a)) }
             val ids = store.playlists.value.map { it.id }
             store.setSort(ids[0], PlaylistSort.TITLE_ASC)
-            store.setSort(ids[1], PlaylistSort.ARTIST)
+            store.setSort(ids[1], PlaylistSort.ARTIST_ASC)
             store.setSort(ids[2], PlaylistSort.RECENTLY_ADDED)
             store.add(ids[2], listOf(b, z)) // Existing membership must not become recent again.
             store.reorder(ids[2], listOf(b.localUri!!, z.localUri!!, a.localUri!!))
@@ -81,6 +81,23 @@ class DevicePlaylistStoreTest {
             assertEquals(PlaylistSort.TITLE_DESC, reloaded.sort)
             assertEquals(2, reloaded.songs.size)
             assertEquals(listOf("file:///b.mp3", "file:///a.mp3"), reloaded.addedUris)
+        } finally { context.deleteFile(filename) }
+    }
+
+    @Test fun legacyArtistSortBecomesArtistAscendingOnReload() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val filename = "legacy-artist-${UUID.randomUUID()}.json"
+        try {
+            java.io.File(context.filesDir, filename).writeText(
+                """[{"id":"old","name":"Legacy artist","sort":"ARTIST","songs":[""" +
+                    """{"id":"z","title":"Zulu","artist":"Alpha","uri":"file:///z.mp3"},""" +
+                    """{"id":"a","title":"Alpha","artist":"Zulu","uri":"file:///a.mp3"}]}]""",
+            )
+            // The JSON above is intentionally split only for line length; the
+            // persisted name is the pre-1.8.4 "ARTIST".
+            val playlist = DevicePlaylistStore(context, filename).playlists.value.single()
+            assertEquals(PlaylistSort.ARTIST_ASC, playlist.sort)
+            assertEquals(listOf("z", "a"), playlist.sortedSongs().map { it.videoId })
         } finally { context.deleteFile(filename) }
     }
 
@@ -119,6 +136,121 @@ class DevicePlaylistStoreTest {
             val id = store.playlists.value.single().id
             assertTrue(runCatching { store.add(id, listOf(Song("online", "Online", "Artist", null))) }.isFailure)
             assertTrue(DevicePlaylistStore(context, filename).playlists.value.single().songs.isEmpty())
+        } finally { context.deleteFile(filename) }
+    }
+
+    @Test fun draggingUsesTheVisibleOrderAndStoresItAsManual() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val filename = "visible-${UUID.randomUUID()}.json"
+        try {
+            val zulu = Song("z", "Zulu", "Alpha", null, localUri = "file:///z.mp3")
+            val alpha = Song("a", "Alpha", "Alpha", null, localUri = "file:///a.mp3")
+            val beta = Song("b", "Beta", "Alpha", null, localUri = "file:///b.mp3")
+            val store = DevicePlaylistStore(context, filename)
+            // Manual order is Zulu, Alpha, Beta; the visible title order is
+            // Alpha, Beta, Zulu.
+            store.createWithSongs("Title order", listOf(zulu, alpha, beta))
+            val id = store.playlists.value.single().id
+            store.setSort(id, PlaylistSort.TITLE_ASC)
+            assertEquals(
+                listOf("a", "b", "z"),
+                store.playlists.value.single().sortedSongs().map { it.videoId },
+            )
+            // Carry the first visible row (Alpha) past Beta: row 0 -> row 1.
+            store.move(id, 0, 1)
+            val moved = store.playlists.value.single()
+            assertEquals(PlaylistSort.MANUAL, moved.sort)
+            assertEquals(listOf("b", "a", "z"), moved.songs.map { it.videoId })
+            assertEquals(listOf("b", "a", "z"), moved.sortedSongs().map { it.videoId })
+            // The persisted file agrees after a reload, and membership dates
+            // are untouched by a reorder.
+            val reloaded = DevicePlaylistStore(context, filename).playlists.value.single()
+            assertEquals(PlaylistSort.MANUAL, reloaded.sort)
+            assertEquals(listOf("b", "a", "z"), reloaded.songs.map { it.videoId })
+            assertEquals(setOf("file:///z.mp3", "file:///a.mp3", "file:///b.mp3"), reloaded.addedUris.toSet())
+            // A stale or impossible move must not write anything.
+            store.move(id, 0, 9)
+            store.move(id, -1, 1)
+            assertEquals(listOf("b", "a", "z"), store.playlists.value.single().songs.map { it.videoId })
+            assertEquals(PlaylistSort.MANUAL, store.playlists.value.single().sort)
+        } finally { context.deleteFile(filename) }
+    }
+
+    @Test fun albumOrderSeparatesHomonymousAlbumsAndKeepsDiscsTogether() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val filename = "albums-${UUID.randomUUID()}.json"
+        try {
+            val store = DevicePlaylistStore(context, filename)
+            val alphaTwo = Song("a2", "Alpha two", "Alpha", null, albumName = "Greatest Hits", localUri = "file:///a2.mp3", localTrackNumber = 2)
+            val alphaOne = Song("a1", "Alpha one", "Alpha", null, albumName = "Greatest Hits", localUri = "file:///a1.mp3", localTrackNumber = 1)
+            val zuluTwo = Song("z2", "Zulu two", "Zulu", null, albumName = "Greatest Hits", localUri = "file:///z2.mp3", localTrackNumber = 2)
+            val zuluOne = Song("z1", "Zulu one", "Zulu", null, albumName = "Greatest Hits", localUri = "file:///z1.mp3", localTrackNumber = 1)
+            val discTwo = Song("d2", "Disc two", "Alpha", null, albumName = "Set", localUri = "file:///d2.mp3", localTrackNumber = 1, localDiscNumber = 2)
+            val discOneTen = Song("d1t10", "Ten", "Alpha", null, albumName = "Set", localUri = "file:///d1t10.mp3", localTrackNumber = 10)
+            val discOneTwo = Song("d1t2", "Two", "Alpha", null, albumName = "Set", localUri = "file:///d1t2.mp3", localTrackNumber = 2)
+            val untagged = Song("x", "No track", "Alpha", null, albumName = "Set", localUri = "file:///x.mp3")
+            store.createWithSongs("Albums", listOf(zuluTwo, discTwo, alphaTwo, untagged, zuluOne, discOneTen, alphaOne, discOneTwo))
+            val id = store.playlists.value.single().id
+            store.setSort(id, PlaylistSort.ALBUM_ASC)
+            val ordered = store.playlists.value.single().sortedSongs().map { it.videoId }
+            // Greatest Hits by Alpha, then by Zulu; then Set: disc 1 track 2,
+            // disc 1 track 10 (numeric, not textual), disc 2 track 1, untagged.
+            assertEquals(listOf("a1", "a2", "z1", "z2", "d1t2", "d1t10", "d2", "x"), ordered)
+            val reloaded = DevicePlaylistStore(context, filename).playlists.value.single()
+            assertEquals(PlaylistSort.ALBUM_ASC, reloaded.sort)
+            assertEquals(ordered, reloaded.sortedSongs().map { it.videoId })
+            store.setSort(id, PlaylistSort.TRACK_DESC)
+            val descending = DevicePlaylistStore(context, filename).playlists.value.single()
+            assertEquals(PlaylistSort.TRACK_DESC, descending.sort)
+            assertEquals("x", descending.sortedSongs().last().videoId)
+        } finally { context.deleteFile(filename) }
+    }
+
+    @Test fun aLargePlaylistCanBeReorderedWithoutLosingOrDuplicatingTracks() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val filename = "large-${UUID.randomUUID()}.json"
+        try {
+            val songs = (0 until 300).map { index ->
+                Song(
+                    "s$index", "Song ${(index * 41) % 300}", "Artist ${index % 17}", null,
+                    albumName = "Album ${index % 23}", localUri = "file:///s$index.mp3",
+                    localTrackNumber = index % 30 + 1, localDiscNumber = index % 2 + 1,
+                )
+            }
+            val store = DevicePlaylistStore(context, filename)
+            store.createWithSongs("Large", songs)
+            val id = store.playlists.value.single().id
+            store.setSort(id, PlaylistSort.ALBUM_ASC)
+            val visible = store.playlists.value.single().sortedSongs().map { it.videoId }
+            // Carry the first album's first row all the way to the end: more
+            // than one screen of rows, and more than the old one-row buttons
+            // could ever move.
+            store.move(id, 0, visible.lastIndex)
+            val moved = store.playlists.value.single()
+            assertEquals(300, moved.songs.size)
+            assertEquals(300, moved.songs.map { it.videoId }.toSet().size)
+            assertEquals(PlaylistSort.MANUAL, moved.sort)
+            val expected = visible.drop(1) + visible.first()
+            assertEquals(expected, moved.songs.map { it.videoId })
+            val reloaded = DevicePlaylistStore(context, filename).playlists.value.single()
+            assertEquals(expected, reloaded.songs.map { it.videoId })
+            assertEquals(300, reloaded.addedUris.toSet().size)
+        } finally { context.deleteFile(filename) }
+    }
+
+    @Test fun trackNumberOrderIsPersistedPerPlaylist() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val filename = "tracks-${UUID.randomUUID()}.json"
+        try {
+            val store = DevicePlaylistStore(context, filename)
+            store.createWithSongs("One", listOf(Song("1", "One", "A", null, localUri = "file:///1.mp3")))
+            store.createWithSongs("Two", listOf(Song("2", "Two", "A", null, localUri = "file:///2.mp3")))
+            val first = store.playlists.value[0].id
+            val second = store.playlists.value[1].id
+            store.setSort(first, PlaylistSort.TRACK_DESC)
+            val reloaded = DevicePlaylistStore(context, filename).playlists.value
+            assertEquals(PlaylistSort.TRACK_DESC, reloaded.first { it.id == first }.sort)
+            assertEquals(PlaylistSort.MANUAL, reloaded.first { it.id == second }.sort)
         } finally { context.deleteFile(filename) }
     }
 }

@@ -128,7 +128,67 @@ object TotalEqDesign {
             val hz = 10.0 * (sampleRate * 0.049).pow(i / 1024.0)
             peak = max(peak, coefficients.sumOf { it.responseDb(hz, sampleRate) })
         }
-        return -max(0.0, peak + 0.5)
+        // Stereo widening can add up to 6 dB on hard-panned material. Reserve it too.
+        val stereoPeak = 20 * log10(max(1.0, config.width.toDouble()))
+        return -max(0.0, peak + stereoPeak + 0.5)
+    }
+}
+
+/**
+ * Linked-channel lookahead peak limiter. A 2 ms delay line lets the envelope
+ * anticipate transients; a monotonic deque tracks the window peak in O(1).
+ * Ceiling is -1 dBFS. This limits sample peaks, not inter-sample peaks: a true-peak
+ * meter would need oversampling and is deliberately not claimed here.
+ */
+internal class PeakLimiter(rate: Int, private val channels: Int) {
+    private val lookahead = max(1, rate / 500)
+    private val capacity = lookahead + 1
+    private val delay = FloatArray(capacity * channels)
+    private val peaks = DoubleArray(capacity)
+    private val deque = LongArray(capacity + 1)
+    private var head = 0; private var tail = 0
+    private var position = 0L
+    private var gain = 1.0
+    private val attack = 1 - exp(-1.0 / (rate * 0.0005))
+    private val release = 1 - exp(-1.0 / (rate * 0.08))
+    private val ceiling = 0.891250938 // -1 dBFS
+    var reductionDb: Double = 0.0; private set
+
+    private fun queueSize() = (tail - head + deque.size) % deque.size
+
+    fun process(frame: FloatArray) {
+        val slot = (position % capacity).toInt()
+        var peak = 0.0
+        for (ch in 0 until channels) {
+            val value = frame[ch]
+            peak = max(peak, abs(value.toDouble()))
+            delay[slot * channels + ch] = value
+        }
+        peaks[slot] = peak
+        while (queueSize() > 0) {
+            val last = (tail - 1 + deque.size) % deque.size
+            if (peaks[(deque[last] % capacity).toInt()] > peak) break
+            tail = last
+        }
+        deque[tail] = position
+        tail = (tail + 1) % deque.size
+        val outputPosition = position - lookahead
+        while (queueSize() > 0 && deque[head] < outputPosition) head = (head + 1) % deque.size
+        if (outputPosition < 0) {
+            frame.fill(0f)
+            position++
+            return
+        }
+        val windowPeak = if (queueSize() > 0) peaks[(deque[head] % capacity).toInt()] else 0.0
+        val target = if (windowPeak > ceiling) ceiling / windowPeak else 1.0
+        gain += (target - gain) * (if (target < gain) attack else release)
+        val outputSlot = (outputPosition % capacity).toInt()
+        var delayedPeak = 0.0
+        for (ch in 0 until channels) delayedPeak = max(delayedPeak, abs(delay[outputSlot * channels + ch].toDouble()))
+        if (delayedPeak * gain > ceiling) gain = ceiling / delayedPeak
+        for (ch in 0 until channels) frame[ch] = (delay[outputSlot * channels + ch] * gain).toFloat()
+        reductionDb = -20 * log10(max(1e-12, gain))
+        position++
     }
 }
 
@@ -152,9 +212,10 @@ class TotalEqEngine {
         private val sections = coefficients.map { Section(it, channels) }
         private val gain = config?.let { 10.0.pow((it.preamp + TotalEqDesign.headroom(it, coefficients, rate)) / 20) } ?: 1.0
         val frame = FloatArray(channels)
-        private var lowL = 0.0; private var lowR = 0.0; private var reduction = 1.0
+        fun limiterGainReduction(): Double = if (config?.limiter == true) limiter.reductionDb else 0.0
+        private var lowL = 0.0; private var lowR = 0.0
         private val lowAlpha = 1 - exp(-2 * PI * 700 / rate)
-        private val release = exp(-1.0 / (rate * 0.08))
+        private val limiter = PeakLimiter(rate, channels)
         fun render(input: FloatArray, offset: Int) {
             for (ch in 0 until channels) {
                 var v = input[offset + ch].toDouble()
@@ -170,15 +231,12 @@ class TotalEqEngine {
                 frame[0] = (((l + c.crossfeed * lowR) / (1 + c.crossfeed)) * min(1f, 1f - c.balance)).toFloat()
                 frame[1] = (((r + c.crossfeed * lowL) / (1 + c.crossfeed)) * min(1f, 1f + c.balance)).toFloat()
             }
-            if (c.limiter) {
-                var peak = 0.0
-                for (ch in 0 until channels) peak = max(peak, abs(frame[ch].toDouble()))
-                val required = if (peak > 0.97) 0.97 / peak else 1.0
-                reduction = min(required, 1 - (1 - reduction) * release)
-                for (ch in 0 until channels) frame[ch] = (frame[ch] * reduction).toFloat()
-            }
+            if (c.limiter) limiter.process(frame)
         }
     }
+    /** Last linked gain reduction in dB, for diagnostics/tests (0 when idle). */
+    @Volatile var limiterReductionDb: Double = 0.0
+        private set
     @Volatile private var rate = 48000
     @Volatile private var channels = 2
     @Volatile private var requested: TotalEqConfig? = null
@@ -222,5 +280,6 @@ class TotalEqEngine {
                 for (ch in 0 until channels) samples[offset + ch] = current.frame[ch]
             }
         }
+        limiterReductionDb = current.limiterGainReduction()
     }
 }

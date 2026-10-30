@@ -1777,7 +1777,7 @@ class PlaybackService : MediaLibraryService() {
     /** Favorite and Shuffle: the only actions shown on the phone notification. */
     private fun notificationButtons(): List<CommandButton> {
         val favorite = CommandButton.Builder(
-            if (LikeState.overrides.value[player?.currentMediaItem?.mediaId] == LikeStatus.LIKE) {
+            if (favoriteStatus(player?.currentMediaItem?.mediaId) == LikeStatus.LIKE) {
                 CommandButton.ICON_HEART_FILLED
             } else {
                 CommandButton.ICON_HEART_UNFILLED
@@ -2650,9 +2650,27 @@ class PlaybackService : MediaLibraryService() {
         exoPlayer.addMediaItems(restored)
     }
 
+    /**
+     * The notification's heart, from the same source as the widget's.
+     *
+     * LikeState only knows ratings this process has seen. A service restarted
+     * by the notification has not seen the heart the previous process
+     * published, so the last widget snapshot is the fallback rather than an
+     * unlit heart that would clear a favorite on the next tap.
+     */
+    private fun favoriteStatus(videoId: String?): LikeStatus {
+        if (videoId == null) return LikeStatus.INDIFFERENT
+        LikeState.overrides.value[videoId]?.let { return it }
+        val snapshot = MediaWidgetSnapshot.load(this)
+        return if (snapshot.mediaId == videoId && snapshot.isLiked) {
+            LikeStatus.LIKE
+        } else {
+            LikeStatus.INDIFFERENT
+        }
+    }
+
     private fun toggleFavoriteFromNotification(videoId: String) {
-        favoriteActionJob?.cancel()
-        val previous = LikeState.overrides.value[videoId] ?: LikeStatus.INDIFFERENT
+        val previous = favoriteStatus(videoId)
         val target = if (previous == LikeStatus.LIKE) {
             LikeStatus.INDIFFERENT
         } else {
@@ -2661,12 +2679,15 @@ class PlaybackService : MediaLibraryService() {
 
         // Match the player UI: update both surfaces immediately, then reconcile
         // the optimistic state with YouTube in the background.
-        LikeState.set(videoId, target)
+        val song = player?.currentMediaItem?.takeIf { it.mediaId == videoId }?.toSong()
+            ?: spare?.currentMediaItem?.takeIf { it.mediaId == videoId }?.toSong()
+        LikeState.set(videoId, target, song)
         refreshCustomLayouts()
+        if (videoId.startsWith("content:") || videoId.startsWith("file:")) return
         favoriteActionJob = scope.launch {
             YtMusicRepository.rate(videoId, target)
                 .onFailure {
-                    LikeState.set(videoId, previous)
+                    // Device favorites remain authoritative when offline.
                     refreshCustomLayouts()
                     TrackLog.w("BitChord", "notification favorite failed: ${it.message}", about = videoId)
                 }
@@ -5993,6 +6014,7 @@ class PlaybackService : MediaLibraryService() {
                 AppSettings.equalizerBalance,
                 AppSettings.equalizerBands,
                 com.music.bitchord.data.settings.TotalMusicSettings.config,
+                com.music.bitchord.data.settings.TotalMusicSettings.compareOriginal,
             ) { }.collect { applyEqualizer() }
         }
     }
@@ -6011,7 +6033,8 @@ class PlaybackService : MediaLibraryService() {
      * audio thread is the one place that must not do that.
      */
     private fun applyEqualizer() {
-        val enabled = AppSettings.equalizerEnabled.value
+        val enabled = AppSettings.equalizerEnabled.value &&
+            !com.music.bitchord.data.settings.TotalMusicSettings.compareOriginal.value
         val curve = when (AppSettings.equalizerMode.value) {
             EqualizerMode.DYNAMIC -> toneCurve(
                 x = AppSettings.equalizerToneX.value,
