@@ -17,6 +17,9 @@ object TotalMusicSettings {
     val config = MutableStateFlow(TotalEqConfig())
     val profiles = MutableStateFlow<Map<String, TotalEqConfig>>(emptyMap())
     val sampleRate = MutableStateFlow(48000)
+    /** A/B monitor only. False = saved processing; true = untouched EQ input. Not persisted. */
+    val compareOriginal = MutableStateFlow(false)
+    fun setCompareOriginal(value: Boolean) { compareOriginal.value = value }
 
     fun init(preferences: SharedPreferences) {
         prefs = preferences
@@ -56,6 +59,16 @@ object TotalMusicSettings {
         if (key.isEmpty() || (key !in profiles.value && profiles.value.size >= 64)) return
         profiles.value = profiles.value + (key to config.value)
         persistProfiles()
+    }
+    fun renameProfile(oldName: String, newName: String): Boolean {
+        val key = newName.trim().take(48)
+        if (key.isEmpty() || oldName !in profiles.value) return false
+        if (key != oldName && (key in profiles.value || key in factoryProfiles)) return false
+        profiles.value = profiles.value.entries.associate { (name, value) ->
+            (if (name == oldName) key else name) to value
+        }
+        persistProfiles()
+        return true
     }
     fun deleteProfile(name: String) {
         profiles.value = profiles.value - name

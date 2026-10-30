@@ -48,6 +48,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FileUpload
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MoreHoriz
@@ -143,6 +144,7 @@ private const val LOCAL_TAB_PLAYLISTS = 3
 @Composable
 fun LocalMusicScreen(
     songs: List<Song>,
+    favoriteSongs: List<Song> = emptyList(),
     onSongClick: (List<Song>, Int) -> Unit,
     onSongLongPress: (Song) -> Unit,
     onSongSwipe: (Song) -> Unit,
@@ -208,9 +210,14 @@ fun LocalMusicScreen(
     }
     val favoriteRatings by com.music.bitchord.data.LikeState.overrides.collectAsStateWithLifecycle()
     var favoritesOnly by rememberSaveable { mutableStateOf(false) }
-    val sortedSongs = remember(songs, sortOrder, favoritesOnly, favoriteRatings) {
-        songs.filter { !favoritesOnly || favoriteRatings[it.videoId] == com.music.bitchord.data.model.LikeStatus.LIKE }
-            .sortedForLibrary(sortOrder)
+    val favoriteSort by AppSettings.favoriteSort.collectAsStateWithLifecycle()
+    val favoriteEntries by com.music.bitchord.data.LikeState.entries.collectAsStateWithLifecycle()
+    val sortedSongs = remember(songs, favoriteSongs, sortOrder, favoritesOnly, favoriteRatings, favoriteSort, favoriteEntries) {
+        if (favoritesOnly) {
+            val merged = (favoriteSongs + songs.filter { favoriteRatings[it.videoId] == com.music.bitchord.data.model.LikeStatus.LIKE })
+                .distinctBy { it.videoId }
+            com.music.bitchord.ui.rebirth.sortFavorites(merged, favoriteSort, favoriteEntries.mapValues { it.value.addedAtMillis })
+        } else songs.sortedForLibrary(sortOrder)
     }
     // Shared by selection and the album page. Search text changes only filter
     // this index; they do not regroup and sort the entire library each time.
@@ -398,7 +405,10 @@ fun LocalMusicScreen(
         )
 
         if (favoritesOnly && !isDownloads) {
-            DrillDownActionRow(sortedSongs.filter { searchQuery.isBlank() || it.matchesSearch(searchQuery) }, onSongClick, onShuffle)
+            com.music.bitchord.ui.rebirth.FavoriteCollectionActions(
+                sortedSongs.filter { searchQuery.isBlank() || it.matchesSearch(searchQuery) },
+                onSongClick, onShuffle, favoriteSort, AppSettings::setFavoriteSort,
+            )
         }
 
         // ── Tab row ──────────────────────────────────────────────────────────
@@ -524,7 +534,9 @@ fun LocalMusicScreen(
                     }
                     SongsTab(
                         songs = filteredSongs,
-                        viewType = viewType,
+                        viewType = if (favoritesOnly) LibraryViewType.LIST else viewType,
+                        favoriteMode = favoritesOnly,
+                        onRemoveFavorite = { song -> com.music.bitchord.data.LikeState.set(song.videoId, com.music.bitchord.data.model.LikeStatus.INDIFFERENT, song) },
                         selectedIds = selectedDownloadIds,
                         currentSong = currentSong,
                         isPlaying = isPlaying,
@@ -620,6 +632,8 @@ private fun SongsTab(
     onSongMore: ((Song) -> Unit)? = null,
     onSongSwipe: (Song) -> Unit,
     contentPadding: PaddingValues,
+    favoriteMode: Boolean = false,
+    onRemoveFavorite: (Song) -> Unit = {},
 ) {
     if (viewType == LibraryViewType.GRID) {
         val gridState = rememberLazyGridState()
@@ -670,8 +684,9 @@ private fun SongsTab(
                 )
             }
             itemsIndexed(songs, key = { index, song -> "${song.videoId}_$index" }) { index, song ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 SongRow(
-                    modifier = if (index == 0) Modifier.testTag("local_song_row_first") else Modifier,
+                    modifier = (if (index == 0) Modifier.testTag("local_song_row_first") else Modifier).weight(1f),
                     song = song,
                     selected = song.videoId in selectedIds,
                     isCurrent = song.isSameTrackAs(currentSong),
@@ -683,6 +698,12 @@ private fun SongsTab(
                     onMore = onSongMore?.let { more -> { more(song) } },
                     onSwipeToQueue = { onSongSwipe(song) },
                 )
+                if (favoriteMode) {
+                    IconButton(onClick = { onRemoveFavorite(song) }) {
+                        Icon(Icons.Rounded.Favorite, contentDescription = stringResource(R.string.remove_from_liked), tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                }
                 if (index < songs.lastIndex) {
                     HorizontalDivider(
                         modifier = Modifier.padding(start = ROW_DIVIDER_INSET),

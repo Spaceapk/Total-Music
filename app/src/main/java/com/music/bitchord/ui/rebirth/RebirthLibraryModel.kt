@@ -5,6 +5,8 @@ import com.music.bitchord.data.PlaylistSort
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.inAlbumOrder
 import com.music.bitchord.data.settings.LocalMusicSort
+import com.music.bitchord.data.settings.FavoriteSort
+import com.music.bitchord.data.LikeState
 import com.music.bitchord.ui.player.PlayerVisualStyle
 
 /**
@@ -61,6 +63,8 @@ internal data class RebirthLibraryData(
     val isPlaying: Boolean,
     val loading: Boolean,
     val favoriteIds: Set<String>,
+    val favoriteSongs: List<Song>,
+    val favoriteSort: FavoriteSort,
     val selection: Set<String>,
     val sort: LocalMusicSort,
     val emptyMessage: String?,
@@ -85,6 +89,8 @@ internal class RebirthLibraryActions(
     val onQuery: (String) -> Unit,
     val onOpenCollection: (RebirthCollection?) -> Unit,
     val onSort: (LocalMusicSort) -> Unit,
+    val onFavoriteSort: (FavoriteSort) -> Unit,
+    val onRemoveFavorite: (Song) -> Unit,
     val onPlaylistSort: (PlaylistSort) -> Unit,
     val onToggleSelection: (String) -> Unit,
     val onSelectAll: (List<Song>) -> Unit,
@@ -184,6 +190,15 @@ internal fun rebirthVisibleSongs(
         else -> sorted
     }
     return if (query.isBlank()) base else base.filter { rebirthMatches(it, query) }
+}
+
+internal fun sortFavorites(songs: List<Song>, sort: FavoriteSort, addedAt: Map<String, Long> = emptyMap()): List<Song> {
+    val collator = java.text.Collator.getInstance().apply { strength = java.text.Collator.PRIMARY }
+    return when (sort) {
+        FavoriteSort.DATE_ADDED -> songs.sortedWith(compareByDescending<Song> { addedAt[it.videoId] ?: 0L }.thenBy { collator.compare(it.title, "") })
+        FavoriteSort.TITLE -> songs.sortedWith { a, b -> collator.compare(a.title, b.title) }
+        FavoriteSort.ARTIST -> songs.sortedWith { a, b -> collator.compare(a.artist, b.artist).takeIf { it != 0 } ?: collator.compare(a.title, b.title) }
+    }
 }
 
 /** Albums, artists and saved playlists, grouped once per library change. */

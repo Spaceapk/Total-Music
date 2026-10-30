@@ -107,6 +107,8 @@ enum class ThemeMode(val label: String) {
  * same curve, and summing them would mean a tone pad sitting at dead centre
  * still quietly altering whatever the sliders said.
  */
+enum class FavoriteSort { DATE_ADDED, TITLE, ARTIST }
+
 enum class EqualizerMode {
     /** The tone pad: tilt, contour, and how wide each is. */
     DYNAMIC,
@@ -316,6 +318,7 @@ object AppSettings {
     val equalizerEnabled = MutableStateFlow(false)
 
     /** Which tab is driving it. */
+    val favoriteSort = MutableStateFlow(FavoriteSort.DATE_ADDED)
     val equalizerMode = MutableStateFlow(EqualizerMode.DYNAMIC)
 
     /** Tone pad, horizontal: warm at -5, bright at +5. */
@@ -817,8 +820,11 @@ object AppSettings {
         spatialAudio.value = prefs.getBoolean(KEY_SPATIAL_AUDIO, false)
         spatialScene.value = readSpatialScene()
         equalizerEnabled.value = prefs.getBoolean(KEY_EQ_ENABLED, false)
+        favoriteSort.value = runCatching {
+            FavoriteSort.valueOf(prefs.getString("favorite_sort", null) ?: FavoriteSort.DATE_ADDED.name)
+        }.getOrDefault(FavoriteSort.DATE_ADDED)
         equalizerMode.value = runCatching {
-            EqualizerMode.valueOf(prefs.getString(KEY_EQ_MODE, null) ?: EqualizerMode.DYNAMIC.name)
+            EqualizerMode.valueOf(prefs.getString(KEY_EQ_MODE, null) ?: EqualizerMode.TOTAL.name)
         }.getOrDefault(EqualizerMode.DYNAMIC)
         equalizerToneX.value = prefs.getInt(KEY_EQ_TONE_X, 0).coerceIn(-EqLayout.TONE_STEPS, EqLayout.TONE_STEPS)
         equalizerToneY.value = prefs.getInt(KEY_EQ_TONE_Y, 0).coerceIn(-EqLayout.TONE_STEPS, EqLayout.TONE_STEPS)
@@ -1147,6 +1153,11 @@ object AppSettings {
     fun setSpatialAudio(value: Boolean) {
         spatialAudio.value = value
         prefs.edit().putBoolean(KEY_SPATIAL_AUDIO, value).apply()
+    }
+
+    fun setFavoriteSort(value: FavoriteSort) {
+        favoriteSort.value = value
+        prefs.edit().putString("favorite_sort", value.name).apply()
     }
 
     fun setEqualizerEnabled(value: Boolean) {

@@ -634,10 +634,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * on a round trip before the heart fills reads as the tap not having
      * registered, and people tap again.
      */
-    fun setLike(videoId: String, status: LikeStatus) {
+    fun setLike(videoId: String, status: LikeStatus, song: Song? = null) {
         val previous = likeStatusOf(videoId)
         if (previous == status) return
-        LikeState.set(videoId, status)
+        LikeState.set(videoId, status, song ?: knownSong(videoId))
         // Local hearts work without an account, and a cloud failure cannot erase them.
         if (!_signedIn.value || videoId.startsWith("content:") || videoId.startsWith("file:")) return
         viewModelScope.launch {
@@ -716,10 +716,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** The heart: liked becomes neutral, anything else becomes liked. */
-    fun toggleLike(videoId: String) = setLike(
+    fun toggleLike(videoId: String, song: Song? = null) = setLike(
         videoId,
         if (likeStatusOf(videoId) == LikeStatus.LIKE) LikeStatus.INDIFFERENT else LikeStatus.LIKE,
+        song,
     )
+
+    private fun knownSong(videoId: String): Song? =
+        LikeState.entries.value[videoId]?.song
+            ?: (_librarySongs.value as? UiState.Success)?.data?.firstOrNull { it.videoId == videoId }
+            ?: (_library.value as? UiState.Success)?.data?.likedSongs?.firstOrNull { it.videoId == videoId }
+
+    /** The same collection for every theme: local files, account likes and persisted metadata. */
+    val favoriteSongs: StateFlow<List<Song>> = combine(
+        _librarySongs, _library, LikeState.overrides, LikeState.entries,
+    ) { device, library, ratings, entries ->
+        val candidates = LinkedHashMap<String, Song>()
+        entries.values.forEach { candidates[it.song.videoId] = it.song }
+        (device as? UiState.Success)?.data?.forEach { candidates[it.videoId] = it }
+        (library as? UiState.Success)?.data?.likedSongs?.forEach { candidates[it.videoId] = it }
+        val liked = ratings.filterValues { it == LikeStatus.LIKE }.keys
+        candidates.values.filter { it.videoId in liked }.distinctBy { it.videoId }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** As [toggleLike], for the thumb-down. */
     fun toggleDislike(videoId: String): LikeStatus? {
@@ -1399,6 +1417,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startSuggestPipeline()
         startTypeaheadMediaPipeline()
         loadLibrarySongs()
+        viewModelScope.launch {
+            favoriteSongs.collect { LikeState.rememberSongs(it) }
+        }
         if (_signedIn.value) {
             loadLibrary()
             loadAccount()

@@ -821,6 +821,7 @@ private fun BitChordApp(
     val songSort = detail?.browseId?.let { detailSongSorts[it] } ?: SongSort.DEFAULT
     var songSortMenuOpen by remember { mutableStateOf(false) }
     val likeStatuses by viewModel.likeStatuses.collectAsStateWithLifecycle()
+    val favoriteSongs by viewModel.favoriteSongs.collectAsStateWithLifecycle()
     // Which tracks are being held on YouTube's own upload, so the player's menu
     // offers the way back out of a revert rather than the revert again.
     val pinnedToOriginal by OriginalVersion.pinned.collectAsStateWithLifecycle()
@@ -2366,7 +2367,7 @@ private fun BitChordApp(
             autoplayEnabled = autoplayEnabled,
             signedIn = signedIn,
             likeStatus = likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
-            onToggleLike = { viewModel.toggleLike(song.videoId) },
+            onToggleLike = { viewModel.toggleLike(song.videoId, song) },
             // The service owns both the queue and the Shuffle state. Keeping
             // the toggle on that side prevents the UI from changing the icon
             // before its asynchronous reorder command has actually landed.
@@ -2899,6 +2900,7 @@ private fun BitChordApp(
                             navigationTab = spaceLibraryTab,
                             onOpenSettings = { showSettings = true },
                             songs = localSongs,
+                            favoriteSongs = favoriteSongs,
                             collections = downloadCollections,
                             isDownloads = page.browseId == "local:downloads",
                             currentSong = player.song,
@@ -3076,6 +3078,7 @@ private fun BitChordApp(
                                     style = rebirthStyle, songs = deviceSongs, currentSong = player.song,
                                     isPlaying = player.isPlaying, loading = playPauseBusy,
                                     favoriteIds = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys,
+                                    favoriteSongs = favoriteSongs,
                                     initialQuery = spaceQuery,
                                     destination = rebirthDestination, onDestinationChange = { rebirthDestination = it },
                                     onPlay = { songs, index -> playFrom(songs, index, QueueSource(libraryLabel, PlaybackSourceType.BROWSE, "local:all")) },
@@ -3099,6 +3102,7 @@ private fun BitChordApp(
                                     }
                                 } else LocalMusicScreen(
                                     songs = deviceSongs,
+                                    favoriteSongs = favoriteSongs,
                                     navigationTab = spaceLibraryTab,
                                     onOpenSettings = { showSettings = true },
                                     query = spaceQuery, onQueryChange = { spaceQuery = it },
@@ -4279,7 +4283,7 @@ private fun BitChordApp(
                     },
                 // The sheet stays up for a rating: it shows the new state
                 // in place, and people often thumb a song and then queue it.
-                onToggleLike = { viewModel.toggleLike(song.videoId) },
+                onToggleLike = { viewModel.toggleLike(song.videoId, song) },
                 onToggleDislike = {
                     val previousStatus = viewModel.toggleDislike(song.videoId)
                     if (

@@ -422,6 +422,8 @@ private fun GlassHome(data: RebirthLibraryData, actions: RebirthLibraryActions) 
                 onPlay = { actions.onPlay(data.songs, index) },
                 onSelect = { actions.onToggleSelection(song.videoId) },
                 onMenu = { actions.onSongMenu(song) },
+                favoriteAction = data.category == RebirthCategory.FAVORITES,
+                onRemoveFavorite = { actions.onRemoveFavorite(song) },
             )
         }
         item {
@@ -500,7 +502,7 @@ private fun GlassRows(data: RebirthLibraryData, actions: RebirthLibraryActions, 
     ) {
         if (data.category == RebirthCategory.FAVORITES) {
             item(key = "favorites-playback") {
-                FavoriteCollectionActions(data.visible, actions.onPlay, actions.onShuffle)
+                FavoriteCollectionActions(data.visible, actions.onPlay, actions.onShuffle, data.favoriteSort, actions.onFavoriteSort)
             }
         }
         itemsIndexed(data.visible, key = { _, song -> song.videoId }) { index, song ->
@@ -527,6 +529,8 @@ private fun GlassTrackRow(
     onPlay: () -> Unit,
     onSelect: () -> Unit,
     onMenu: () -> Unit,
+    favoriteAction: Boolean = false,
+    onRemoveFavorite: () -> Unit = {},
 ) {
     Row(
         Modifier
@@ -549,20 +553,19 @@ private fun GlassTrackRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = song.artist,
+                text = listOfNotNull(song.artist, song.durationText).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (favorite) {
-            Icon(
-                Icons.Rounded.Favorite,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp),
-            )
+        if (favoriteAction) {
+            IconButton(onClick = onRemoveFavorite) {
+                Icon(Icons.Rounded.Favorite, contentDescription = stringResource(R.string.remove_from_liked), tint = MaterialTheme.colorScheme.primary)
+            }
+        } else if (favorite) {
+            Icon(Icons.Rounded.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
         }
         IconButton(onClick = onMenu) {
             Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.more))

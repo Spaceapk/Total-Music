@@ -372,6 +372,7 @@ private fun TotalCard(
     var presetsOpen by remember { mutableStateOf(false) }
     val latest = config
     EqCard(title = stringResource(R.string.total_eq_name), glass = glass) {
+        TotalEqStudioHeader(enabled = enabled, glass = glass)
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -425,13 +426,8 @@ private fun TotalCard(
                 Text(stringResource(R.string.rebirth_eq_reset_curve), maxLines = 2)
             }
         }
-        profiles.forEach { (name, _) ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                TextButton(onClick = { TotalMusicSettings.deleteProfile(name) }) {
-                    Text(stringResource(R.string.rebirth_eq_delete_profile))
-                }
-            }
+        TotalEqProfileRows { preset ->
+            TotalMusicSettings.update(preset.copy(graphicMode = latest.graphicMode))
         }
         ValueRow(
             label = stringResource(R.string.total_eq_preamp),
@@ -442,7 +438,7 @@ private fun TotalCard(
         )
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = stringResource(R.string.rebirth_eq_headroom),
+                text = stringResource(R.string.total_eq_limiter),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyLarge,
             )

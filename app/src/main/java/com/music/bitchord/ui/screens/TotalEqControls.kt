@@ -50,6 +50,7 @@ internal fun TotalEqControls(enabled: Boolean) {
 
     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Total EQ", style = MaterialTheme.typography.headlineLarge)
+        com.music.bitchord.ui.rebirth.TotalEqStudioHeader(enabled = enabled, glass = false)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TotalGraphicMode.entries.forEach { mode ->
                 FilterChip(selected = config.graphicMode == mode, enabled = enabled,
@@ -68,8 +69,8 @@ internal fun TotalEqControls(enabled: Boolean) {
             }
             FilledTonalButton(onClick = { name = ""; saving = true }, enabled = enabled) { Text(stringResource(R.string.total_eq_save)) }
         }
-        if (selected in profiles) TextButton(onClick = { TotalMusicSettings.deleteProfile(selected) }, enabled = enabled) {
-            Text(stringResource(R.string.total_eq_delete_profile))
+        com.music.bitchord.ui.rebirth.TotalEqProfileRows { preset ->
+            TotalMusicSettings.update(preset.copy(graphicMode = latest.graphicMode)); selectedBand = 0
         }
         Text(stringResource(if (config.graphicMode == TotalGraphicMode.TEN) R.string.total_eq_10_bands else R.string.total_eq_31_bands), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.total_eq_drag_bands), style = MaterialTheme.typography.bodySmall)

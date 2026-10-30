@@ -23,6 +23,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.R
 import com.music.bitchord.data.DevicePlaylistStore
 import com.music.bitchord.data.PlaylistSort
+import com.music.bitchord.data.LikeState
+import com.music.bitchord.data.model.LikeStatus
+import com.music.bitchord.data.settings.FavoriteSort
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.TotalMusicSettings
@@ -50,6 +53,7 @@ fun RebirthLocalExperience(
     isPlaying: Boolean,
     loading: Boolean,
     favoriteIds: Set<String>,
+    favoriteSongs: List<Song> = emptyList(),
     initialQuery: String,
     onPlay: (List<Song>, Int) -> Unit,
     onSongMenu: (Song) -> Unit,
@@ -67,6 +71,8 @@ fun RebirthLocalExperience(
     val store = remember(context) { DevicePlaylistStore.forDevice(context) }
     val playlists by store.playlists.collectAsStateWithLifecycle()
     val order by AppSettings.localMusicSort.collectAsStateWithLifecycle()
+    val favoriteSort by AppSettings.favoriteSort.collectAsStateWithLifecycle()
+    val favoriteEntries by LikeState.entries.collectAsStateWithLifecycle()
     val transitions by AppSettings.playerAnimatedTransitions.collectAsStateWithLifecycle()
     val reduceMotion by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val glassEffects by AppSettings.playerGlassEffects.collectAsStateWithLifecycle()
@@ -105,8 +111,12 @@ fun RebirthLocalExperience(
     val opened = remember(collectionId, albums, artists, saved) {
         (albums + artists + saved).firstOrNull { it.id == collectionId }
     }
-    val visible = remember(songs, order, opened, category, favoriteIds, query) {
-        rebirthVisibleSongs(
+    val favoriteVisible = remember(favoriteSongs, favoriteSort, favoriteEntries, query) {
+        val added = favoriteEntries.mapValues { it.value.addedAtMillis }
+        sortFavorites(favoriteSongs, favoriteSort, added).filter { rebirthMatches(it, query) }
+    }
+    val visible = remember(songs, order, opened, category, favoriteIds, query, favoriteVisible) {
+        if (category == RebirthCategory.FAVORITES && opened == null) favoriteVisible else rebirthVisibleSongs(
             sorted = rebirthSortedLibrary(songs, order),
             opened = opened,
             category = category,
@@ -173,6 +183,8 @@ fun RebirthLocalExperience(
         isPlaying = isPlaying,
         loading = loading,
         favoriteIds = favoriteIds,
+        favoriteSongs = favoriteSongs,
+        favoriteSort = favoriteSort,
         selection = selectionIds,
         sort = order,
         emptyMessage = emptyMessage,
@@ -196,6 +208,8 @@ fun RebirthLocalExperience(
         onQuery = { query = it },
         onOpenCollection = { collection -> collectionId = collection?.id },
         onSort = AppSettings::setLocalMusicSort,
+        onFavoriteSort = AppSettings::setFavoriteSort,
+        onRemoveFavorite = { song -> LikeState.set(song.videoId, LikeStatus.INDIFFERENT, song) },
         onPlaylistSort = { sort -> opened?.playlistId?.let { id -> store.setSort(id, sort) } },
         onToggleSelection = { id ->
             selection = if (id in selectionIds) selection.filterNot { it == id } else selection + id

@@ -2660,7 +2660,9 @@ class PlaybackService : MediaLibraryService() {
 
         // Match the player UI: update both surfaces immediately, then reconcile
         // the optimistic state with YouTube in the background.
-        LikeState.set(videoId, target)
+        val song = player?.currentMediaItem?.takeIf { it.mediaId == videoId }?.toSong()
+            ?: spare?.currentMediaItem?.takeIf { it.mediaId == videoId }?.toSong()
+        LikeState.set(videoId, target, song)
         refreshCustomLayouts()
         if (videoId.startsWith("content:") || videoId.startsWith("file:")) return
         favoriteActionJob = scope.launch {
@@ -5993,6 +5995,7 @@ class PlaybackService : MediaLibraryService() {
                 AppSettings.equalizerBalance,
                 AppSettings.equalizerBands,
                 com.music.bitchord.data.settings.TotalMusicSettings.config,
+                com.music.bitchord.data.settings.TotalMusicSettings.compareOriginal,
             ) { }.collect { applyEqualizer() }
         }
     }
@@ -6011,7 +6014,8 @@ class PlaybackService : MediaLibraryService() {
      * audio thread is the one place that must not do that.
      */
     private fun applyEqualizer() {
-        val enabled = AppSettings.equalizerEnabled.value
+        val enabled = AppSettings.equalizerEnabled.value &&
+            !com.music.bitchord.data.settings.TotalMusicSettings.compareOriginal.value
         val curve = when (AppSettings.equalizerMode.value) {
             EqualizerMode.DYNAMIC -> toneCurve(
                 x = AppSettings.equalizerToneX.value,
