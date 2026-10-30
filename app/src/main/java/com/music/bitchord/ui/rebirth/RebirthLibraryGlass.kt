@@ -514,6 +514,8 @@ private fun GlassRows(data: RebirthLibraryData, actions: RebirthLibraryActions, 
                 onPlay = { actions.onPlay(data.visible, index) },
                 onSelect = { actions.onToggleSelection(song.videoId) },
                 onMenu = { actions.onSongMenu(song) },
+                favoriteAction = data.category == RebirthCategory.FAVORITES,
+                onRemoveFavorite = { actions.onRemoveFavorite(song) },
             )
         }
     }

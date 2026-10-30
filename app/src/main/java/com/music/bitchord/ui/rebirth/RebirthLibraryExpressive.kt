@@ -421,6 +421,8 @@ private fun ExpressiveRows(data: RebirthLibraryData, actions: RebirthLibraryActi
                 onPlay = { actions.onPlay(data.visible, index) },
                 onSelect = { actions.onToggleSelection(song.videoId) },
                 onMenu = { actions.onSongMenu(song) },
+                favoriteAction = data.category == RebirthCategory.FAVORITES,
+                onRemoveFavorite = { actions.onRemoveFavorite(song) },
             )
         }
     }
