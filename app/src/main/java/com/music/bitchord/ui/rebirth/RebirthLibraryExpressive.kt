@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.DragHandle
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
@@ -63,6 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -533,14 +535,39 @@ private fun ExpressiveGallery(data: RebirthLibraryData, actions: RebirthLibraryA
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { collection ->
                     Column(
-                        Modifier.weight(1f).clickable { actions.onOpenCollection(collection) },
+                        Modifier
+                            .weight(1f)
+                            .testTag(
+                                if (collection.isFavorites) "favorites-collection" else collection.id,
+                            )
+                            .clickable { actions.onOpenCollection(collection) },
                     ) {
-                        Cover(
-                            song = collection.songs.firstOrNull(),
-                            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                            corner = 26,
-                            placeholder = Icons.Rounded.Album,
-                        )
+                        Box {
+                            Cover(
+                                song = collection.songs.firstOrNull(),
+                                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                                corner = 26,
+                                placeholder = if (collection.isFavorites) {
+                                    Icons.Rounded.Favorite
+                                } else {
+                                    Icons.Rounded.Album
+                                },
+                            )
+                            if (collection.isFavorites) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(32.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Favorite,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.padding(7.dp),
+                                    )
+                                }
+                            }
+                        }
                         Text(
                             text = collection.title,
                             modifier = Modifier.padding(top = 6.dp),
@@ -607,7 +634,7 @@ private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibra
                 }
                 if (collection.isPlaylist) {
                     IconButton(onClick = { actions.onRenamePlaylist(collection) }) {
-                        Icon(Icons.Rounded.Sort, contentDescription = stringResource(R.string.rename_playlist))
+                        Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.rename_playlist))
                     }
                 }
                 FilledTonalIconButton(
@@ -617,21 +644,43 @@ private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibra
                 }
             }
         }
-        item {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (collection.isPlaylist) {
+        if (collection.isPlaylist) {
+            item {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
                         text = data.openedSort.rebirthLabel(),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    TextButton(onClick = { actions.onPlaylistSort(nextPlaylistSort(data.openedSort)) }) {
-                        Text(stringResource(R.string.space_playlist_sort))
-                    }
+                    PlaylistSortControl(
+                        sort = data.openedSort,
+                        onSort = actions.onPlaylistSort,
+                    )
+                }
+            }
+        }
+        if (collection.isFavorites) {
+            item(key = "favorites-playback") {
+                FavoriteCollectionActions(
+                    data.visible,
+                    actions.onPlay,
+                    actions.onShuffle,
+                    data.favoriteSort,
+                    actions.onFavoriteSort,
+                )
+            }
+            if (data.visible.isEmpty() && data.query.isBlank()) {
+                item {
+                    Text(
+                        text = stringResource(R.string.rebirth_favorites_empty),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -680,6 +729,8 @@ private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibra
                         onPlay = { actions.onPlay(data.visible, index) },
                         onSelect = { actions.onToggleSelection(song.videoId) },
                         onMenu = { actions.onSongMenu(song) },
+                        favoriteAction = collection.isFavorites,
+                        onRemoveFavorite = { actions.onRemoveFavorite(song) },
                     )
                 }
                 if (collection.isPlaylist) {

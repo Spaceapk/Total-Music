@@ -1,5 +1,10 @@
 [
   {
+    "versionCode": 22,
+    "versionName": "1.8.4",
+    "notes": "Mis favoritas como colección virtual de la biblioteca: se abre desde Listas, reproduce y baraja lo que tiene el corazón, y se actualiza al instante cuando quitas un corazón en la colección, el reproductor o la notificación, sin una segunda copia de los datos. Las listas guardadas se pueden ordenar por artista y por álbum, de forma ascendente y descendente, conservando las pistas de cada álbum en orden y manteniendo el orden antiguo por artista al actualizar. Se conservan los temas, el ecualizador y la firma."
+  },
+  {
     "versionCode": 21,
     "versionName": "1.8.3",
     "notes": "Favoritos completos: metadatos y fecha de incorporación persistentes, orden por fecha/título/artista, reproducción y aleatoria de la colección, retirada desde la lista y el reproductor. Ecualizador profesional: curva combinada editable, monitor A/B, perfiles personalizados renombrables, limitador con lookahead y margen automático consciente de estéreo. Conserva los cuatro temas, listas, gestos y controles multimedia. APK de prueba; la actualización estable requiere la firma permanente original."

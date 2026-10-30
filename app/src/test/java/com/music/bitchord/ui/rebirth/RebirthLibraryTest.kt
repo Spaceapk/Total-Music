@@ -154,6 +154,29 @@ class RebirthLibraryTest {
     }
 
     @Test
+    fun theVirtualFavoritesLeadTheSavedCollectionsAndAreNotAPlaylist() {
+        val favorites = rebirthFavoriteCollection(listOf(song("liked")), "Mis favoritas")
+        val playlist = DevicePlaylist(id = "p1", name = "Camino", songs = listOf(song("saved")))
+        val (_, _, saved) = rebirthCollections(
+            songs = emptyList(),
+            playlists = listOf(playlist),
+            favorites = favorites,
+        )
+        assertEquals(listOf(FAVORITES_COLLECTION_ID, "playlist:p1"), saved.map { it.id })
+        assertTrue(saved.first().isFavorites)
+        assertFalse(saved.first().isPlaylist)
+        assertFalse(saved.first().canBeRenamed)
+        // The virtual collection is present even when empty, so its page stays
+        // open while the last heart is removed on it.
+        val (_, _, empty) = rebirthCollections(
+            songs = emptyList(),
+            playlists = emptyList(),
+            favorites = rebirthFavoriteCollection(emptyList(), "Mis favoritas"),
+        )
+        assertEquals(listOf(FAVORITES_COLLECTION_ID), empty.map { it.id })
+    }
+
+    @Test
     fun savedPlaylistsBecomeCollectionsSortedByTheirOwnOrder() {
         val playlist = DevicePlaylist(
             id = "p1",

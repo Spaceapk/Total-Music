@@ -5,6 +5,7 @@ import com.music.bitchord.data.model.LikeStatus
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.FavoriteEntry
 import com.music.bitchord.data.settings.FavoriteSort
+import com.music.bitchord.ui.rebirth.rebirthFavoriteCollection
 import com.music.bitchord.ui.rebirth.sortFavorites
 import org.junit.After
 import org.junit.Assert.*
@@ -83,6 +84,30 @@ class DeviceFavoritesTest {
         assertEquals(listOf("a", "b"), sortFavorites(listOf(b, a), FavoriteSort.DATE_ADDED, added).map { it.videoId })
         assertEquals(listOf("b", "a"), sortFavorites(listOf(a, b), FavoriteSort.TITLE).map { it.videoId })
         assertEquals(listOf("a", "b"), sortFavorites(listOf(b, a), FavoriteSort.ARTIST).map { it.videoId })
+    }
+
+    @Test fun theVirtualCollectionIsBuiltFromTheSameHeartsEveryOtherSurfaceUses() {
+        val a = Song("local-a", "Uno", "Artista", null, localUri = "file:///a")
+        val b = Song("local-b", "Dos", "Artista", null, localUri = "file:///b")
+        LikeState.set(a.videoId, LikeStatus.LIKE, a)
+        LikeState.set(b.videoId, LikeStatus.LIKE, b)
+        val liked = LikeState.overrides.value.filterValues { it == LikeStatus.LIKE }.keys
+        val collection = rebirthFavoriteCollection(
+            listOf(a, b).filter { it.videoId in liked },
+            "Mis favoritas",
+        )
+        assertEquals(listOf("local-a", "local-b"), collection.songs.map { it.videoId })
+
+        // A removal from the collection page and a removal from the player are
+        // the same write, so the collection loses the row either way.
+        LikeState.set(a.videoId, LikeStatus.INDIFFERENT, a)
+        val afterRemoval = LikeState.overrides.value.filterValues { it == LikeStatus.LIKE }.keys
+        assertEquals(
+            listOf("local-b"),
+            listOf(a, b).filter { it.videoId in afterRemoval }.map { it.videoId },
+        )
+        assertTrue(disk.containsKey(a.videoId))
+        assertEquals(LikeStatus.INDIFFERENT, disk[a.videoId])
     }
 
     @Test fun concurrentEditsDoNotLoseFavorites() {

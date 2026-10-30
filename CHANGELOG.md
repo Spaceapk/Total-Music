@@ -55,6 +55,15 @@
 - Actualizaciones de controles y metadatos conectadas a la sesión multimedia Media3 existente.
 - Pendiente de validación completa en Android; los límites de compilación se documentan en el informe de verificación.
 
+## Total Music 1.8.4 — Mis favoritas y orden de listas
+
+- «Mis favoritas» es una colección virtual dentro de Listas. No se crea un archivo de lista ni una copia de las canciones: su contenido se deriva del mismo almacén de corazones que el reproductor, la notificación y las filas de la biblioteca.
+- Persistencia y sincronización del corazón: añadir o quitar un corazón desde cualquier superficie actualiza la colección al instante y sobrevive al reinicio del proceso. Quitar el último corazón deja la colección abierta y vacía con una explicación, sin borrar audio ni metadatos.
+- Las listas guardadas se pueden ordenar por artista y por álbum, en sentido ascendente y descendente. Cada grupo conserva el orden de discos y pistas, y las pistas sin número quedan al final.
+- El orden «Artista» guardado por versiones anteriores se migra a «Artista, A–Z» sin reiniciar la lista.
+- Se conservan los reproductores Original, Google Expressive+ y Liquid Glass+, el ecualizador, los datos y la firma permanente.
+- Verificación de esta entrega en `docs/verification-1.8.4.md`.
+
 ## 1.4.1 — Corrección de numeración y prueba de instalación
 
 - Aumenta versionCode a 9. Los APK 1.3.0 y 1.4.0 usaban el código 8.

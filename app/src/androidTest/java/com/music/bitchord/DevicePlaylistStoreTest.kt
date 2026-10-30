@@ -49,7 +49,7 @@ class DevicePlaylistStoreTest {
             repeat(3) { store.createWithSongs("List $it", listOf(z, a)) }
             val ids = store.playlists.value.map { it.id }
             store.setSort(ids[0], PlaylistSort.TITLE_ASC)
-            store.setSort(ids[1], PlaylistSort.ARTIST)
+            store.setSort(ids[1], PlaylistSort.ARTIST_ASC)
             store.setSort(ids[2], PlaylistSort.RECENTLY_ADDED)
             store.add(ids[2], listOf(b, z)) // Existing membership must not become recent again.
             store.reorder(ids[2], listOf(b.localUri!!, z.localUri!!, a.localUri!!))
@@ -81,6 +81,23 @@ class DevicePlaylistStoreTest {
             assertEquals(PlaylistSort.TITLE_DESC, reloaded.sort)
             assertEquals(2, reloaded.songs.size)
             assertEquals(listOf("file:///b.mp3", "file:///a.mp3"), reloaded.addedUris)
+        } finally { context.deleteFile(filename) }
+    }
+
+    @Test fun legacyArtistSortBecomesArtistAscendingOnReload() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val filename = "legacy-artist-${UUID.randomUUID()}.json"
+        try {
+            java.io.File(context.filesDir, filename).writeText(
+                """[{"id":"old","name":"Legacy artist","sort":"ARTIST","songs":[""" +
+                    """{"id":"z","title":"Zulu","artist":"Alpha","uri":"file:///z.mp3"},""" +
+                    """{"id":"a","title":"Alpha","artist":"Zulu","uri":"file:///a.mp3"}]}]""",
+            )
+            // The JSON above is intentionally split only for line length; the
+            // persisted name is the pre-1.8.4 "ARTIST".
+            val playlist = DevicePlaylistStore(context, filename).playlists.value.single()
+            assertEquals(PlaylistSort.ARTIST_ASC, playlist.sort)
+            assertEquals(listOf("z", "a"), playlist.sortedSongs().map { it.videoId })
         } finally { context.deleteFile(filename) }
     }
 

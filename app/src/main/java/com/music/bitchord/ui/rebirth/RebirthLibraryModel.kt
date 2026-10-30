@@ -35,9 +35,30 @@ internal data class RebirthCollection(
     val title: String,
     val songs: List<Song>,
     val playlistId: String? = null,
+    /**
+     * "Mis favoritas" is a collection with no row in the playlist file: its
+     * membership is the shared heart store, so every heart tapped in the
+     * player, a notification or another page is visible here without a second
+     * copy that could fall out of date.
+     */
+    val isFavorites: Boolean = false,
 ) {
     val isPlaylist: Boolean get() = playlistId != null
+    /** Only a saved playlist has a name in the file to rename. */
+    val canBeRenamed: Boolean get() = isPlaylist
 }
+
+/** The virtual collection's stable id; it is not a DevicePlaylist id. */
+internal const val FAVORITES_COLLECTION_ID = "collection:favorites"
+
+/** The virtual collection, in the order the favorites picker last chose. */
+internal fun rebirthFavoriteCollection(songs: List<Song>, title: String): RebirthCollection =
+    RebirthCollection(
+        id = FAVORITES_COLLECTION_ID,
+        title = title,
+        songs = songs,
+        isFavorites = true,
+    )
 
 /**
  * One page of the shell, in everything both compositions need to draw it.
@@ -171,8 +192,11 @@ internal fun rebirthCanReorder(query: String, sort: PlaylistSort): Boolean =
 internal fun nextPlaylistSort(current: PlaylistSort): PlaylistSort = when (current) {
     PlaylistSort.MANUAL -> PlaylistSort.TITLE_ASC
     PlaylistSort.TITLE_ASC -> PlaylistSort.TITLE_DESC
-    PlaylistSort.TITLE_DESC -> PlaylistSort.ARTIST
-    PlaylistSort.ARTIST -> PlaylistSort.RECENTLY_ADDED
+    PlaylistSort.TITLE_DESC -> PlaylistSort.ARTIST_ASC
+    PlaylistSort.ARTIST_ASC -> PlaylistSort.ARTIST_DESC
+    PlaylistSort.ARTIST_DESC -> PlaylistSort.ALBUM_ASC
+    PlaylistSort.ALBUM_ASC -> PlaylistSort.ALBUM_DESC
+    PlaylistSort.ALBUM_DESC -> PlaylistSort.RECENTLY_ADDED
     PlaylistSort.RECENTLY_ADDED -> PlaylistSort.MANUAL
 }
 
@@ -207,6 +231,7 @@ internal fun rebirthCollections(
     playlists: List<DevicePlaylist>,
     unknownAlbum: String = "Unknown album",
     unknownArtist: String = "Unknown artist",
+    favorites: RebirthCollection? = null,
 ): Triple<List<RebirthCollection>, List<RebirthCollection>, List<RebirthCollection>> {
     val albums = songs
         .groupBy { it.albumName?.takeIf(String::isNotBlank) ?: unknownAlbum }
@@ -216,7 +241,7 @@ internal fun rebirthCollections(
         .groupBy { it.artist.ifBlank { unknownArtist } }
         .map { (name, tracks) -> RebirthCollection("artist:$name", name, tracks) }
         .sortedBy { it.title.lowercase(java.util.Locale.ROOT) }
-    val saved = playlists.map { playlist ->
+    val saved = listOfNotNull(favorites) + playlists.map { playlist ->
         RebirthCollection(
             id = "playlist:${playlist.id}",
             title = playlist.name,

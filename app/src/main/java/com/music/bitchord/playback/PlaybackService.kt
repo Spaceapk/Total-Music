@@ -1777,7 +1777,7 @@ class PlaybackService : MediaLibraryService() {
     /** Favorite and Shuffle: the only actions shown on the phone notification. */
     private fun notificationButtons(): List<CommandButton> {
         val favorite = CommandButton.Builder(
-            if (LikeState.overrides.value[player?.currentMediaItem?.mediaId] == LikeStatus.LIKE) {
+            if (favoriteStatus(player?.currentMediaItem?.mediaId) == LikeStatus.LIKE) {
                 CommandButton.ICON_HEART_FILLED
             } else {
                 CommandButton.ICON_HEART_UNFILLED
@@ -2650,8 +2650,27 @@ class PlaybackService : MediaLibraryService() {
         exoPlayer.addMediaItems(restored)
     }
 
+    /**
+     * The notification's heart, from the same source as the widget's.
+     *
+     * LikeState only knows ratings this process has seen. A service restarted
+     * by the notification has not seen the heart the previous process
+     * published, so the last widget snapshot is the fallback rather than an
+     * unlit heart that would clear a favorite on the next tap.
+     */
+    private fun favoriteStatus(videoId: String?): LikeStatus {
+        if (videoId == null) return LikeStatus.INDIFFERENT
+        LikeState.overrides.value[videoId]?.let { return it }
+        val snapshot = MediaWidgetSnapshot.load(this)
+        return if (snapshot.mediaId == videoId && snapshot.isLiked) {
+            LikeStatus.LIKE
+        } else {
+            LikeStatus.INDIFFERENT
+        }
+    }
+
     private fun toggleFavoriteFromNotification(videoId: String) {
-        val previous = LikeState.overrides.value[videoId] ?: LikeStatus.INDIFFERENT
+        val previous = favoriteStatus(videoId)
         val target = if (previous == LikeStatus.LIKE) {
             LikeStatus.INDIFFERENT
         } else {

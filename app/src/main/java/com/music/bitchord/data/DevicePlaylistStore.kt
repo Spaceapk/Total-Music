@@ -10,7 +10,29 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-enum class PlaylistSort { MANUAL, TITLE_ASC, TITLE_DESC, ARTIST, RECENTLY_ADDED }
+enum class PlaylistSort {
+    MANUAL,
+    TITLE_ASC,
+    TITLE_DESC,
+    ARTIST_ASC,
+    ARTIST_DESC,
+    ALBUM_ASC,
+    ALBUM_DESC,
+    RECENTLY_ADDED,
+    ;
+
+    companion object {
+        /**
+         * Read a persisted order, including the `ARTIST` name written before
+         * 1.8.4. `ARTIST` meant artist ascending, so reopening an older
+         * playlist keeps the order its owner chose instead of resetting it.
+         */
+        fun fromPersisted(value: String?): PlaylistSort = when (value) {
+            "ARTIST" -> ARTIST_ASC
+            else -> PlaylistSort.entries.firstOrNull { it.name == value } ?: MANUAL
+        }
+    }
+}
 
 data class DevicePlaylist(
     val id: String,
@@ -20,16 +42,33 @@ data class DevicePlaylist(
     // Membership insertion order is independent of the user's manual running order.
     val addedUris: List<String> = songs.mapNotNull { it.localUri },
 ) {
+    /**
+     * The playlist in the order its own picker asks for.
+     *
+     * Artist and album orders group first and then play each group in album
+     * order: a descending album list still reads disc one before disc two, and
+     * a descending artist list never reverses a record's tracks. Titles break
+     * ties inside a group, and a track with no number goes last, using the same
+     * rule as `AlbumOrdering` so the library and a playlist agree.
+     */
     fun sortedSongs(): List<Song> {
         val collator = java.text.Collator.getInstance().apply { strength = java.text.Collator.PRIMARY }
         val byTitle = Comparator<Song> { a, b -> collator.compare(a.title, b.title) }
+        val byArtist = Comparator<Song> { a, b -> collator.compare(a.artist, b.artist) }
+        val byAlbum = Comparator<Song> { a, b ->
+            collator.compare(a.albumName.orEmpty(), b.albumName.orEmpty())
+        }
+        val byTrack = compareBy<Song> { it.localDiscNumber?.takeIf { n -> n > 0 } ?: 1 }
+            .thenBy { it.localTrackNumber?.takeIf { n -> n > 0 } ?: Int.MAX_VALUE }
         return when (sort) {
             PlaylistSort.MANUAL -> songs
             PlaylistSort.TITLE_ASC -> songs.sortedWith(byTitle)
             PlaylistSort.TITLE_DESC -> songs.sortedWith(byTitle.reversed())
-            PlaylistSort.ARTIST -> songs.sortedWith(Comparator<Song> { a, b ->
-                collator.compare(a.artist, b.artist).takeIf { it != 0 } ?: byTitle.compare(a, b)
-            })
+            PlaylistSort.ARTIST_ASC -> songs.sortedWith(byArtist then byAlbum then byTrack then byTitle)
+            PlaylistSort.ARTIST_DESC ->
+                songs.sortedWith(byArtist.reversed() then byAlbum then byTrack then byTitle)
+            PlaylistSort.ALBUM_ASC -> songs.sortedWith(byAlbum then byTrack then byTitle)
+            PlaylistSort.ALBUM_DESC -> songs.sortedWith(byAlbum.reversed() then byTrack then byTitle)
             PlaylistSort.RECENTLY_ADDED -> {
                 val positions = addedUris.withIndex().associate { it.value to it.index }
                 songs.sortedByDescending { positions[it.localUri] ?: -1 }
@@ -69,7 +108,7 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
                     localUri = s.getString("uri"), localPath = optional("path"), downloadFormat = optional("format"),
                     localTrackNumber = s.optInt("track").takeIf { it > 0 },
                     localDiscNumber = s.optInt("disc").takeIf { it > 0 })
-            }, sort = runCatching { PlaylistSort.valueOf(p.optString("sort")) }.getOrDefault(PlaylistSort.MANUAL),
+            }, sort = PlaylistSort.fromPersisted(p.optString("sort")),
                 addedUris = p.optJSONArray("addedUris")?.let { uris ->
                     (0 until uris.length()).map { uris.getString(it) }
                 } ?: (0 until tracks.length()).map { tracks.getJSONObject(it).getString("uri") })

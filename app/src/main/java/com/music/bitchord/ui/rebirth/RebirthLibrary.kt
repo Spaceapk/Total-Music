@@ -107,13 +107,25 @@ fun RebirthLocalExperience(
     // does leaving the page the selection was made on.
     LaunchedEffect(query, collectionId, currentDestination, category) { selection = emptyList() }
 
-    val (albums, artists, saved) = remember(songs, playlists) { rebirthCollections(songs, playlists) }
+    // The virtual collection is derived from the one shared heart store, never
+    // copied into the playlist file: a heart added anywhere already belongs to
+    // it, and a heart removed anywhere already leaves it.
+    val favoritesTitle = stringResource(R.string.rebirth_favorites)
+    val favoriteOrdered = remember(favoriteSongs, favoriteIds, favoriteSort, favoriteEntries) {
+        val added = favoriteEntries.mapValues { it.value.addedAtMillis }
+        sortFavorites(favoriteSongs.filter { it.videoId in favoriteIds }, favoriteSort, added)
+    }
+    val favoritesCollection = remember(favoriteOrdered, favoritesTitle) {
+        rebirthFavoriteCollection(favoriteOrdered, favoritesTitle)
+    }
+    val (albums, artists, saved) = remember(songs, playlists, favoritesCollection) {
+        rebirthCollections(songs, playlists, favorites = favoritesCollection)
+    }
     val opened = remember(collectionId, albums, artists, saved) {
         (albums + artists + saved).firstOrNull { it.id == collectionId }
     }
-    val favoriteVisible = remember(favoriteSongs, favoriteIds, favoriteSort, favoriteEntries, query) {
-        val added = favoriteEntries.mapValues { it.value.addedAtMillis }
-        sortFavorites(favoriteSongs.filter { it.videoId in favoriteIds }, favoriteSort, added).filter { rebirthMatches(it, query) }
+    val favoriteVisible = remember(favoriteOrdered, query) {
+        favoriteOrdered.filter { rebirthMatches(it, query) }
     }
     val visible = remember(songs, order, opened, category, favoriteIds, query, favoriteVisible) {
         if (category == RebirthCategory.FAVORITES && opened == null) favoriteVisible else rebirthVisibleSongs(
@@ -137,7 +149,9 @@ fun RebirthLocalExperience(
         val id = opened?.playlistId
         playlists.firstOrNull { it.id == id }?.sort ?: PlaylistSort.MANUAL
     }
-    val canReorder = rebirthCanReorder(query, openedSort)
+    // A virtual collection has no stored running order to move; only a saved
+    // playlist can be reordered, and only while it is unfiltered and manual.
+    val canReorder = opened?.isPlaylist == true && rebirthCanReorder(query, openedSort)
 
     BackHandler(selection.isNotEmpty() || opened != null || currentDestination != RebirthDestination.HOME) {
         when {

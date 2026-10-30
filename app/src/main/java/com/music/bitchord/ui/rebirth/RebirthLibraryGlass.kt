@@ -74,6 +74,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -611,13 +612,40 @@ private fun GlassGallery(data: RebirthLibraryData, actions: RebirthLibraryAction
         items(data.collectionRows, key = { row -> row.joinToString("|") { it.id } }) { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { collection ->
-                    Column(Modifier.weight(1f).clickable { actions.onOpenCollection(collection) }) {
-                        Cover(
-                            song = collection.songs.firstOrNull(),
-                            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                            corner = 18,
-                            placeholder = Icons.Rounded.Album,
-                        )
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .testTag(
+                                if (collection.isFavorites) "favorites-collection" else collection.id,
+                            )
+                            .clickable { actions.onOpenCollection(collection) },
+                    ) {
+                        Box {
+                            Cover(
+                                song = collection.songs.firstOrNull(),
+                                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                                corner = 18,
+                                placeholder = if (collection.isFavorites) {
+                                    Icons.Rounded.Favorite
+                                } else {
+                                    Icons.Rounded.Album
+                                },
+                            )
+                            if (collection.isFavorites) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(28.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Favorite,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.padding(6.dp),
+                                    )
+                                }
+                            }
+                        }
                         Text(
                             text = collection.title,
                             modifier = Modifier.padding(top = 6.dp),
@@ -667,9 +695,24 @@ private fun GlassCollection(data: RebirthLibraryData, actions: RebirthLibraryAct
                 Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.play))
             }
             if (collection.isPlaylist) {
-                IconButton(onClick = { actions.onPlaylistSort(nextPlaylistSort(data.openedSort)) }) {
-                    Icon(Icons.Rounded.MusicNote, contentDescription = stringResource(R.string.space_playlist_sort))
-                }
+                PlaylistSortControl(sort = data.openedSort, onSort = actions.onPlaylistSort)
+            }
+        }
+        if (collection.isFavorites) {
+            FavoriteCollectionActions(
+                data.visible,
+                actions.onPlay,
+                actions.onShuffle,
+                data.favoriteSort,
+                actions.onFavoriteSort,
+            )
+            if (data.visible.isEmpty() && data.query.isBlank()) {
+                Text(
+                    text = stringResource(R.string.rebirth_favorites_empty),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         if (collection.isPlaylist && !data.canReorder) {
@@ -720,6 +763,8 @@ private fun GlassCollection(data: RebirthLibraryData, actions: RebirthLibraryAct
                             song = song,
                             selected = song.videoId in data.selection,
                             favorite = song.videoId in data.favoriteIds,
+                            favoriteAction = collection.isFavorites,
+                            onRemoveFavorite = { actions.onRemoveFavorite(song) },
                             playing = data.currentSong?.videoId == song.videoId && data.isPlaying,
                             onPlay = { actions.onPlay(data.visible, index) },
                             onSelect = { actions.onToggleSelection(song.videoId) },
