@@ -100,7 +100,7 @@ class FavoriteCollectionUiTest {
         }
     }
 
-    @Test fun aPlaylistCanBeOrderedByAlbumDescendingAndTheChoiceIsPersisted() {
+    @Test fun aPlaylistCanBeOrderedByAlbumInBothDirectionsAndTheChoiceIsPersisted() {
         val store = DevicePlaylistStore.forDevice(context)
         val name = "184 order ${UUID.randomUUID()}"
         val one = Song("content://media/184/a", "One", "Artist", null, albumName = "Primero", localUri = "content://media/184/a")
@@ -143,8 +143,27 @@ class FavoriteCollectionUiTest {
                     store.playlists.value.first { it.id == id }.sort,
                 )
                 assertEquals(
+                    listOf(two.videoId, one.videoId),
+                    store.playlists.value.first { it.id == id }.sortedSongs().map { it.videoId },
+                )
+            }
+            // The same control in the other direction, so both menu entries are
+            // exercised rather than only the one that reverses the manual order.
+            compose.onNodeWithTag("playlist-sort").performClick()
+            compose.onNodeWithTag("playlist-sort-ALBUM_ASC").performClick()
+            compose.runOnIdle {
+                assertEquals(
+                    PlaylistSort.ALBUM_ASC,
+                    store.playlists.value.first { it.id == id }.sort,
+                )
+                assertEquals(
                     listOf(one.videoId, two.videoId),
                     store.playlists.value.first { it.id == id }.sortedSongs().map { it.videoId },
+                )
+                // The persisted order is independent from the manual one.
+                assertEquals(
+                    listOf(one.videoId, two.videoId),
+                    store.playlists.value.first { it.id == id }.songs.map { it.videoId },
                 )
             }
         } finally {
