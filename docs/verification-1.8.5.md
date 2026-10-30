@@ -6,8 +6,9 @@
 - Rama de la sesión: `arena/8c5cead2-total-music` (nombre fijo del entorno).
 - Base 1.8.4: `ef58cf86`; integrada mediante fast-forward. La base no estaba en `main`
   (`main` sigue en `3dee549` y no se tocó).
-- Código probado: `676a6851` (workflow de 1.8.5). Los commits posteriores solo añaden
-  documentación y no cambian el APK.
+- Código probado: `676a6851` (run `41115728323`). La cabeza `b47021bf`, que solo añade
+  esta documentación y la entrada del verificador, volvió a pasar el mismo workflow
+  (`41121706554`): build, lint, 1112 unitarias, 36 instrumentadas y sondeo en éxito.
 - Identidad conservada: `org.nexlibre.totalmusic`; versión `1.8.5`, código `23`
   (1.8.4: `22`). Fuente única: `total-music-release.properties`.
 - No se modificaron `main`, las ramas de los PR anteriores ni el certificado permanente.
@@ -93,7 +94,9 @@ toca su comportamiento ni el de la reproducción aleatoria existente.
 
 ## Evidencia ejecutada
 
-Run de validación completo: https://github.com/Spaceapk/Total-Music/actions/runs/41115728323
+Run de validación del código: https://github.com/Spaceapk/Total-Music/actions/runs/41115728323
+
+Run de la cabeza documental: https://github.com/Spaceapk/Total-Music/actions/runs/41121706554
 
 | Comprobación | Resultado |
 | --- | --- |
@@ -131,8 +134,8 @@ colección virtual en Liquid Glass+).
 | `41113572903` | Una expectativa de `PlaylistDragTest` ponía la fila justo fuera de la zona de borde | Caso movido dentro de la zona en `6ef5df2b`; el comportamiento era correcto |
 | `41115728323` (primera pasada de UI) | `PlaylistReorderUiTest` no estaba en la lista de clases del job `ui` | Añadido al workflow en `676a6851` |
 
-El run final `41115728323` no tiene fallos en compilación, unitarias, instrumentadas ni
-lint.
+El run `41115728323` no tiene fallos en compilación, unitarias, instrumentadas, lint ni
+sondeo. El run `41121706554` repite los mismos resultados sobre `b47021bf`.
 
 ## Artefactos
 
