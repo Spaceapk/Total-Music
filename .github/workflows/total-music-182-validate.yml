@@ -153,6 +153,12 @@ jobs:
           PY
           cat ci-logs/tests-summary.md
 
+      - name: Annotate unit test failures
+        if: steps.tests.outcome == 'failure'
+        run: |
+          grep -E '^(e: |FAILED|AssertionError|org\.gradle|> Task .*FAILED)|expected:|but was:' ci-logs/test.log \
+            | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+
       - name: Package the APKs with the repository's own verifier
         continue-on-error: true
         run: |
@@ -333,11 +339,16 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || (github.ref == 'refs/heads/arena/18b4adc9-total-music' && '10') || inputs.pr || '0' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr || '0' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           JOB_STATUS: ${{ job.status }}
         run: |
           set -uo pipefail
+          # A push run has no pull_request payload; find the PR by its branch so
+          # the failure is reported where it can be read without the log archive.
+          if [ "$PR_NUMBER" = "0" ]; then
+            PR_NUMBER="$(gh pr list --head "$GITHUB_REF_NAME" --json number --jq '.[0].number // "0"' 2>/dev/null || echo 0)"
+          fi
           python3 - "$JOB_STATUS" "$RUN_URL" <<'PY' > ci-logs/comment.md
           import os, re, sys
           status, run_url = sys.argv[1], sys.argv[2]
@@ -463,7 +474,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || (github.ref == 'refs/heads/arena/18b4adc9-total-music' && '10') || inputs.pr || '0' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr || '0' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           LINT_OUTCOME: ${{ steps.lint.outcome }}
         run: |
@@ -551,7 +562,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || (github.ref == 'refs/heads/arena/18b4adc9-total-music' && '10') || inputs.pr || '0' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr || '0' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -uo pipefail
@@ -809,11 +820,16 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || (github.ref == 'refs/heads/arena/18b4adc9-total-music' && '10') || inputs.pr || '0' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr || '0' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUTCOME: ${{ steps.uitest.outcome }}
         run: |
           set -uo pipefail
+          # A push run has no pull_request payload; find the PR by its branch so
+          # the failure is reported where it can be read without the log archive.
+          if [ "$PR_NUMBER" = "0" ]; then
+            PR_NUMBER="$(gh pr list --head "$GITHUB_REF_NAME" --json number --jq '.[0].number // "0"' 2>/dev/null || echo 0)"
+          fi
           {
             echo "Run: ${RUN_URL}"
             echo
@@ -876,6 +892,12 @@ jobs:
             player-previews/
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Annotate UI test failures
+        if: steps.uitest.outcome != 'success'
+        run: |
+          grep -E '^(e: |FAILED|AssertionError|Process crashed|INSTRUMENTATION|Exception|Caused by:)|expected:|but was:' ui-test.log \
+            | head -40 | while IFS= read -r line; do echo "::error::$line"; done
 
       - name: Fail when the UI test failed
         if: steps.uitest.outcome != 'success' || steps.stress.outcome != 'success'

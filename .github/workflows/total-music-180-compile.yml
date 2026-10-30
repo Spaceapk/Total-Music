@@ -112,6 +112,12 @@ jobs:
           PY
           cat ci-logs/tests-summary.md
 
+      - name: Annotate unit test failures
+        if: steps.tests.outcome == 'failure'
+        run: |
+          grep -E '^(e: |FAILED|AssertionError|org\.gradle|> Task .*FAILED)|expected:|but was:' ci-logs/test.log \
+            | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+
       # The repository's own packager: it checks the APK's package name, version
       # code, version name and debuggable flag against total-music-release.properties,
       # refuses a debug APK that carries the permanent key, writes the test

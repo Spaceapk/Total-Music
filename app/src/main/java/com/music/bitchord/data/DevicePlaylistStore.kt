@@ -58,7 +58,10 @@ data class DevicePlaylist(
         val byAlbum = Comparator<Song> { a, b ->
             collator.compare(a.albumName.orEmpty(), b.albumName.orEmpty())
         }
-        val byTrack = compareBy<Song> { it.localDiscNumber?.takeIf { n -> n > 0 } ?: 1 }
+        // Same rule as AlbumOrdering: an untagged track goes last before discs
+        // are compared, so it cannot slip between disc one and disc two.
+        val byTrack = compareBy<Song> { it.localTrackNumber?.takeIf { n -> n > 0 } == null }
+            .thenBy { it.localDiscNumber?.takeIf { n -> n > 0 } ?: 1 }
             .thenBy { it.localTrackNumber?.takeIf { n -> n > 0 } ?: Int.MAX_VALUE }
         return when (sort) {
             PlaylistSort.MANUAL -> songs
