@@ -33,7 +33,7 @@ class PlaylistDragTest {
     }
 
     @Test fun aRowNearTheBottomScrollsTheListForwards() {
-        assertEquals(900f, velocity(top = 900f, bottom = 1030f))
+        assertEquals(900f, velocity(top = 1000f, bottom = 1130f))
     }
 
     @Test fun aRowInTheMiddleDoesNotScroll() {
@@ -42,6 +42,6 @@ class PlaylistDragTest {
 
     @Test fun anEdgeTheListCannotPassDoesNotScroll() {
         assertEquals(0f, velocity(top = 120f, bottom = 250f, canBack = false))
-        assertEquals(0f, velocity(top = 900f, bottom = 1030f, canForward = false))
+        assertEquals(0f, velocity(top = 1000f, bottom = 1130f, canForward = false))
     }
 }
