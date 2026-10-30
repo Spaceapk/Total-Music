@@ -1,3 +1,11 @@
+## Total Music 1.8.5 — favoritas compartidas, arrastre y orden por pista
+
+- Mis favoritas es la misma colección en los cuatro temas: las bibliotecas + la muestran en Listas y las dos experiencias originales tienen la misma entrada en su pestaña Listas. Quitar un corazón actualiza todas las pantallas y el reproductor porque todas leen `LikeState`.
+- Las listas se reordenan arrastrando el asa, también en listas largas: al acercarse al borde superior o inferior la lista se desplaza sola. Desaparecen los botones de subir/bajar y se guarda un solo movimiento por gesto como orden manual.
+- Si la lista estaba ordenada por otro criterio, empezar a arrastrar convierte las filas visibles en el orden manual, sin saltar al orden guardado anterior.
+- Ordenación por manual, título, artista, álbum, fecha de incorporación y número de pista. Álbum agrupa por álbum y artista, ordena discos y pistas como números y deja las pistas sin número al final; artista ordena artista, álbum, disco y pista. Dos álbumes con el mismo nombre y artistas distintos no se mezclan. Cada lista guarda su criterio.
+- Con aleatorio apagado la cola respeta el orden mostrado; el botón de reproducir de una colección usa las filas de la pantalla. Paquete sin cambios, versión 1.8.5 y código 23. Compilación CI, 1112 unitarias, 36 instrumentadas y lint sin errores. Firma permanente e instalación de actualización pendientes: véase `docs/verification-1.8.5.md`.
+
 ## Total Music 1.8.2 — Favorites & Experience
 
 - Mis favoritas conserva el almacenamiento compartido de 1.8.1 y añade reproducción de la colección y mezcla en las bibliotecas clásicas y +.

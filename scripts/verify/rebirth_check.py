@@ -68,6 +68,7 @@ VALIDATION_WORKFLOWS = (
     # emulator; it publishes nothing, and this gate refuses it if that changes.
     ".github/workflows/total-music-181-validate.yml",
     ".github/workflows/total-music-182-validate.yml",
+    ".github/workflows/total-music-185-validate.yml",
     # 1.8.1's device probe of the *published* 1.8.0: it downloads the two
     # released APKs, verifies their hashes and installs them. It builds nothing,
     # signs nothing and publishes nothing — the same forbidden-marker check
