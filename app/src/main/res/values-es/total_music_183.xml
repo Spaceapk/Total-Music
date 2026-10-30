@@ -13,4 +13,6 @@
     <string name="total_eq_protection_warning">El margen automático o el limitador está desactivado. Las ganancias pueden saturar; baja la preamplificación o reactiva la protección.</string>
     <string name="total_eq_load">Cargar</string>
     <string name="total_eq_rename_profile">Renombrar perfil</string>
+    <string name="total_eq_preset_pop">Pop</string>
+    <string name="total_eq_preset_deep_bass">Graves profundos</string>
 </resources>

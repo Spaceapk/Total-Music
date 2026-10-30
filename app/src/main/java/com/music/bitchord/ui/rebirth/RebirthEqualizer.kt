@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.R
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.EqualizerMode
+import com.music.bitchord.playback.AudioOutputStatus
 import com.music.bitchord.playback.EqualizerPreset
 import com.music.bitchord.data.settings.TotalMusicSettings
 import com.music.bitchord.playback.TotalEqConfig
@@ -82,6 +83,7 @@ fun RebirthEqualizer(style: PlayerVisualStyle, padding: PaddingValues) {
     val mode by AppSettings.equalizerMode.collectAsStateWithLifecycle()
     val config by TotalMusicSettings.config.collectAsStateWithLifecycle()
     val profiles by TotalMusicSettings.profiles.collectAsStateWithLifecycle()
+    val outputStatus by AudioOutputStatus.current.collectAsStateWithLifecycle()
     var advanced by rememberSaveable { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var profileName by remember { mutableStateOf("") }
@@ -98,6 +100,7 @@ fun RebirthEqualizer(style: PlayerVisualStyle, padding: PaddingValues) {
                     advanced = advanced,
                     onAdvanced = { advanced = !advanced },
                     onSaveProfile = { saving = true },
+                    dspAvailable = outputStatus.dspAvailable,
                 )
             } else {
                 ExpressiveEqualizer(
@@ -109,6 +112,7 @@ fun RebirthEqualizer(style: PlayerVisualStyle, padding: PaddingValues) {
                     advanced = advanced,
                     onAdvanced = { advanced = !advanced },
                     onSaveProfile = { saving = true },
+                    dspAvailable = outputStatus.dspAvailable,
                 )
             }
         }
@@ -151,6 +155,7 @@ private fun ExpressiveEqualizer(
     advanced: Boolean,
     onAdvanced: () -> Unit,
     onSaveProfile: () -> Unit,
+    dspAvailable: Boolean,
 ) {
     Column(
         Modifier
@@ -182,7 +187,9 @@ private fun ExpressiveEqualizer(
         if (advanced) {
             RebirthEqAdvanced(false, enabled)
         }
+        OutputStatusNotice(dspAvailable, glass = false)
         SystemPanelButton()
+        SystemPanelNotice(glass = false)
         Spacer(Modifier.height(8.dp))
     }
 }
@@ -197,6 +204,7 @@ private fun GlassEqualizer(
     advanced: Boolean,
     onAdvanced: () -> Unit,
     onSaveProfile: () -> Unit,
+    dspAvailable: Boolean,
 ) {
     Column(
         Modifier
@@ -241,7 +249,9 @@ private fun GlassEqualizer(
         if (advanced) {
             RebirthEqAdvanced(true, enabled)
         }
+        OutputStatusNotice(dspAvailable, glass = true)
         SystemPanelButton(glass = true)
+        SystemPanelNotice(glass = true)
         Spacer(Modifier.height(8.dp))
     }
 }
@@ -405,7 +415,7 @@ private fun TotalCard(
             DropdownMenu(presetsOpen, onDismissRequest = { presetsOpen = false }) {
                 (TotalMusicSettings.factoryProfiles + profiles).forEach { (name, preset) ->
                     DropdownMenuItem(
-                        text = { Text(name) },
+                        text = { Text(totalEqProfileLabel(name)) },
                         onClick = {
                             TotalMusicSettings.update(preset.copy(graphicMode = latest.graphicMode))
                             AppSettings.setEqualizerMode(EqualizerMode.TOTAL)
@@ -605,6 +615,32 @@ private fun ValueRow(
 }
 
 /** Opens the platform's own audio-effect panel, where the device has one. */
+@Composable
+private fun OutputStatusNotice(dspAvailable: Boolean, glass: Boolean) {
+    if (dspAvailable) return
+    EqPanel(glass, stringResource(R.string.equalizer_bitstream_title)) {
+        Text(
+            stringResource(R.string.equalizer_bitstream_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            stringResource(R.string.equalizer_bitstream_footer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun SystemPanelNotice(glass: Boolean) {
+    Text(
+        stringResource(R.string.system_equalizer_footer),
+        modifier = Modifier.padding(horizontal = if (glass) 4.dp else 8.dp),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
 @Composable
 private fun SystemPanelButton(glass: Boolean = false) {
     val context = LocalContext.current

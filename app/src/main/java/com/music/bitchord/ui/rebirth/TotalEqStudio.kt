@@ -178,6 +178,27 @@ internal fun TotalEqStudioHeader(enabled: Boolean, glass: Boolean) {
     }
 }
 
+/**
+ * Factory preset keys are persisted profile names and must not change with the
+ * UI language. Only their presentation is localized; custom names are shown as
+ * the user saved them.
+ */
+@Composable
+internal fun totalEqProfileLabel(name: String): String = when (name) {
+    "Flat" -> stringResource(R.string.eq_preset_flat)
+    "Bass Boost" -> stringResource(R.string.eq_preset_bass_boost)
+    "Deep Bass" -> stringResource(R.string.total_eq_preset_deep_bass)
+    "Rock" -> stringResource(R.string.eq_preset_rock)
+    "Pop" -> stringResource(R.string.total_eq_preset_pop)
+    "Jazz" -> stringResource(R.string.eq_preset_jazz)
+    "Clásica" -> stringResource(R.string.eq_preset_classical)
+    "Electrónica" -> stringResource(R.string.eq_preset_electronic)
+    "Vocal" -> stringResource(R.string.eq_preset_vocal)
+    "Acústica" -> stringResource(R.string.eq_preset_acoustic)
+    "Hip-Hop" -> stringResource(R.string.eq_preset_hip_hop)
+    else -> name
+}
+
 /** Custom profile load/rename/delete. Factory presets stay read-only. */
 @Composable
 internal fun TotalEqProfileRows(onLoad: (TotalEqConfig) -> Unit) {

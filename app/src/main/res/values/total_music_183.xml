@@ -13,4 +13,6 @@
     <string name="total_eq_protection_warning">Automatic headroom or the limiter is off. Boosts can clip; lower the preamp or re-enable protection.</string>
     <string name="total_eq_load">Load</string>
     <string name="total_eq_rename_profile">Rename profile</string>
+    <string name="total_eq_preset_pop">Pop</string>
+    <string name="total_eq_preset_deep_bass">Deep bass</string>
 </resources>

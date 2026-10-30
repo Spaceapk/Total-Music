@@ -44,9 +44,10 @@ internal fun TotalEqControls(enabled: Boolean) {
     val allProfiles = TotalMusicSettings.factoryProfiles.mapValues { (_, c) -> c.copy(graphicMode = config.graphicMode) }
     val frequencies = TotalEqDesign.activeFrequencies(config)
     val gains = TotalEqDesign.activeGains(config)
-    val selected = profiles.entries.firstOrNull { it.value == config }?.key
+    val selectedKey = profiles.entries.firstOrNull { it.value == config }?.key
         ?: allProfiles.entries.firstOrNull { it.value == config }?.key
-        ?: stringResource(R.string.total_eq_custom)
+    val selected = if (selectedKey != null) com.music.bitchord.ui.rebirth.totalEqProfileLabel(selectedKey)
+        else stringResource(R.string.total_eq_custom)
 
     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Total EQ", style = MaterialTheme.typography.headlineLarge)
@@ -62,7 +63,7 @@ internal fun TotalEqControls(enabled: Boolean) {
             Box(Modifier.weight(1f)) {
                 OutlinedButton(onClick = { presets = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text(selected, maxLines = 1) }
                 DropdownMenu(expanded = presets, onDismissRequest = { presets = false }, modifier = Modifier.heightIn(max = 380.dp)) {
-                    allProfiles.forEach { (label, c) -> DropdownMenuItem(text = { Text(label) }, onClick = { TotalMusicSettings.update(c); selectedBand = 0; presets = false }) }
+                    allProfiles.forEach { (label, c) -> DropdownMenuItem(text = { Text(com.music.bitchord.ui.rebirth.totalEqProfileLabel(label)) }, onClick = { TotalMusicSettings.update(c); selectedBand = 0; presets = false }) }
                     if (profiles.isNotEmpty()) HorizontalDivider()
                     profiles.forEach { (label, c) -> DropdownMenuItem(text = { Text(label) }, onClick = { TotalMusicSettings.update(c); selectedBand = 0; presets = false }) }
                 }

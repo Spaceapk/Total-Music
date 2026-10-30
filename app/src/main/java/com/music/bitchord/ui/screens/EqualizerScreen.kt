@@ -94,7 +94,8 @@ fun EqualizerScreen(
 ) {
     val context = LocalContext.current
     val rebirthStyle by AppSettings.playerVisualStyle.collectAsStateWithLifecycle()
-    if (rebirthStyle != com.music.bitchord.ui.player.PlayerVisualStyle.ORIGINAL) {
+    val expressive by com.music.bitchord.data.settings.TotalMusicSettings.expressive.collectAsStateWithLifecycle()
+    if (rebirthStyle != com.music.bitchord.ui.player.PlayerVisualStyle.ORIGINAL || expressive) {
         com.music.bitchord.ui.rebirth.RebirthEqualizer(rebirthStyle, contentPadding)
         return
     }
