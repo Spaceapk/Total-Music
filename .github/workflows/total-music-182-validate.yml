@@ -333,7 +333,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr || '0' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || (github.ref == 'refs/heads/arena/18b4adc9-total-music' && '10') || inputs.pr || '0' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           JOB_STATUS: ${{ job.status }}
         run: |
@@ -463,7 +463,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr || '0' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || (github.ref == 'refs/heads/arena/18b4adc9-total-music' && '10') || inputs.pr || '0' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           LINT_OUTCOME: ${{ steps.lint.outcome }}
         run: |
@@ -551,7 +551,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr || '0' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || (github.ref == 'refs/heads/arena/18b4adc9-total-music' && '10') || inputs.pr || '0' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -uo pipefail
@@ -643,7 +643,7 @@ jobs:
           chmod +x gradlew
           ./gradlew :app:assembleProdDebug :app:assembleProdDebugAndroidTest \
             -PspaceSpatialEdition=true -Pandroid.injected.build.abi=x86_64 \
-            --max-workers=2 --build-cache --stacktrace
+            --max-workers=2 --build-cache --stacktrace 2>&1 | tee ui-compile.log
           # Preserve APKs before the connected-test plugin's cleanup phase.
           python3 - <<'PYCACHE'
           import os, pathlib, shutil
@@ -799,7 +799,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr || '0' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || (github.ref == 'refs/heads/arena/18b4adc9-total-music' && '10') || inputs.pr || '0' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUTCOME: ${{ steps.uitest.outcome }}
         run: |
@@ -829,6 +829,14 @@ jobs:
               echo '```'
               echo '</details>'
             fi
+            if [ -f ui-compile.log ]; then
+              echo
+              echo '<details><summary>ui-compile.log, errors</summary>'
+              echo '```'
+              grep -E '^(e: |w: .*androidTest)|FAILED|What went wrong|Caused by:|Unresolved' ui-compile.log | head -80 || true
+              echo '```'
+              echo '</details>'
+            fi
             if [ "${OUTCOME}" != "success" ]; then
               echo
               echo "<details><summary>ui-test.log, interesting lines</summary>"
@@ -847,6 +855,7 @@ jobs:
           name: total-music-182-uitest
           path: |
             ui-test.log
+            ui-compile.log
             ui-test-summary.md
             process-restart.log
             process-restart-setup.log
