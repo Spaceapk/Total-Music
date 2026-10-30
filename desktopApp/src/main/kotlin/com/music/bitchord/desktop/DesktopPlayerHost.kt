@@ -26,6 +26,7 @@ import com.music.bitchord.ui.player.OutputFormatUi
 import com.music.bitchord.ui.player.PartyUi
 import com.music.bitchord.ui.player.PlayerHost
 import com.music.bitchord.ui.player.PlayerSettingsSource
+import com.music.bitchord.ui.player.PlayerVisualStyle
 import com.music.bitchord.ui.player.SystemVolume
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.CoroutineScope
@@ -179,6 +180,11 @@ internal object DesktopPlayerHost : PlayerHost {
 internal object DesktopPlayerSettings : PlayerSettingsSource {
     private val persistence by lazy { DesktopPersistence() }
 
+    override val visualStyle = MutableStateFlow(PlayerVisualStyle.ORIGINAL)
+    override val dynamicBackground = MutableStateFlow(false)
+    override val glassEffects = MutableStateFlow(false)
+    override val alternativeControls = MutableStateFlow(true)
+    override val animatedTransitions = MutableStateFlow(true)
     override val animatedCanvas = MutableStateFlow(true)
     override val audioQualityCellular = MutableStateFlow(AudioQuality.LOSSLESS)
     override val audioQualityWifi = MutableStateFlow(AudioQuality.LOSSLESS)

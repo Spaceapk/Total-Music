@@ -11,6 +11,7 @@
   buttons need that much before the buttons crowd.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:configure="com.music.bitchord.widget.WidgetConfigActivity"
     android:description="@string/widget_pill_description"
     android:initialLayout="@layout/widget_media_pill"
     android:minHeight="40dp"

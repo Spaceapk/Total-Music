@@ -23,6 +23,7 @@
   fallback for hosts below API 31, which don't inflate previewLayout at all.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:configure="com.music.bitchord.widget.WidgetConfigActivity"
     android:description="@string/widget_square_description"
     android:initialLayout="@layout/widget_media_compact"
     android:maxResizeWidth="288dp"

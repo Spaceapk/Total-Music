@@ -200,4 +200,22 @@
     <string name="search_library_empty">आपके लोकल म्यूज़िक फ़ोल्डर के गाने खोजें.</string>
     <string name="search_library_hint">गाने, कलाकार और एल्बम</string>
     <string name="search_library_no_results">लोकल म्यूज़िक में “%1$s” से मेल खाता कुछ नहीं.</string>
+    <string name="rebirth_playback_tools">प्लेबैक टूल</string>
+    <string name="rebirth_lyrics_page">बोल</string>
+    <string name="rebirth_output">आउटपुट</string>
+    <string name="rebirth_tools_short">टूल</string>
+    <string name="rebirth_translate">अनुवाद करें</string>
+    <string name="rebirth_romanize">रोमनाइज़ करें</string>
+    <string name="rebirth_queue_tracks">कतार में %1$d</string>
+    <string name="rebirth_clear_added">जोड़े गए साफ़ करें</string>
+    <string name="rebirth_next_up_empty">इस ट्रैक के बाद कुछ नहीं</string>
+    <string name="rebirth_equalizer">इक्वलाइज़र</string>
+    <string name="rebirth_classic_player">क्लासिक प्लेयर</string>
+    <string name="rebirth_classic_player_caption">लिरिक कार्ड साझा करना और उन्नत लिरिक नियंत्रण</string>
+    <string name="rebirth_queue_locked">इस सत्र में कतार होस्ट का अनुसरण करती है</string>
+    <string name="rebirth_queue_move_up">ऊपर ले जाएँ</string>
+    <string name="rebirth_queue_move_down">नीचे ले जाएँ</string>
+    <string name="rebirth_lyrics_sync_off">सिंक किए गए बोल सेटिंग्स में बंद हैं</string>
+    <string name="rebirth_lyrics_offset">लिरिक ऑफ़सेट</string>
+    <string name="rebirth_lyrics_offset_value">ऑफ़सेट %1$s</string>
 </resources>
