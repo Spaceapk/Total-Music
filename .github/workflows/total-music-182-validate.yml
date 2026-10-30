@@ -1,6 +1,6 @@
 name: Total Music 1.8.2 validation
 
-# Favorites & Experience validation on the finished 1.8.1 integration base.
+# Favorites & Experience validation. Also runs for the 1.8.3 continuation branch.
 # No publishing and no permanent signing credentials. APKs stay explicitly test-only/unsigned.
 
 on:
@@ -9,7 +9,7 @@ on:
   # than main. Both are listed so the same file can be dispatched by hand once
   # it does reach main.
   push:
-    branches: [arena/b3cc8c15-total-music]
+    branches: [arena/b3cc8c15-total-music, arena/18b4adc9-total-music]
     # Only a change that can affect the build starts this: an hour of Gradle,
     # lint and two emulators is not worth re-running for a comment or a probe
     # script. The published-APK probe has its own workflow and its own trigger.
@@ -333,7 +333,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '9' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr || '0' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           JOB_STATUS: ${{ job.status }}
         run: |
@@ -374,7 +374,7 @@ jobs:
               body = body[:60000] + "\n… truncated"
           sys.stdout.write(body)
           PY
-          if [ "$GITHUB_REF_NAME" != "work/player-glass-balance" ]; then gh pr comment "$PR_NUMBER" --body-file ci-logs/comment.md || echo "could not comment"; fi
+          if [ "$PR_NUMBER" != "0" ]; then gh pr comment "$PR_NUMBER" --body-file ci-logs/comment.md || echo "could not comment"; fi
 
       - name: Fail when the unit tests failed
         if: steps.tests.outcome == 'failure'
@@ -463,7 +463,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '9' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr || '0' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           LINT_OUTCOME: ${{ steps.lint.outcome }}
         run: |
@@ -484,7 +484,7 @@ jobs:
               echo "</details>"
             fi
           } > ci-logs/lint-comment.md
-          if [ "$GITHUB_REF_NAME" != "work/player-glass-balance" ]; then gh pr comment "$PR_NUMBER" --body-file ci-logs/lint-comment.md || echo "could not comment"; fi
+          if [ "$PR_NUMBER" != "0" ]; then gh pr comment "$PR_NUMBER" --body-file ci-logs/lint-comment.md || echo "could not comment"; fi
 
   device:
     # The 1.8.2 candidate, doing the two things that were reported broken.
@@ -551,7 +551,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '9' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr || '0' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -uo pipefail
@@ -587,7 +587,7 @@ jobs:
           print("\n".join(parts)[:60000])
           PY
           tail -40 device-comment.md
-          if [ "$GITHUB_REF_NAME" != "work/player-glass-balance" ]; then gh pr comment "$PR_NUMBER" --body-file device-comment.md || echo "could not comment"; fi
+          if [ "$PR_NUMBER" != "0" ]; then gh pr comment "$PR_NUMBER" --body-file device-comment.md || echo "could not comment"; fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -799,7 +799,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr || '9' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr || '0' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUTCOME: ${{ steps.uitest.outcome }}
         run: |
@@ -839,7 +839,7 @@ jobs:
               echo "</details>"
             fi
           } > ui-test-comment.md
-          if [ "$GITHUB_REF_NAME" != "work/player-glass-balance" ]; then gh pr comment "$PR_NUMBER" --body-file ui-test-comment.md || echo "could not comment"; fi
+          if [ "$PR_NUMBER" != "0" ]; then gh pr comment "$PR_NUMBER" --body-file ui-test-comment.md || echo "could not comment"; fi
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
