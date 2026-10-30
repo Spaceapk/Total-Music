@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -54,7 +55,8 @@ class FavoriteCatalogUiTest {
             compose.onNodeWithText(context.getString(R.string.sort_title_ascending)).performClick()
             assertEquals(FavoriteSort.TITLE, AppSettings.favoriteSort.value)
             compose.onNodeWithText("Apple").assertExists()
-            compose.onNodeWithContentDescription(context.getString(R.string.remove_from_liked), useUnmergedTree = true).performClick()
+            // Title ascending puts Apple first and Zebra second; remove Zebra's heart.
+            compose.onAllNodesWithContentDescription(context.getString(R.string.remove_from_liked), useUnmergedTree = true)[1].performClick()
             compose.runOnIdle {
                 assertEquals(LikeStatus.INDIFFERENT, LikeState.overrides.value[songs[0].videoId])
                 assertEquals(LikeStatus.LIKE, LikeState.overrides.value[songs[1].videoId])
