@@ -1,5 +1,10 @@
 [
   {
+    "versionCode": 23,
+    "versionName": "1.8.5",
+    "notes": "Mis favoritas disponible y sincronizada en los cuatro temas: la misma colección del corazón compartido aparece en las listas de la biblioteca original y en las dos bibliotecas Plus, y se actualiza al instante al quitar un corazón en cualquier pantalla, reproductor o notificación. Las listas se reordenan arrastrando cada canción, con desplazamiento automático al acercarse a los extremos; ya no hay botones de subir y bajar. El orden manual se guarda, y arrastrar mientras hay otro criterio activo cambia a orden manual conservando exactamente el orden visible. Nueva ordenación por número de pista, además de manual, título, artista, álbum y fecha de incorporación. Por álbum se agrupan las canciones y se ordenan por disco y pista como números (1, 2, 3… 10); por artista se ordena por artista, álbum, disco y pista; los álbumes con el mismo nombre de artistas distintos no se mezclan; las canciones sin numeración quedan al final. El criterio se guarda por lista. Con el modo aleatorio desactivado, la cola y la reproducción siguen el orden mostrado. Se conservan los cuatro temas, el ecualizador, la firma permanente prevista y los datos de 1.8.4."
+  },
+  {
     "versionCode": 22,
     "versionName": "1.8.4",
     "notes": "Mis favoritas como colección virtual de la biblioteca: se abre desde Listas, reproduce y baraja lo que tiene el corazón, y se actualiza al instante cuando quitas un corazón en la colección, el reproductor o la notificación, sin una segunda copia de los datos. Las listas guardadas se pueden ordenar por artista y por álbum, de forma ascendente y descendente, conservando las pistas de cada álbum en orden y manteniendo el orden antiguo por artista al actualizar. Se conservan los temas, el ecualizador y la firma."

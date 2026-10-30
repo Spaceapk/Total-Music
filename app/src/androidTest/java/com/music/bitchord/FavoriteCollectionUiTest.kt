@@ -166,8 +166,78 @@ class FavoriteCollectionUiTest {
                     store.playlists.value.first { it.id == id }.songs.map { it.videoId },
                 )
             }
+            // Track number is offered by the same menu and stored per playlist.
+            compose.onNodeWithTag("playlist-sort").performClick()
+            compose.onNodeWithTag("playlist-sort-TRACK_DESC").performClick()
+            compose.runOnIdle {
+                assertEquals(
+                    PlaylistSort.TRACK_DESC,
+                    store.playlists.value.first { it.id == id }.sort,
+                )
+                assertEquals(
+                    listOf(one.videoId, two.videoId),
+                    store.playlists.value.first { it.id == id }.songs.map { it.videoId },
+                )
+            }
         } finally {
             store.delete(id)
+        }
+    }
+
+    @Test fun theVirtualFavoritesCollectionIsAlsoAvailableInLiquidGlassPlus() {
+        val filename = "test-185-glass-favorites-${UUID.randomUUID()}"
+        val keep = Song("content://media/185/glass-keep", "Glass keep", "Artist", null, localUri = "content://media/185/glass-keep")
+        val remove = Song("content://media/185/glass-remove", "Glass remove", "Artist", null, localUri = "content://media/185/glass-remove")
+        val songs = listOf(keep, remove)
+        val oldSort = AppSettings.favoriteSort.value
+        try {
+            AppSettings.setFavoriteSort(FavoriteSort.TITLE)
+            DeviceFavoriteStore.initialize(context, filename)
+            songs.forEach { LikeState.set(it.videoId, LikeStatus.LIKE, it) }
+            compose.setContent {
+                val ratings by LikeState.overrides.collectAsState()
+                MaterialTheme {
+                    RebirthLocalExperience(
+                        style = PlayerVisualStyle.LIQUID_GLASS_PLUS,
+                        songs = songs,
+                        favoriteSongs = songs,
+                        favoriteIds = ratings.filterValues { it == LikeStatus.LIKE }.keys,
+                        currentSong = null,
+                        isPlaying = false,
+                        loading = false,
+                        initialQuery = "",
+                        destination = RebirthDestination.LIBRARY,
+                        onPlay = { _, _ -> },
+                        onSongMenu = {},
+                        onSettings = {},
+                        onPlayPause = {},
+                        onNext = {},
+                        onExpandPlayer = {},
+                    )
+                }
+            }
+            compose.onNodeWithText(context.getString(R.string.playlists)).performScrollTo().performClick()
+            compose.waitUntil(5_000) {
+                compose.onAllNodesWithTag("favorites-collection").fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNodeWithTag("favorites-collection").performScrollTo().performClick()
+            compose.onNodeWithText("Glass keep").assertExists()
+            compose.onNodeWithText("Glass remove").assertExists()
+            compose.onAllNodesWithContentDescription(
+                context.getString(R.string.remove_from_liked),
+                useUnmergedTree = true,
+            )[1].performClick()
+            compose.runOnIdle {
+                assertEquals(LikeStatus.INDIFFERENT, LikeState.overrides.value[remove.videoId])
+                assertEquals(LikeStatus.LIKE, LikeState.overrides.value[keep.videoId])
+            }
+            compose.onNodeWithText("Glass remove").assertDoesNotExist()
+        } finally {
+            AppSettings.setFavoriteSort(oldSort)
+            LikeState.attachPersistence(emptyMap(), null)
+            LikeState.clear()
+            DeviceFavoriteStore.initialize(context)
+            context.deleteSharedPreferences(filename)
         }
     }
 }

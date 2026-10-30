@@ -3,6 +3,7 @@ package com.music.bitchord.ui.rebirth
 import com.music.bitchord.data.DevicePlaylist
 import com.music.bitchord.data.PlaylistSort
 import com.music.bitchord.data.model.Song
+import com.music.bitchord.data.settings.FavoriteSort
 import com.music.bitchord.data.settings.LocalMusicSort
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -104,10 +105,13 @@ class RebirthLibraryTest {
     }
 
     @Test
-    fun aFilteredPlaylistCannotBeReordered() {
-        assertTrue(rebirthCanReorder("", PlaylistSort.MANUAL))
-        assertFalse(rebirthCanReorder("luz", PlaylistSort.MANUAL))
-        assertFalse(rebirthCanReorder("", PlaylistSort.TITLE_ASC))
+    fun aFilteredPlaylistCannotBeReorderedButAnySortCan() {
+        assertTrue(rebirthCanReorder(""))
+        assertFalse(rebirthCanReorder("luz"))
+        // A sorted playlist is still reorderable: the drop stores the rows as
+        // arranged and switches the playlist to manual. Only a filter is
+        // refused, because it is not the playlist's own running order.
+        assertTrue(rebirthCanReorder(""))
     }
 
     @Test
@@ -206,5 +210,60 @@ class RebirthLibraryTest {
         assertEquals(2, rebirthRows(collections, "").size)
         assertEquals(1, rebirthRows(collections, "").last().size)
         assertEquals(listOf("Bruma"), rebirthRows(collections, "bru").single().map { it.title })
+    }
+
+    @Test
+    fun theFavoritesCollectionMergesEveryHeartOnceAndUsesTheSharedOrder() {
+        val library = listOf(
+            song("library-only", artist = "Beta"),
+            song("both", artist = "Alpha"),
+            song("not liked", artist = "Alpha"),
+        )
+        val savedEntry = song("entry-only", artist = "Gamma")
+        val favorites = favoriteSongsInOrder(
+            favoriteSongs = listOf(savedEntry, library[1]),
+            deviceSongs = library,
+            favoriteIds = setOf("library-only", "both", "entry-only"),
+            sort = FavoriteSort.TITLE,
+            addedAt = emptyMap(),
+        )
+        // The device track the entries did not carry is included, the track
+        // without a heart is not, and no song appears twice.
+        assertEquals(
+            listOf("both", "entry-only", "library-only"),
+            favorites.map { it.videoId },
+        )
+        assertEquals(3, favorites.map { it.videoId }.toSet().size)
+        // Removing the heart anywhere removes it from this same list.
+        assertEquals(
+            listOf("both", "library-only"),
+            favoriteSongsInOrder(
+                favoriteSongs = listOf(savedEntry, library[1]),
+                deviceSongs = library,
+                favoriteIds = setOf("library-only", "both"),
+                sort = FavoriteSort.TITLE,
+            ).map { it.videoId },
+        )
+        assertEquals(
+            emptyList<String>(),
+            favoriteSongsInOrder(emptyList(), library, emptySet(), FavoriteSort.DATE_ADDED)
+                .map { it.videoId },
+        )
+    }
+
+    @Test
+    fun favoritesByArtistUseTheSameArtistThenAlbumRuleOnEveryTheme() {
+        val songs = listOf(
+            song("z", artist = "Zulu") ,
+            song("a", artist = "Alpha"),
+            song("b", artist = "Alpha"),
+        )
+        val ordered = favoriteSongsInOrder(
+            favoriteSongs = emptyList(),
+            deviceSongs = songs,
+            favoriteIds = setOf("a", "b", "z"),
+            sort = FavoriteSort.ARTIST,
+        )
+        assertEquals(listOf("a", "b", "z"), ordered.map { it.videoId })
     }
 }

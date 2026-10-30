@@ -212,12 +212,22 @@ fun LocalMusicScreen(
     var favoritesOnly by rememberSaveable { mutableStateOf(false) }
     val favoriteSort by AppSettings.favoriteSort.collectAsStateWithLifecycle()
     val favoriteEntries by com.music.bitchord.data.LikeState.entries.collectAsStateWithLifecycle()
-    val sortedSongs = remember(songs, favoriteSongs, sortOrder, favoritesOnly, favoriteRatings, favoriteSort, favoriteEntries) {
-        if (favoritesOnly) {
-            val merged = (favoriteSongs + songs.filter { favoriteRatings[it.videoId] == com.music.bitchord.data.model.LikeStatus.LIKE })
-                .distinctBy { it.videoId }
-            com.music.bitchord.ui.rebirth.sortFavorites(merged, favoriteSort, favoriteEntries.mapValues { it.value.addedAtMillis })
-        } else songs.sortedForLibrary(sortOrder)
+    // The same collection the two Plus libraries draw: one heart store, one
+    // merge rule and one order. Duplicating that merge here is how the original
+    // library and the Plus libraries drifted apart before.
+    val favoriteTracks = remember(songs, favoriteSongs, favoriteRatings, favoriteSort, favoriteEntries) {
+        com.music.bitchord.ui.rebirth.favoriteSongsInOrder(
+            favoriteSongs = favoriteSongs,
+            deviceSongs = songs,
+            favoriteIds = favoriteRatings
+                .filterValues { it == com.music.bitchord.data.model.LikeStatus.LIKE }
+                .keys,
+            sort = favoriteSort,
+            addedAt = favoriteEntries.mapValues { it.value.addedAtMillis },
+        )
+    }
+    val sortedSongs = remember(favoriteTracks, songs, sortOrder, favoritesOnly) {
+        if (favoritesOnly) favoriteTracks else songs.sortedForLibrary(sortOrder)
     }
     // Shared by selection and the album page. Search text changes only filter
     // this index; they do not regroup and sort the entire library each time.
@@ -320,7 +330,14 @@ fun LocalMusicScreen(
     }
     // Playlists own their search and sort; library controls must never change playlist order.
     if (selectedTab == LOCAL_TAB_PLAYLISTS && !isDownloads && navigationTab != null) {
-        DevicePlaylistsTab(songs, onSongClick, bodyContentPadding, onOpenSettings)
+        DevicePlaylistsTab(
+            songs = songs,
+            onPlay = onSongClick,
+            padding = bodyContentPadding,
+            onOpenSettings = onOpenSettings,
+            favorites = favoriteTracks,
+            onShuffle = onShuffle,
+        )
         return
     }
     Column(modifier = modifier.fillMaxSize()) {
@@ -475,7 +492,13 @@ fun LocalMusicScreen(
         ) { key ->
             when {
                 key == "tab:$LOCAL_TAB_PLAYLISTS" && !isDownloads -> {
-                    DevicePlaylistsTab(songs, onSongClick, bodyContentPadding)
+                    DevicePlaylistsTab(
+                        songs = songs,
+                        onPlay = onSongClick,
+                        padding = bodyContentPadding,
+                        favorites = favoriteTracks,
+                        onShuffle = onShuffle,
+                    )
                 }
                 // Nothing to tab through. The tab row stays put rather than
                 // being swapped out with the list, so the page still reads as

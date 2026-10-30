@@ -80,6 +80,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.music.bitchord.R
+import com.music.bitchord.ui.components.PlaylistDrag
+import com.music.bitchord.ui.components.PlaylistDragAutoScroll
+import com.music.bitchord.ui.components.PlaylistRowActions
+import com.music.bitchord.ui.components.playlistDragHandle
+import com.music.bitchord.ui.components.playlistDragLift
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.LocalMusicSort
 import com.music.bitchord.ui.components.LocalAppBackdrop
@@ -674,9 +679,17 @@ private fun GlassGallery(data: RebirthLibraryData, actions: RebirthLibraryAction
 private fun GlassCollection(data: RebirthLibraryData, actions: RebirthLibraryActions) {
     val collection = data.opened ?: return
     val listState = rememberLazyListState()
-    // One move per drop, decided on release — see [RebirthPlaylistDrag].
-    val drag = remember(listState) { RebirthPlaylistDrag(listState) }
+    // One move per drop, decided on release — see [PlaylistDrag]. Near either
+    // edge the list scrolls itself, so a long playlist can be reordered beyond
+    // the rows that happen to fit on screen.
+    val density = LocalDensity.current
+    val edgeZone = with(density) { 56.dp.toPx() }
+    val edgeSpeed = with(density) { 1100.dp.toPx() }
+    val drag = remember(listState, edgeZone, edgeSpeed) {
+        PlaylistDrag(listState, edgeZone, edgeSpeed)
+    }
     drag.onDrop = { from, to -> actions.onMoveInPlaylist(from, to) }
+    PlaylistDragAutoScroll(drag, listState)
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp),
@@ -691,7 +704,7 @@ private fun GlassCollection(data: RebirthLibraryData, actions: RebirthLibraryAct
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            IconButton(onClick = { if (collection.songs.isNotEmpty()) actions.onPlay(collection.songs, 0) }) {
+            IconButton(onClick = { if (data.visible.isNotEmpty()) actions.onPlay(data.visible, 0) }) {
                 Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.play))
             }
             if (collection.isPlaylist) {
@@ -722,6 +735,13 @@ private fun GlassCollection(data: RebirthLibraryData, actions: RebirthLibraryAct
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        } else if (collection.isPlaylist && data.openedSort != PlaylistSort.MANUAL) {
+            Text(
+                text = stringResource(R.string.rebirth_reorder_manual_hint),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
@@ -740,7 +760,7 @@ private fun GlassCollection(data: RebirthLibraryData, actions: RebirthLibraryAct
                         .fillMaxWidth()
                         .then(
                             if (reorderable) {
-                                Modifier.rebirthPlaylistLift(drag, song.videoId)
+                                Modifier.playlistDragLift(drag, song.videoId)
                             } else {
                                 Modifier
                             },
@@ -753,9 +773,10 @@ private fun GlassCollection(data: RebirthLibraryData, actions: RebirthLibraryAct
                             contentDescription = stringResource(R.string.rebirth_playlist_drag),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
-                                .size(36.dp)
-                                .padding(8.dp)
-                                .rebirthPlaylistHandle(drag, song.videoId, index, data.visible.size),
+                                .size(44.dp)
+                                .testTag("playlist-drag-${song.videoId}")
+                                .playlistDragHandle(drag, song.videoId, index, data.visible.size)
+                                .padding(10.dp),
                         )
                     }
                     Box(Modifier.weight(1f)) {
@@ -773,11 +794,6 @@ private fun GlassCollection(data: RebirthLibraryData, actions: RebirthLibraryAct
                     }
                     if (collection.isPlaylist) {
                         PlaylistRowActions(
-                            index = index,
-                            lastIndex = data.visible.lastIndex,
-                            canMove = data.canReorder,
-                            onMoveUp = { actions.onMoveInPlaylist(index, index - 1) },
-                            onMoveDown = { actions.onMoveInPlaylist(index, index + 1) },
                             onRemove = { actions.onRemoveFromPlaylist(index) },
                         )
                     }

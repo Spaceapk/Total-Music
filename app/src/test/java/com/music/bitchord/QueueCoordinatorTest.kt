@@ -2,12 +2,15 @@ package com.music.bitchord
 
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import com.music.bitchord.data.DevicePlaylist
+import com.music.bitchord.data.PlaylistSort
 import com.music.bitchord.data.model.PlaybackSourceType
 import com.music.bitchord.data.model.QueueTier
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.QueueCoordinator
 import com.music.bitchord.playback.QueueCoordinator.asQueueEntry
 import com.music.bitchord.playback.QueueSource
+import com.music.bitchord.playback.queueStartIndex
 import com.music.bitchord.playback.queueEntryId
 import com.music.bitchord.playback.queueTier
 import com.music.bitchord.playback.toMediaItem
@@ -526,5 +529,63 @@ class QueueCoordinatorTest {
     private fun tierAt(songs: List<Song>, items: List<MediaItem>): (Int) -> QueueTier {
         val byId = songs.associate { it.videoId to it.queueTier }
         return { index -> byId.getValue(items[index].mediaId) }
+    }
+
+    /**
+     * The queue a playlist hands the player is exactly the rows the reader is
+     * looking at. With shuffle off no order is invented between the list and
+     * playback, and the tapped row keeps its displayed index.
+     */
+    @Test
+    fun `a sorted playlist reaches the queue in the order it was displayed`() {
+        fun track(id: String, title: String, artist: String, album: String, track: Int, disc: Int = 1) =
+            Song(
+                videoId = id, title = title, artist = artist, thumbnailUrl = null,
+                albumName = album, localUri = "file:///$id",
+                localTrackNumber = track, localDiscNumber = disc,
+            )
+        val playlist = DevicePlaylist(
+            id = "p1", name = "Set",
+            songs = listOf(
+                track("ten", "Diez", "Alpha", "Uno", 10),
+                track("two", "Dos", "Alpha", "Uno", 2, 2),
+                track("one", "Uno", "Alpha", "Uno", 1),
+                track("untagged", "Sin pista", "Alpha", "Uno", 1).copy(localTrackNumber = null),
+            ),
+            sort = PlaylistSort.TRACK_ASC,
+        )
+        val displayed = playlist.sortedSongs()
+        val tapped = displayed.indexOfFirst { it.videoId == "two" }
+        val result = QueueCoordinator.buildContextQueue(
+            currentTimeline = emptyList(),
+            currentIndex = -1,
+            newContextSongs = displayed,
+            selectedIndex = tapped,
+            contextSource = QueueSource("Set", PlaybackSourceType.BROWSE, "local:p1"),
+        )
+        assertEquals(displayed.map { it.videoId }, result.timeline.map { it.videoId })
+        assertEquals(tapped, result.startIndex)
+        assertEquals("two", result.timeline[result.startIndex].videoId)
+        // No hidden shuffle: an unshuffled queue starts where the row was.
+        assertEquals(tapped, queueStartIndex(requestedIndex = tapped, itemCount = displayed.size, shuffled = false))
+    }
+
+    @Test
+    fun `a five hundred track playlist keeps every row and its order in the queue`() {
+        val songs = (0 until 500).map { index ->
+            Song(
+                videoId = "s$index", title = "Song ${(index * 37) % 500}", artist = "Artist ${index % 9}",
+                thumbnailUrl = null, albumName = "Album ${index % 13}", localUri = "file:///s$index",
+                localTrackNumber = index % 40 + 1, localDiscNumber = index % 3 + 1,
+            )
+        }
+        val displayed = DevicePlaylist("big", "Big", songs, sort = PlaylistSort.ALBUM_ASC).sortedSongs()
+        val result = QueueCoordinator.buildContextQueue(
+            currentTimeline = emptyList(), currentIndex = -1,
+            newContextSongs = displayed, selectedIndex = 250,
+            contextSource = QueueSource("Big", PlaybackSourceType.BROWSE, "local:big"),
+        )
+        assertEquals(displayed.map { it.videoId }, result.timeline.map { it.videoId })
+        assertEquals(250, result.startIndex)
     }
 }

@@ -175,13 +175,15 @@ internal fun rebirthFilteredSelection(selection: Set<String>, visible: List<Song
 /**
  * Whether a playlist can be reordered right now.
  *
- * Two conditions, both necessary: a manual order to move within, and no query —
- * a filtered list is not the playlist's running order, so a move inside it
- * would write an order nobody asked for. The UI explains this rather than
- * hiding the control, so the reason is visible.
+ * The only condition is no query. A filtered list is not the playlist's running
+ * order, so a move inside it would write an order nobody asked for; the UI
+ * explains this rather than hiding the handle, so the reason is visible.
+ *
+ * Any sort criterion is reorderable. Dragging while one is active stores the
+ * rows exactly as they were arranged and switches the playlist to manual —
+ * see `DevicePlaylistStore.move`.
  */
-internal fun rebirthCanReorder(query: String, sort: PlaylistSort): Boolean =
-    query.isBlank() && sort == PlaylistSort.MANUAL
+internal fun rebirthCanReorder(query: String): Boolean = query.isBlank()
 
 /**
  * The next order in the playlist sort cycle.
@@ -196,7 +198,9 @@ internal fun nextPlaylistSort(current: PlaylistSort): PlaylistSort = when (curre
     PlaylistSort.ARTIST_ASC -> PlaylistSort.ARTIST_DESC
     PlaylistSort.ARTIST_DESC -> PlaylistSort.ALBUM_ASC
     PlaylistSort.ALBUM_ASC -> PlaylistSort.ALBUM_DESC
-    PlaylistSort.ALBUM_DESC -> PlaylistSort.RECENTLY_ADDED
+    PlaylistSort.ALBUM_DESC -> PlaylistSort.TRACK_ASC
+    PlaylistSort.TRACK_ASC -> PlaylistSort.TRACK_DESC
+    PlaylistSort.TRACK_DESC -> PlaylistSort.RECENTLY_ADDED
     PlaylistSort.RECENTLY_ADDED -> PlaylistSort.MANUAL
 }
 
@@ -218,11 +222,49 @@ internal fun rebirthVisibleSongs(
 
 internal fun sortFavorites(songs: List<Song>, sort: FavoriteSort, addedAt: Map<String, Long> = emptyMap()): List<Song> {
     val collator = java.text.Collator.getInstance().apply { strength = java.text.Collator.PRIMARY }
+    val byTitle = Comparator<Song> { a, b -> collator.compare(a.title, b.title) }
     return when (sort) {
-        FavoriteSort.DATE_ADDED -> songs.sortedWith(compareByDescending<Song> { addedAt[it.videoId] ?: 0L }.thenBy { collator.compare(it.title, "") })
-        FavoriteSort.TITLE -> songs.sortedWith { a, b -> collator.compare(a.title, b.title) }
-        FavoriteSort.ARTIST -> songs.sortedWith { a, b -> collator.compare(a.artist, b.artist).takeIf { it != 0 } ?: collator.compare(a.title, b.title) }
+        FavoriteSort.DATE_ADDED -> songs.sortedWith(
+            compareByDescending<Song> { addedAt[it.videoId] ?: 0L }.thenComparing(byTitle),
+        )
+        FavoriteSort.TITLE -> songs.sortedWith(byTitle)
+        FavoriteSort.ARTIST -> songs.sortedWith(
+            Comparator<Song> { a, b -> collator.compare(a.artist, b.artist) }.thenComparing(byTitle),
+        )
     }
+}
+
+/**
+ * The favorites collection, assembled once for every theme.
+ *
+ * Its membership is the one shared heart store: a song is here because its
+ * rating says LIKE, whether it is a device file, a saved catalog entry or a
+ * track the account had already liked. Passing the device library as well as
+ * the persisted entries is what stops the original library and the two Plus
+ * libraries from showing three slightly different favorites lists — and the
+ * sort is the same [FavoriteSort] everywhere, so the order matches too.
+ *
+ * Entries win over library rows for metadata because they keep the heart's
+ * own copy of a song that may no longer be on the device.
+ */
+internal fun favoriteSongsInOrder(
+    favoriteSongs: List<Song>,
+    deviceSongs: List<Song>,
+    favoriteIds: Set<String>,
+    sort: FavoriteSort,
+    addedAt: Map<String, Long> = emptyMap(),
+): List<Song> {
+    if (favoriteIds.isEmpty()) return emptyList()
+    val known = LinkedHashMap<String, Song>()
+    favoriteSongs.forEach { known[it.videoId] = it }
+    deviceSongs.forEach { song ->
+        if (song.videoId in favoriteIds) known.putIfAbsent(song.videoId, song)
+    }
+    return sortFavorites(
+        known.values.filter { it.videoId in favoriteIds }.distinctBy { it.videoId },
+        sort,
+        addedAt,
+    )
 }
 
 /** Albums, artists and saved playlists, grouped once per library change. */

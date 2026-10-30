@@ -3086,6 +3086,19 @@ private fun BitChordApp(
                                     onPlayPause = { togglePlayPause() },
                                     onNext = { if (!controlsLocked) controller?.seekToNextMediaItem() else showHostOnlyNotice() },
                                     onExpandPlayer = { showNowPlaying = true },
+                                    // Shuffle is a queue edit, not a hidden playback
+                                    // mode: it has to be switched on before the queue
+                                    // is built, exactly as on the album pages.
+                                    onShuffle = { songs ->
+                                        if (songs.isNotEmpty()) {
+                                            QueueShuffle.enableForNextQueue()
+                                            playFrom(
+                                                songs,
+                                                songs.indices.random(),
+                                                QueueSource(libraryLabel, PlaybackSourceType.BROWSE, "local:all"),
+                                            )
+                                        }
+                                    },
                                     emptyMessage = (deviceState as? UiState.Error)?.message,
                                     // The shell owns the bottom of the screen while it is up, so
                                     // the two routes it does not contain have to be reachable

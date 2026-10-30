@@ -111,9 +111,12 @@ fun RebirthLocalExperience(
     // copied into the playlist file: a heart added anywhere already belongs to
     // it, and a heart removed anywhere already leaves it.
     val favoritesTitle = stringResource(R.string.rebirth_favorites)
-    val favoriteOrdered = remember(favoriteSongs, favoriteIds, favoriteSort, favoriteEntries) {
+    // One collection for all four appearances. It merges the persisted heart
+    // entries with the device library and filters both by the same shared
+    // LIKE state, so a heart added or removed anywhere reaches every theme.
+    val favoriteOrdered = remember(songs, favoriteSongs, favoriteIds, favoriteSort, favoriteEntries) {
         val added = favoriteEntries.mapValues { it.value.addedAtMillis }
-        sortFavorites(favoriteSongs.filter { it.videoId in favoriteIds }, favoriteSort, added)
+        favoriteSongsInOrder(favoriteSongs, songs, favoriteIds, favoriteSort, added)
     }
     val favoritesCollection = remember(favoriteOrdered, favoritesTitle) {
         rebirthFavoriteCollection(favoriteOrdered, favoritesTitle)
@@ -151,7 +154,7 @@ fun RebirthLocalExperience(
     }
     // A virtual collection has no stored running order to move; only a saved
     // playlist can be reordered, and only while it is unfiltered and manual.
-    val canReorder = opened?.isPlaylist == true && rebirthCanReorder(query, openedSort)
+    val canReorder = opened?.isPlaylist == true && rebirthCanReorder(query)
 
     BackHandler(selection.isNotEmpty() || opened != null || currentDestination != RebirthDestination.HOME) {
         when {
@@ -242,9 +245,11 @@ fun RebirthLocalExperience(
             }
         },
         onRemoveFromPlaylist = { index ->
+            // Resolve by identity, not by row index: the visible list may be
+            // sorted or filtered, so an index is not a storage position.
             val id = opened?.playlistId
-            val song = visible.getOrNull(index)
-            if (id != null && song != null && canReorder) store.remove(id, index)
+            val uri = visible.getOrNull(index)?.localUri
+            if (id != null && uri != null) store.removeSong(id, uri)
         },
         onOpenGlobalSearch = { onOpenGlobalSearch?.invoke() },
     )

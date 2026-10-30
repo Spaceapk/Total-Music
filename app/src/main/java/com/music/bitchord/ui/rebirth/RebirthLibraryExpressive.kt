@@ -64,6 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +72,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.music.bitchord.R
+import com.music.bitchord.ui.components.PlaylistDrag
+import com.music.bitchord.ui.components.PlaylistDragAutoScroll
+import com.music.bitchord.ui.components.PlaylistRowActions
+import com.music.bitchord.ui.components.playlistDragHandle
+import com.music.bitchord.ui.components.playlistDragLift
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.LocalMusicSort
 
@@ -602,9 +608,17 @@ private fun ExpressiveGallery(data: RebirthLibraryData, actions: RebirthLibraryA
 private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibraryActions) {
     val collection = data.opened ?: return
     val listState = rememberLazyListState()
-    // One move per drop, decided on release — see [RebirthPlaylistDrag].
-    val drag = remember(listState) { RebirthPlaylistDrag(listState) }
+    // One move per drop, decided on release — see [PlaylistDrag]. Near either
+    // edge the list scrolls itself, so a long playlist can be reordered beyond
+    // the rows that happen to fit on screen.
+    val density = LocalDensity.current
+    val edgeZone = with(density) { 56.dp.toPx() }
+    val edgeSpeed = with(density) { 1100.dp.toPx() }
+    val drag = remember(listState, edgeZone, edgeSpeed) {
+        PlaylistDrag(listState, edgeZone, edgeSpeed)
+    }
     drag.onDrop = { from, to -> actions.onMoveInPlaylist(from, to) }
+    PlaylistDragAutoScroll(drag, listState)
     LazyColumn(
         Modifier.fillMaxSize(),
         state = listState,
@@ -638,7 +652,9 @@ private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibra
                     }
                 }
                 FilledTonalIconButton(
-                    onClick = { if (collection.songs.isNotEmpty()) actions.onPlay(collection.songs, 0) },
+                    // Exactly the rows on screen: the queue must not include
+                    // songs a query hid or ignore the order the reader sees.
+                    onClick = { if (data.visible.isNotEmpty()) actions.onPlay(data.visible, 0) },
                 ) {
                     Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.play))
                 }
@@ -693,6 +709,15 @@ private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibra
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        } else if (collection.isPlaylist && data.openedSort != PlaylistSort.MANUAL) {
+            item {
+                Text(
+                    text = stringResource(R.string.rebirth_reorder_manual_hint),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         itemsIndexed(data.visible, key = { _, song -> song.videoId }) { index, song ->
             val reorderable = collection.isPlaylist && data.canReorder
@@ -702,7 +727,7 @@ private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibra
                     .padding(horizontal = 4.dp)
                     .then(
                         if (reorderable) {
-                            Modifier.rebirthPlaylistLift(drag, song.videoId)
+                            Modifier.playlistDragLift(drag, song.videoId)
                         } else {
                             Modifier
                         },
@@ -715,9 +740,10 @@ private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibra
                         contentDescription = stringResource(R.string.rebirth_playlist_drag),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
-                            .size(36.dp)
-                            .padding(8.dp)
-                            .rebirthPlaylistHandle(drag, song.videoId, index, data.visible.size),
+                            .size(44.dp)
+                            .testTag("playlist-drag-${song.videoId}")
+                            .playlistDragHandle(drag, song.videoId, index, data.visible.size)
+                            .padding(10.dp),
                     )
                 }
                 Box(Modifier.weight(1f)) {
@@ -739,11 +765,6 @@ private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibra
                     // targets squeezing the title on a narrow phone, and only
                     // two of them could reorder.
                     PlaylistRowActions(
-                        index = index,
-                        lastIndex = data.visible.lastIndex,
-                        canMove = data.canReorder,
-                        onMoveUp = { actions.onMoveInPlaylist(index, index - 1) },
-                        onMoveDown = { actions.onMoveInPlaylist(index, index + 1) },
                         onRemove = { actions.onRemoveFromPlaylist(index) },
                     )
                 }

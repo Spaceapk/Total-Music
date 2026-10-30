@@ -95,6 +95,8 @@ internal fun PlaylistSort.rebirthLabel(): String = stringResource(
         PlaylistSort.ARTIST_DESC -> R.string.space_sort_artist_descending
         PlaylistSort.ALBUM_ASC -> R.string.space_sort_album_ascending
         PlaylistSort.ALBUM_DESC -> R.string.space_sort_album_descending
+        PlaylistSort.TRACK_ASC -> R.string.space_sort_track_ascending
+        PlaylistSort.TRACK_DESC -> R.string.space_sort_track_descending
         PlaylistSort.RECENTLY_ADDED -> R.string.space_sort_recent
     },
 )
