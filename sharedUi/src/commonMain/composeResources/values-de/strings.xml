@@ -200,4 +200,22 @@
     <string name="search_library_empty">Durchsuche die Songs in deinem Ordner für lokale Musik.</string>
     <string name="search_library_hint">Songs, Künstler und Alben</string>
     <string name="search_library_no_results">Nichts in der lokalen Musik passt zu „%1$s“.</string>
+    <string name="rebirth_playback_tools">Wiedergabe-Werkzeuge</string>
+    <string name="rebirth_lyrics_page">Songtext</string>
+    <string name="rebirth_output">Ausgabe</string>
+    <string name="rebirth_tools_short">Werkzeuge</string>
+    <string name="rebirth_translate">Übersetzen</string>
+    <string name="rebirth_romanize">Romanisieren</string>
+    <string name="rebirth_queue_tracks">%1$d in der Warteschlange</string>
+    <string name="rebirth_clear_added">Hinzugefügte leeren</string>
+    <string name="rebirth_next_up_empty">Nichts nach diesem Titel</string>
+    <string name="rebirth_equalizer">Equalizer</string>
+    <string name="rebirth_classic_player">Klassischer Player</string>
+    <string name="rebirth_classic_player_caption">Songtextkarte teilen und die erweiterten Songtext-Steuerungen</string>
+    <string name="rebirth_queue_locked">In dieser Sitzung folgt die Warteschlange dem Host</string>
+    <string name="rebirth_queue_move_up">Nach oben</string>
+    <string name="rebirth_queue_move_down">Nach unten</string>
+    <string name="rebirth_lyrics_sync_off">Synchronisierte Songtexte sind in den Einstellungen aus</string>
+    <string name="rebirth_lyrics_offset">Songtext-Versatz</string>
+    <string name="rebirth_lyrics_offset_value">Versatz %1$s</string>
 </resources>

@@ -200,4 +200,22 @@
     <string name="search_library_empty">Поиск треков в папке локальной музыки.</string>
     <string name="search_library_hint">Треки, исполнители и альбомы</string>
     <string name="search_library_no_results">В локальной музыке нет ничего, совпадающего с «%1$s».</string>
+    <string name="rebirth_playback_tools">Инструменты воспроизведения</string>
+    <string name="rebirth_lyrics_page">Текст песни</string>
+    <string name="rebirth_output">Вывод</string>
+    <string name="rebirth_tools_short">Инструменты</string>
+    <string name="rebirth_translate">Перевести</string>
+    <string name="rebirth_romanize">Романизировать</string>
+    <string name="rebirth_queue_tracks">%1$d в очереди</string>
+    <string name="rebirth_clear_added">Очистить добавленные</string>
+    <string name="rebirth_next_up_empty">После этого трека ничего нет</string>
+    <string name="rebirth_equalizer">Эквалайзер</string>
+    <string name="rebirth_classic_player">Классический плеер</string>
+    <string name="rebirth_classic_player_caption">Карточка текста для отправки и расширенные настройки текста</string>
+    <string name="rebirth_queue_locked">В этом сеансе очередь следует за хостом</string>
+    <string name="rebirth_queue_move_up">Вверх</string>
+    <string name="rebirth_queue_move_down">Вниз</string>
+    <string name="rebirth_lyrics_sync_off">Синхронизированные тексты отключены в настройках</string>
+    <string name="rebirth_lyrics_offset">Смещение текста</string>
+    <string name="rebirth_lyrics_offset_value">Смещение %1$s</string>
 </resources>

@@ -1,0 +1,9 @@
+<!-- Total Music 1.8.4 playlist order and virtual favorites. Other locales fall
+     back to English, following the 1.8.0 resource convention. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="space_sort_artist_ascending">Artist, A–Z</string>
+    <string name="space_sort_artist_descending">Artist, Z–A</string>
+    <string name="space_sort_album_ascending">Album, A–Z</string>
+    <string name="space_sort_album_descending">Album, Z–A</string>
+    <string name="rebirth_favorites_empty">Tap the heart on a song and it will appear here.</string>
+</resources>

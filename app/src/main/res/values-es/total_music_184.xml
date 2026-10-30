@@ -1,0 +1,8 @@
+<!-- Cadenas de 1.8.4: orden de listas y colección virtual de favoritas. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="space_sort_artist_ascending">Artista, A–Z</string>
+    <string name="space_sort_artist_descending">Artista, Z–A</string>
+    <string name="space_sort_album_ascending">Álbum, A–Z</string>
+    <string name="space_sort_album_descending">Álbum, Z–A</string>
+    <string name="rebirth_favorites_empty">Toca el corazón de una canción y aparecerá aquí.</string>
+</resources>

@@ -1,5 +1,35 @@
 [
   {
+    "versionCode": 22,
+    "versionName": "1.8.4",
+    "notes": "Mis favoritas como colección virtual de la biblioteca: se abre desde Listas, reproduce y baraja lo que tiene el corazón, y se actualiza al instante cuando quitas un corazón en la colección, el reproductor o la notificación, sin una segunda copia de los datos. Las listas guardadas se pueden ordenar por artista y por álbum, de forma ascendente y descendente, conservando las pistas de cada álbum en orden y manteniendo el orden antiguo por artista al actualizar. Se conservan los temas, el ecualizador y la firma."
+  },
+  {
+    "versionCode": 21,
+    "versionName": "1.8.3",
+    "notes": "Favoritos completos: metadatos y fecha de incorporación persistentes, orden por fecha/título/artista, reproducción y aleatoria de la colección, retirada desde la lista y el reproductor. Ecualizador profesional: curva combinada editable, monitor A/B, perfiles personalizados renombrables, limitador con lookahead y margen automático consciente de estéreo. Conserva los cuatro temas, listas, gestos y controles multimedia. APK de prueba; la actualización estable requiere la firma permanente original."
+  },
+  {
+    "versionCode": 20,
+    "versionName": "1.8.2",
+    "notes": "Favorites & Experience: Mis favoritas en Biblioteca con persistencia compartida, gestos horizontales en las carátulas de los reproductores + y selector centralizado Apariencia y temas con cuatro experiencias existentes. Conserva las mejoras de 1.8.1."
+  },
+  {
+    "versionCode": 19,
+    "versionName": "1.8.1",
+    "notes": "Correcciones sobre 1.8.0. Se retira Explorar de la navegación de Google Expressive+ y Liquid Glass+ (solo mostraba una carga sin fin): quedan Inicio, Biblioteca, Buscar, Álbumes, Artistas, Listas, Favoritos y el Reproductor. Se corrige el cierre inesperado al volver a Biblioteca desde Ajustes o el Reproductor. El reproductor Google Expressive+ se reparte sin huecos sobrantes: carátula, título, artista, progreso y controles bien proporcionados sobre la altura disponible. Liquid Glass+ muestra cristal sobre el contenido dinámico: desenfoque del fondo, refracción y reflejos delicados en bordes y superficies, con alternativa translúcida en Android 13 y versiones anteriores. Barra inferior y minirreproductor más compactos, con márgenes del sistema y áreas seguras, sin invadir los controles de navegación. Conservan reproducción en segundo plano, ecualizador de diez bandas, orden de álbumes por número de pista, listas y selección múltiple, widgets, colores dinámicos y modo AMOLED, favoritos persistentes y controles multimedia. Mismo paquete y misma firma permanente para actualizar sobre 1.8.0. Favoritos del dispositivo sin inicio de sesión, conservados al cerrar la aplicación y compartidos entre todos los reproductores. Se añade Canciones favoritas a Biblioteca."
+  },
+  {
+    "versionCode": 14,
+    "versionName": "1.8.0",
+    "notes": "Vista previa en desarrollo de Google Expressive+ y Liquid Glass+ con nuevas composiciones de inicio, biblioteca, reproductor y personalización. Original conserva su interfaz. Las pantallas avanzadas y la validación visual completa siguen pendientes; esta compilación interna no es una publicación oficial."
+  },
+  {
+    "versionCode": 13,
+    "versionName": "1.7.0",
+    "notes": "Experiencia visual con reproductores Original, Google Expressive+ y Liquid Glass+, efectos opcionales y seis widgets personalizables. Tema automático, claro u oscuro por widget. Los controles y metadatos se actualizan desde la sesión multimedia Media3 existente."
+  },
+  {
     "versionCode": 12,
     "versionName": "1.6.0",
     "notes": "Reutilización conservadora de colas locales ya instaladas para cambiar de canción sin recrear todas las fuentes, conservando historial, orden y colas manuales. Preparación de colas en el despachador de entrada y salida, escaneo local con lectura única de la carpeta elegida, índice de álbumes durante búsquedas y colores de carátula durante animaciones. Se conservan los temas y controles de audio."

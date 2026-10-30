@@ -1,0 +1,18 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="favorites_sort">Sort favorites</string>
+    <string name="favorites_sort_date">Date added</string>
+    <string name="total_eq_studio_title">Curve and A/B monitor</string>
+    <string name="total_eq_ab_original">A · Original</string>
+    <string name="total_eq_ab_processed">B · Processed</string>
+    <string name="total_eq_ab_original_hint">Monitoring the equalizer input. Spatial audio and loudness normalization are unchanged.</string>
+    <string name="total_eq_ab_processed_hint">Monitoring the saved equalizer curve.</string>
+    <string name="total_eq_curve_graphic">Graphic</string>
+    <string name="total_eq_curve_access">Editable equalizer response curve</string>
+    <string name="total_eq_curve_graphic_hint">Drag a band node vertically. Use the faders below for keyboard and accessibility control.</string>
+    <string name="total_eq_curve_parametric_hint">Drag a filter node to set frequency and gain. Set Q in the parametric filters below.</string>
+    <string name="total_eq_protection_warning">Automatic headroom or the limiter is off. Boosts can clip; lower the preamp or re-enable protection.</string>
+    <string name="total_eq_load">Load</string>
+    <string name="total_eq_rename_profile">Rename profile</string>
+    <string name="total_eq_preset_pop">Pop</string>
+    <string name="total_eq_preset_deep_bass">Deep bass</string>
+</resources>
