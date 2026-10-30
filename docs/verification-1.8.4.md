@@ -15,9 +15,9 @@
 
 La colección **Mis favoritas** se deriva de `LikeState.overrides` y de las canciones locales ya conocidas; no se guarda como una playlist real. Su identificador es `collection:favorites` y cumple estas reglas:
 
-- aparece siempre, también vacía, al principio de las playlists guardadas;
+- aparece siempre, también vacía, al principio de las playlists de las bibliotecas +;
 - no se puede renombrar, reordenar ni borrar, y no se persiste en `DevicePlaylistStore`;
-- sus filas son las mismas que alimentan los corazones, de modo que quitar un corazón desde la colección actualiza el mismo estado compartido que la notificación, el widget y los tres reproductores;
+- sus filas son las mismas que alimentan los corazones, de modo que quitar un corazón desde la colección actualiza el mismo estado compartido que la notificación, los controles multimedia y los tres reproductores;
 - el orden usa la preferencia existente `FavoriteSort` (título, artista, álbum y fecha añadida) y no reinterpreta el orden manual de una playlist;
 - el texto de colección vacía solo aparece con una búsqueda en blanco.
 
