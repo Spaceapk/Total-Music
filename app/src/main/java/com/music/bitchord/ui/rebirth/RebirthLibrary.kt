@@ -111,7 +111,7 @@ fun RebirthLocalExperience(
     val opened = remember(collectionId, albums, artists, saved) {
         (albums + artists + saved).firstOrNull { it.id == collectionId }
     }
-    val favoriteVisible = remember(favoriteSongs, favoriteSort, favoriteEntries, query) {
+    val favoriteVisible = remember(favoriteSongs, favoriteIds, favoriteSort, favoriteEntries, query) {
         val added = favoriteEntries.mapValues { it.value.addedAtMillis }
         sortFavorites(favoriteSongs.filter { it.videoId in favoriteIds }, favoriteSort, added).filter { rebirthMatches(it, query) }
     }

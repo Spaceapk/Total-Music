@@ -48,11 +48,13 @@ class FavoriteCatalogUiTest {
                 }
             }
             compose.onNodeWithText(context.getString(R.string.rebirth_favorites)).performClick()
-            compose.onNodeWithContentDescription(context.getString(R.string.favorites_sort)).performClick()
+            compose.onNodeWithText("Apple").assertExists()
+            compose.onNodeWithText("Zebra").assertExists()
+            compose.onNodeWithContentDescription(context.getString(R.string.favorites_sort), useUnmergedTree = true).performClick()
             compose.onNodeWithText(context.getString(R.string.sort_title_ascending)).performClick()
             assertEquals(FavoriteSort.TITLE, AppSettings.favoriteSort.value)
             compose.onNodeWithText("Apple").assertExists()
-            compose.onNodeWithContentDescription(context.getString(R.string.remove_from_liked)).performClick()
+            compose.onNodeWithContentDescription(context.getString(R.string.remove_from_liked), useUnmergedTree = true).performClick()
             compose.runOnIdle {
                 assertEquals(LikeStatus.INDIFFERENT, LikeState.overrides.value[songs[0].videoId])
                 assertEquals(LikeStatus.LIKE, LikeState.overrides.value[songs[1].videoId])
