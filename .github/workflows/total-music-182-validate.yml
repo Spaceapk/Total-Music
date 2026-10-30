@@ -505,16 +505,6 @@ jobs:
           path: apks
       - name: List what arrived
         run: find apks -type f | head -20
-      - name: Publish instrumented compile errors
-        if: failure()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [ -f ui-compile.log ]; then
-            { echo '### Instrumented compile errors'; echo '```'; grep -E '^e: |FAILED|What went wrong|Caused by:|Unresolved' ui-compile.log | head -100 || true; echo '```'; } > ui-compile-comment.md
-            gh api repos/${{ github.repository }}/issues/10/comments -F body=@ui-compile-comment.md || true
-          fi
-
       - name: Boot Android 13
         run: |
           set -euo pipefail
@@ -665,6 +655,16 @@ jobs:
           PYCACHE
           # Do not retain the compiler heap while Android and the playback service run.
           ./gradlew --stop
+
+      - name: Publish instrumented compile errors
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f ui-compile.log ]; then
+            { echo '### Instrumented compile errors'; echo '```'; grep -E '^e: |FAILED|What went wrong|Caused by:|Unresolved' ui-compile.log | head -100 || true; echo '```'; } > ui-compile-comment.md
+            gh api repos/${{ github.repository }}/issues/10/comments -F body=@ui-compile-comment.md || true
+          fi
 
       - name: Boot Android 13
         run: |
