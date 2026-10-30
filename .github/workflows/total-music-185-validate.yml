@@ -710,7 +710,7 @@ jobs:
             -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
             -PspaceSpatialEdition=true \
             -Pandroid.injected.build.abi=x86_64 \
-            '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.FavoritePlaybackJourneyTest,com.music.bitchord.FavoriteCatalogUiTest,com.music.bitchord.FavoriteCollectionUiTest,com.music.bitchord.TotalEqStudioUiTest,com.music.bitchord.DevicePlaylistStoreTest' \
+            '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.FavoritePlaybackJourneyTest,com.music.bitchord.FavoriteCatalogUiTest,com.music.bitchord.FavoriteCollectionUiTest,com.music.bitchord.TotalEqStudioUiTest,com.music.bitchord.DevicePlaylistStoreTest,com.music.bitchord.PlaylistReorderUiTest' \
             --max-workers=2 --build-cache --stacktrace 2>&1 | tee ui-test.log
 
       - name: Verify favorites and appearance after a real process restart
