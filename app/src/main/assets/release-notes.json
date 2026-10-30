@@ -1,5 +1,10 @@
 [
   {
+    "versionCode": 21,
+    "versionName": "1.8.3",
+    "notes": "Favoritos completos: metadatos y fecha de incorporación persistentes, orden por fecha/título/artista, reproducción y aleatoria de la colección, retirada desde la lista y el reproductor. Ecualizador profesional: curva combinada editable, monitor A/B, perfiles personalizados renombrables, limitador con lookahead y margen automático consciente de estéreo. Conserva los cuatro temas, listas, gestos y controles multimedia. APK de prueba; la actualización estable requiere la firma permanente original."
+  },
+  {
     "versionCode": 20,
     "versionName": "1.8.2",
     "notes": "Favorites & Experience: Mis favoritas en Biblioteca con persistencia compartida, gestos horizontales en las carátulas de los reproductores + y selector centralizado Apariencia y temas con cuatro experiencias existentes. Conserva las mejoras de 1.8.1."
