@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import com.music.bitchord.R
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.FavoriteSort
@@ -38,7 +39,9 @@ internal fun FavoriteCollectionActions(
         TextButton(enabled = songs.isNotEmpty(), onClick = { onPlay(songs, 0) }) { Text(stringResource(R.string.play)) }
         TextButton(enabled = songs.isNotEmpty(), onClick = { onShuffle(songs) }) { Text(stringResource(R.string.shuffle)) }
         Box {
-            IconButton(onClick = { open = true }) { Icon(Icons.Rounded.Sort, contentDescription = stringResource(R.string.favorites_sort)) }
+            IconButton(onClick = { open = true }, modifier = Modifier.testTag("favorites-sort")) {
+                Icon(Icons.Rounded.Sort, contentDescription = stringResource(R.string.favorites_sort))
+            }
             DropdownMenu(open, onDismissRequest = { open = false }) {
                 FavoriteSort.entries.forEach { entry ->
                     DropdownMenuItem(text = { Text(stringResource(entry.labelRes())) }, onClick = { onSort(entry); open = false })

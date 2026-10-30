@@ -5,9 +5,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.onNodeWithTag
 import com.music.bitchord.data.DeviceFavoriteStore
 import com.music.bitchord.data.LikeState
 import com.music.bitchord.data.model.LikeStatus
@@ -48,10 +51,13 @@ class FavoriteCatalogUiTest {
                     )
                 }
             }
-            compose.onNodeWithText(context.getString(R.string.rebirth_favorites)).performClick()
+            compose.onNodeWithText(context.getString(R.string.rebirth_favorites)).performScrollTo().performClick()
             compose.onNodeWithText("Apple").assertExists()
             compose.onNodeWithText("Zebra").assertExists()
-            compose.onNodeWithContentDescription(context.getString(R.string.favorites_sort), useUnmergedTree = true).performClick()
+            compose.waitUntil(5_000) {
+                compose.onAllNodesWithTag("favorites-sort").fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNodeWithTag("favorites-sort").performClick()
             compose.onNodeWithText(context.getString(R.string.sort_title_ascending)).performClick()
             assertEquals(FavoriteSort.TITLE, AppSettings.favoriteSort.value)
             compose.onNodeWithText("Apple").assertExists()
