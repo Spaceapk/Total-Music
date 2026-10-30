@@ -108,6 +108,7 @@ class FavoritePlaybackJourneyTest {
                     } else holder.SaveableStateProvider("library") {
                         RebirthLocalExperience(style = style, songs = songs, currentSong = null, isPlaying = false,
                             loading = false, favoriteIds = ratings.filterValues { it == LikeStatus.LIKE }.keys,
+                            favoriteSongs = songs,
                             initialQuery = "", destination = RebirthDestination.LIBRARY,
                             onPlay = { list, index -> scope.launch { player.playSongs(list, index) } },
                             onShuffle = { list -> QueueShuffle.enableForNextQueue(); scope.launch { player.playSongs(list, 0) } },

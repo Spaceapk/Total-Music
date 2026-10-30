@@ -113,7 +113,7 @@ fun RebirthLocalExperience(
     }
     val favoriteVisible = remember(favoriteSongs, favoriteSort, favoriteEntries, query) {
         val added = favoriteEntries.mapValues { it.value.addedAtMillis }
-        sortFavorites(favoriteSongs, favoriteSort, added).filter { rebirthMatches(it, query) }
+        sortFavorites(favoriteSongs.filter { it.videoId in favoriteIds }, favoriteSort, added).filter { rebirthMatches(it, query) }
     }
     val visible = remember(songs, order, opened, category, favoriteIds, query, favoriteVisible) {
         if (category == RebirthCategory.FAVORITES && opened == null) favoriteVisible else rebirthVisibleSongs(

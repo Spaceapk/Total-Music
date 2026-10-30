@@ -23,6 +23,7 @@ object TotalMusicSettings {
 
     fun init(preferences: SharedPreferences) {
         prefs = preferences
+        compareOriginal.value = false
         artworkColors.value = prefs.getBoolean("google_artwork_colors", false)
         adaptiveGlass.value = prefs.getBoolean("adaptive_glass", false)
         expressive.value = prefs.getBoolean("google_expressive", false)
