@@ -474,17 +474,7 @@ fun DevicePlaylistPickerDialog(songs: List<Song>, onDismiss: () -> Unit) {
                     onValueChange = { name = it; if (it.isNotBlank()) selectedId = null },
                     label = { Text(stringResource(R.string.new_playlist)) })
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                if (selected != null && selection.isNotEmpty()) {
-            com.music.bitchord.ui.components.PlaylistSelectionBar(
-                visible = visibleSongs, selectedIds = selectedIds,
-                onSelection = { selection = it.toList() }, onPlay = onPlay,
-                onAddToPlaylist = { addSelection = it }, onQueue = onQueueSelection,
-                onRemove = { rows -> change { store.removeSongs(selected.id, rows.mapNotNullTo(HashSet()) { it.localUri }) } },
-                onMove = { rows, start -> change { store.moveSongs(selected.id, rows.mapNotNullTo(HashSet()) { it.localUri }, start) } },
-                enabled = !busy,
-            )
-        }
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
