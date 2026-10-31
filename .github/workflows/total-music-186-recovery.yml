@@ -2,7 +2,7 @@ name: Total Music 1.8.6 playlist validation
 on:
   push:
     branches: [work/playlist-chronology-selection-186]
-    paths: ['.github/workflows/total-music-186-recovery.yml', 'Total-Music-1.8.6-cambios.patch']
+    paths: ['.github/workflows/total-music-186-recovery.yml', 'Total-Music-1.8.6-cambios.patch', 'app/**', 'shared/**']
   workflow_dispatch:
 permissions:
   contents: write
@@ -24,15 +24,14 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = work/playlist-chronology-selection-186
-          if git apply --check --exclude='.github/workflows/total-music-android.yml' Total-Music-1.8.6-cambios.patch; then
+          if ! grep -q '^versionName=1.8.6$' total-music-release.properties; then
+            git apply --check --exclude='.github/workflows/total-music-android.yml' Total-Music-1.8.6-cambios.patch
             git apply --exclude='.github/workflows/total-music-android.yml' Total-Music-1.8.6-cambios.patch
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git add app shared docs/TOTAL_MUSIC_186.md total-music-release.properties
             git commit -m 'Implement Total Music 1.8.6 playlist chronology and bulk actions'
             git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"
-          else
-            git apply --reverse --check --exclude='.github/workflows/total-music-android.yml' Total-Music-1.8.6-cambios.patch
           fi
           python3 scripts/release/check_release.py
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
