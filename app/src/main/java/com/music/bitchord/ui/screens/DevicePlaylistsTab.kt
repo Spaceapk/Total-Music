@@ -1,6 +1,8 @@
 package com.music.bitchord.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -48,9 +50,11 @@ import kotlinx.coroutines.withContext
  * has no chip row above it, and it would otherwise have no way to open
  * favorites at all.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DevicePlaylistsTab(
     songs: List<Song>,
+    onQueueSelection: ((List<Song>, Boolean) -> Unit)? = null,
     onPlay: (List<Song>, Int) -> Unit,
     padding: PaddingValues,
     onOpenSettings: () -> Unit = {},
@@ -64,7 +68,18 @@ fun DevicePlaylistsTab(
         Text(stringResource(R.string.star_save_error), Modifier.padding(20.dp))
         return
     }
-    val playlists by store.playlists.collectAsStateWithLifecycle()
+    LaunchedEffect(store, songs) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { store.refreshMetadata(songs) }.onFailure {
+                com.music.bitchord.data.DebugLog.w("BitChord", "Could not refresh playlist metadata: ${it.message}")
+            }
+        }
+    }
+    val storedPlaylists by store.playlists.collectAsStateWithLifecycle()
+    val playlists = remember(storedPlaylists, songs) {
+        val current = songs.associateBy { it.localUri }
+        storedPlaylists.map { p -> p.copy(songs = p.songs.map { current[it.localUri] ?: it }) }
+    }
     val favoriteSort by AppSettings.favoriteSort.collectAsStateWithLifecycle()
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var showingFavorites by rememberSaveable { mutableStateOf(false) }
@@ -76,6 +91,10 @@ fun DevicePlaylistsTab(
     val visibleSongs = remember(orderedSongs, query) {
         orderedSongs.filter { query.isBlank() || it.title.contains(query, true) || it.artist.contains(query, true) }
     }
+    var selection by rememberSaveable(selectedId, query) { mutableStateOf(emptyList<String>()) }
+    val selectedIds = selection.toSet()
+    var addSelection by remember { mutableStateOf<List<Song>?>(null) }
+    LaunchedEffect(visibleSongs) { selection = selection.filter { id -> visibleSongs.any { it.videoId == id } } }
     var editing by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var actionsExpanded by remember { mutableStateOf(false) }
@@ -94,8 +113,9 @@ fun DevicePlaylistsTab(
             finally { busy = false }
         }
     }
-    BackHandler(showingFavorites || selected != null || searchOpen) {
+    BackHandler(selection.isNotEmpty() || showingFavorites || selected != null || searchOpen) {
         when {
+            selection.isNotEmpty() -> selection = emptyList()
             searchOpen -> { searchOpen = false; query = "" }
             showingFavorites -> showingFavorites = false
             else -> selectedId = null
@@ -186,6 +206,16 @@ fun DevicePlaylistsTab(
                 }
             }
         }
+        if (selected != null && selection.isNotEmpty()) {
+            com.music.bitchord.ui.components.PlaylistSelectionBar(
+                visible = visibleSongs, selectedIds = selectedIds,
+                onSelection = { selection = it.toList() }, onPlay = onPlay,
+                onAddToPlaylist = { addSelection = it }, onQueue = onQueueSelection,
+                onRemove = { rows -> change { store.removeSongs(selected.id, rows.mapNotNullTo(HashSet()) { it.localUri }) } },
+                onMove = { rows, start -> change { store.moveSongs(selected.id, rows.mapNotNullTo(HashSet()) { it.localUri }, start) } },
+                enabled = !busy,
+            )
+        }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (selected == null) {
             if (playlists.isEmpty()) Text(stringResource(R.string.star_playlist_hint), Modifier.padding(20.dp))
@@ -226,7 +256,7 @@ fun DevicePlaylistsTab(
             val drag = remember(listState, selected.id, edgeZone, edgeSpeed) {
                 PlaylistDrag(listState, edgeZone, edgeSpeed)
             }
-            val canDrag = query.isBlank() && visibleSongs.size > 1
+            val canDrag = selection.isEmpty() && query.isBlank() && visibleSongs.size > 1
             // One write per drop; the store turns the visible order into the
             // manual one, so dragging while another order is active is also
             // how that order is kept.
@@ -266,9 +296,18 @@ fun DevicePlaylistsTab(
                         ListItem(
                             headlineContent = { Text(song.title, maxLines = 1) },
                             supportingContent = { Text(song.artist, maxLines = 1) },
-                            modifier = Modifier.weight(1f).clickable {
-                                onPlay(visibleSongs.map { it.copy(videoId = it.localUri ?: it.videoId) }, index)
+                            leadingContent = {
+                                if (selection.isNotEmpty()) Checkbox(checked = song.videoId in selectedIds, onCheckedChange = { checked ->
+                                    selection = if (checked) selection + song.videoId else selection.filterNot { it == song.videoId }
+                                })
                             },
+                            modifier = Modifier.weight(1f).combinedClickable(
+                                onLongClick = { selection = if (song.videoId in selectedIds) selection.filterNot { it == song.videoId } else selection + song.videoId },
+                                onClick = {
+                                    if (selection.isNotEmpty()) selection = if (song.videoId in selectedIds) selection.filterNot { it == song.videoId } else selection + song.videoId
+                                    else onPlay(visibleSongs, index)
+                                },
+                            ),
                             trailingContent = {
                                 var songMenu by remember { mutableStateOf(false) }
                                 Box {
@@ -288,6 +327,7 @@ fun DevicePlaylistsTab(
             }
         }
     }
+    addSelection?.let { rows -> DevicePlaylistPickerDialog(rows) { addSelection = null; selection = emptyList() } }
     if (editing) AlertDialog(onDismissRequest = { editing = false },
         title = { Text(stringResource(if (selected == null) R.string.create_playlist else R.string.rename)) },
         text = { OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text(stringResource(R.string.playlist_name)) }) },
@@ -398,7 +438,18 @@ fun DevicePlaylistPickerDialog(songs: List<Song>, onDismiss: () -> Unit) {
             confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
         return
     }
-    val playlists by store.playlists.collectAsStateWithLifecycle()
+    LaunchedEffect(store, songs) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { store.refreshMetadata(songs) }.onFailure {
+                com.music.bitchord.data.DebugLog.w("BitChord", "Could not refresh playlist metadata: ${it.message}")
+            }
+        }
+    }
+    val storedPlaylists by store.playlists.collectAsStateWithLifecycle()
+    val playlists = remember(storedPlaylists, songs) {
+        val current = songs.associateBy { it.localUri }
+        storedPlaylists.map { p -> p.copy(songs = p.songs.map { current[it.localUri] ?: it }) }
+    }
     var selectedId by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -423,7 +474,17 @@ fun DevicePlaylistPickerDialog(songs: List<Song>, onDismiss: () -> Unit) {
                     onValueChange = { name = it; if (it.isNotBlank()) selectedId = null },
                     label = { Text(stringResource(R.string.new_playlist)) })
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (selected != null && selection.isNotEmpty()) {
+            com.music.bitchord.ui.components.PlaylistSelectionBar(
+                visible = visibleSongs, selectedIds = selectedIds,
+                onSelection = { selection = it.toList() }, onPlay = onPlay,
+                onAddToPlaylist = { addSelection = it }, onQueue = onQueueSelection,
+                onRemove = { rows -> change { store.removeSongs(selected.id, rows.mapNotNullTo(HashSet()) { it.localUri }) } },
+                onMove = { rows, start -> change { store.moveSongs(selected.id, rows.mapNotNullTo(HashSet()) { it.localUri }, start) } },
+                enabled = !busy,
+            )
+        }
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             }
         },
         confirmButton = {

@@ -3,7 +3,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="space_sort_artist_ascending">Artist, A–Z</string>
     <string name="space_sort_artist_descending">Artist, Z–A</string>
-    <string name="space_sort_album_ascending">Album, A–Z</string>
-    <string name="space_sort_album_descending">Album, Z–A</string>
+    <string name="space_sort_album_ascending">Album: oldest first</string>
+    <string name="space_sort_album_descending">Album: newest first</string>
     <string name="rebirth_favorites_empty">Tap the heart on a song and it will appear here.</string>
 </resources>

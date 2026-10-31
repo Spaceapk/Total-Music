@@ -12,6 +12,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -64,12 +66,37 @@ fun RebirthLocalExperience(
     emptyMessage: String? = null,
     onShuffle: ((List<Song>) -> Unit)? = null,
     onOpenGlobalSearch: (() -> Unit)? = null,
+    onQueueSelection: ((List<Song>, Boolean) -> Unit)? = null,
     destination: RebirthDestination? = null,
     onDestinationChange: (RebirthDestination) -> Unit = {},
 ) {
     val context = LocalContext.current
     val store = remember(context) { DevicePlaylistStore.forDevice(context) }
-    val playlists by store.playlists.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    var mutationBusy by remember { mutableStateOf(false) }
+    var mutationError by remember { mutableStateOf<String?>(null) }
+    fun change(action: () -> Unit) {
+        if (mutationBusy) return
+        mutationBusy = true
+        scope.launch {
+            try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { action() } }
+            catch (error: Exception) { mutationError = error.localizedMessage ?: "Could not save playlist" }
+            finally { mutationBusy = false }
+        }
+    }
+
+    LaunchedEffect(store, songs) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { store.refreshMetadata(songs) }.onFailure {
+                com.music.bitchord.data.DebugLog.w("BitChord", "Could not refresh playlist metadata: ${it.message}")
+            }
+        }
+    }
+    val storedPlaylists by store.playlists.collectAsStateWithLifecycle()
+    val playlists = remember(storedPlaylists, songs) {
+        val current = songs.associateBy { it.localUri }
+        storedPlaylists.map { p -> p.copy(songs = p.songs.map { current[it.localUri] ?: it }) }
+    }
     val order by AppSettings.localMusicSort.collectAsStateWithLifecycle()
     val favoriteSort by AppSettings.favoriteSort.collectAsStateWithLifecycle()
     val favoriteEntries by LikeState.entries.collectAsStateWithLifecycle()
@@ -213,7 +240,12 @@ fun RebirthLocalExperience(
     )
 
     val actions = RebirthLibraryActions(
-        onPlay = onPlay,
+        onPlay = { rows, index ->
+            val song = rows.getOrNull(index)
+            if (selection.isNotEmpty() && song != null) {
+                selection = if (song.videoId in selectionIds) selection.filterNot { it == song.videoId } else selection + song.videoId
+            } else onPlay(rows, index)
+        },
         onShuffle = { list -> onShuffle?.invoke(list) ?: onPlay(list, (list.indices).random()) },
         onSongMenu = onSongMenu,
         onSettings = onSettings,
@@ -227,13 +259,23 @@ fun RebirthLocalExperience(
         onSort = AppSettings::setLocalMusicSort,
         onFavoriteSort = AppSettings::setFavoriteSort,
         onRemoveFavorite = { song -> LikeState.set(song.videoId, LikeStatus.INDIFFERENT, song) },
-        onPlaylistSort = { sort -> opened?.playlistId?.let { id -> store.setSort(id, sort) } },
+        onPlaylistSort = { sort -> opened?.playlistId?.let { id -> change { store.setSort(id, sort) } } },
         onToggleSelection = { id ->
             selection = if (id in selectionIds) selection.filterNot { it == id } else selection + id
         },
         onSelectAll = { rows -> selection = rows.map { it.videoId } },
         onClearSelection = { selection = emptyList() },
         onAddSelectionToPlaylist = { rows -> if (rows.isNotEmpty()) addToPlaylist = rows },
+        selectionBusy = mutationBusy,
+        onPlaySelection = onPlay,
+        onSelection = { selection = it.toList() },
+        onQueueSelection = onQueueSelection,
+        onRemoveSelection = opened?.playlistId?.let { id -> { rows: List<Song> ->
+            change { store.removeSongs(id, rows.mapNotNullTo(HashSet()) { it.localUri }) }
+        } },
+        onMoveSelection = opened?.playlistId?.let { id -> { rows: List<Song>, start: Boolean ->
+            change { store.moveSongs(id, rows.mapNotNullTo(HashSet()) { it.localUri }, start) }
+        } },
         onCreatePlaylist = { playlistName = "" },
         onRenamePlaylist = { collection -> renaming = collection; playlistName = collection.title },
         onDeletePlaylist = { collection -> deleting = collection },
@@ -241,7 +283,7 @@ fun RebirthLocalExperience(
         onMoveInPlaylist = { from, to ->
             val id = opened?.playlistId
             if (id != null && canReorder && to in visible.indices && from in visible.indices) {
-                store.move(id, from, to)
+                change { store.move(id, from, to) }
             }
         },
         onRemoveFromPlaylist = { index ->
@@ -249,7 +291,7 @@ fun RebirthLocalExperience(
             // sorted or filtered, so an index is not a storage position.
             val id = opened?.playlistId
             val uri = visible.getOrNull(index)?.localUri
-            if (id != null && uri != null) store.removeSong(id, uri)
+            if (id != null && uri != null) change { store.removeSong(id, uri) }
         },
         onOpenGlobalSearch = { onOpenGlobalSearch?.invoke() },
     )
@@ -277,6 +319,13 @@ fun RebirthLocalExperience(
                 }
             }
         }
+        mutationError?.let { message ->
+            RebirthDialog(style = style, title = stringResource(R.string.star_save_error),
+                confirmLabel = stringResource(R.string.back),
+                onConfirm = { mutationError = null }, onDismiss = { mutationError = null }) {
+                androidx.compose.material3.Text(message)
+            }
+        }
         addToPlaylist?.let { songs ->
             DevicePlaylistPickerDialog(songs) {
                 addToPlaylist = null
@@ -295,9 +344,9 @@ fun RebirthLocalExperience(
                 onConfirm = {
                     val target = renaming
                     if (target == null) {
-                        store.create(draft.trim())
+                        change { store.create(draft.trim()) }
                     } else {
-                        store.rename(target.playlistId.orEmpty(), draft.trim())
+                        change { store.rename(target.playlistId.orEmpty(), draft.trim()) }
                     }
                     playlistName = null
                     renaming = null
@@ -317,7 +366,7 @@ fun RebirthLocalExperience(
                 onDismiss = { deleting = null },
                 confirmLabel = stringResource(R.string.delete),
                 onConfirm = {
-                    collection.playlistId?.let(store::delete)
+                    collection.playlistId?.let { id -> change { store.delete(id) } }
                     deleting = null
                     if (collectionId == collection.id) collectionId = null
                 },

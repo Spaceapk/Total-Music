@@ -53,18 +53,15 @@ data class DevicePlaylist(
     /**
      * The playlist in the order its own picker asks for.
      *
-     * Album order is groups of *(album, artist)*: two records that happen to
-     * share a name are two records, so one artist's never interleaves with the
-     * other's. Inside a group, discs and track numbers are compared as numbers
-     * (so 2 comes before 10), and a track with no number goes last — the same
-     * rule as `AlbumOrdering`, so the library and a playlist cannot disagree.
+     * Album groups follow their tagged release year, with unknown years last.
+     * Each group keeps discs and track numbers ascending in both directions.
+     * Equal years keep their original group order rather than sorting by name.
      *
      * Artist order is artist, then album, then disc and track, which is what
      * "by artist" has to mean to stay readable: grouping by the artist but
      * sorting his records alphabetically by song title is not an artist order.
      *
-     * Descending reverses the group key only. A record's tracks never run
-     * backwards just because its artist is listed Z–A.
+     * Descending changes the artist or year direction, never track order.
      */
     fun sortedSongs(): List<Song> {
         if (sort == PlaylistSort.MANUAL) return songs
@@ -85,11 +82,6 @@ data class DevicePlaylist(
             .thenByDescending { it.numberedDisc() }
             .thenByDescending { it.numberedTrack() ?: -1 }
             .thenComparing(byTitle)
-        // The album group is the name *and* its artist, so homonymous albums
-        // remain separate groups. Descending reverses the name only; the
-        // artist is still ascending inside it.
-        val albumGroup = byAlbum.thenComparing(byArtist)
-        val albumGroupDescending = byAlbum.reversed().thenComparing(byArtist)
         return when (sort) {
             PlaylistSort.MANUAL -> songs
             PlaylistSort.TITLE_ASC -> songs.sortedWith(byTitle)
@@ -100,8 +92,8 @@ data class DevicePlaylist(
             PlaylistSort.ARTIST_DESC -> songs.sortedWith(
                 byArtist.reversed().thenComparing(byAlbum).thenComparing(discAndTrack),
             )
-            PlaylistSort.ALBUM_ASC -> songs.sortedWith(albumGroup.thenComparing(discAndTrack))
-            PlaylistSort.ALBUM_DESC -> songs.sortedWith(albumGroupDescending.thenComparing(discAndTrack))
+            PlaylistSort.ALBUM_ASC -> chronologicalAlbums(descending = false, discAndTrack)
+            PlaylistSort.ALBUM_DESC -> chronologicalAlbums(descending = true, discAndTrack)
             PlaylistSort.TRACK_ASC -> songs.sortedWith(discAndTrack)
             PlaylistSort.TRACK_DESC -> songs.sortedWith(discAndTrackDescending)
             PlaylistSort.RECENTLY_ADDED -> {
@@ -112,6 +104,22 @@ data class DevicePlaylist(
             }
         }
     }
+    private fun chronologicalAlbums(descending: Boolean, tracks: Comparator<Song>): List<Song> {
+        // Group first: missing or inconsistent years on individual tracks must
+        // never split a record. Album ids keep compilation artists together.
+        val groups = songs.groupBy { song ->
+            song.albumId?.let { "id:$it" }
+                ?: "${song.albumName.orEmpty().trim().lowercase(java.util.Locale.ROOT)}\u0000${song.artist.trim().lowercase(java.util.Locale.ROOT)}"
+        }.values
+        fun year(group: List<Song>) = group.mapNotNull { it.localYear?.takeIf { y -> y > 0 } }.minOrNull()
+        // Stable input order breaks year ties; album names are never an order.
+        val byYear = compareBy<List<Song>> { year(it) == null }.thenComparator { a, b ->
+            val comparison = (year(a) ?: 0).compareTo(year(b) ?: 0)
+            if (descending) -comparison else comparison
+        }
+        return groups.sortedWith(byYear).flatMap { it.sortedWith(tracks) }
+    }
+
 }
 
 /**
@@ -160,7 +168,8 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
                     thumbnailUrl = optional("art"), durationText = optional("duration"), albumName = optional("album"),
                     localUri = s.getString("uri"), localPath = optional("path"), downloadFormat = optional("format"),
                     localTrackNumber = s.optInt("track").takeIf { it > 0 },
-                    localDiscNumber = s.optInt("disc").takeIf { it > 0 })
+                    localDiscNumber = s.optInt("disc").takeIf { it > 0 },
+                    localYear = s.optInt("year").takeIf { it > 0 })
             }, sort = PlaylistSort.fromPersisted(p.optString("sort")),
                 addedUris = p.optJSONArray("addedUris")?.let { uris ->
                     (0 until uris.length()).map { uris.getString(it) }
@@ -178,7 +187,7 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
                 tracks.put(JSONObject().put("id", s.videoId).put("title", s.title).put("artist", s.artist)
                     .put("art", s.thumbnailUrl).put("duration", s.durationText).put("album", s.albumName)
                     .put("uri", s.localUri).put("path", s.localPath).put("format", s.downloadFormat)
-                    .put("track", s.localTrackNumber).put("disc", s.localDiscNumber))
+                    .put("track", s.localTrackNumber).put("disc", s.localDiscNumber).put("year", s.localYear))
             }
             array.put(JSONObject().put("id", p.id).put("name", p.name).put("songs", tracks)
                 .put("sort", p.sort.name).put("addedUris", JSONArray(p.addedUris)))
@@ -192,6 +201,14 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
             throw error
         }
         state.value = next
+    }
+
+    fun refreshMetadata(songs: List<Song>) {
+        val byUri = songs.filter { it.localUri != null }.associateBy { it.localUri }
+        synchronized(this) {
+            if (state.value.none { p -> p.songs.any { byUri[it.localUri]?.let { fresh -> fresh != it } == true } }) return
+            update { list -> list.map { p -> p.copy(songs = p.songs.map { byUri[it.localUri] ?: it }) } }
+        }
     }
 
     fun create(name: String) {
@@ -225,6 +242,20 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
         if (p.id == id) p.copy(songs = p.songs.filterNot { it.localUri == uri },
             addedUris = p.addedUris.filterNot { it == uri }) else p
     } }
+    /** One atomic write, with identities captured from the visible selection. */
+    fun removeSongs(id: String, uris: Set<String>) = update { list -> list.map { p ->
+        if (p.id == id) p.copy(songs = p.songs.filterNot { it.localUri in uris },
+            addedUris = p.addedUris.filterNot { it in uris }) else p
+    } }
+
+    fun moveSongs(id: String, uris: Set<String>, toStart: Boolean) = update { list -> list.map { p ->
+        if (p.id != id) p else {
+            val visible = p.sortedSongs()
+            val (selected, rest) = visible.partition { it.localUri in uris }
+            p.copy(songs = if (toStart) selected + rest else rest + selected, sort = PlaylistSort.MANUAL)
+        }
+    } }
+
     /** Apply a permutation only; reject stale edits rather than losing newer tracks. */
     fun reorder(id: String, uris: List<String>) = update { list -> list.map { p ->
         if (p.id == id) {

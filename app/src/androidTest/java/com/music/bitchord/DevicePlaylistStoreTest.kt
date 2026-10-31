@@ -9,6 +9,38 @@ import org.junit.Test
 import java.util.UUID
 
 class DevicePlaylistStoreTest {
+    @Test fun bulkMovesAndRemovalSurviveReloadWithoutDeletingAudioOrOtherLists() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val filename = "bulk-${UUID.randomUUID()}.json"
+        val audio = java.io.File(context.filesDir, "keep-${UUID.randomUUID()}.mp3")
+        try {
+            audio.writeText("original audio")
+            val a = Song("a", "A", "Artist", null, localUri = android.net.Uri.fromFile(audio).toString(), albumName = "Z", localTrackNumber = 1, localYear = 2000)
+            val b = Song("b", "B", "Artist", null, localUri = "file:///b.mp3", albumName = "A", localTrackNumber = 2, localYear = 2002)
+            val c = Song("c", "C", "Artist", null, localUri = "file:///c.mp3", albumName = "A", localTrackNumber = 1, localYear = 2002)
+            val store = DevicePlaylistStore(context, filename)
+            store.createWithSongs("First", listOf(b, a, c))
+            store.createWithSongs("Other", listOf(a, b, c))
+            val id = store.playlists.value.first().id
+            store.setSort(id, PlaylistSort.ALBUM_ASC)
+            store.moveSongs(id, setOf(b.localUri!!, c.localUri!!), true)
+            var reloaded = DevicePlaylistStore(context, filename).playlists.value
+            assertEquals(listOf("c", "b", "a"), reloaded.first().songs.map { it.videoId })
+            assertEquals(PlaylistSort.MANUAL, reloaded.first().sort)
+            assertEquals(2000, reloaded.first().songs.last().localYear)
+            store.removeSongs(id, setOf(a.localUri!!, c.localUri!!))
+            reloaded = DevicePlaylistStore(context, filename).playlists.value
+            assertEquals(listOf("b"), reloaded.first().songs.map { it.videoId })
+            assertEquals(listOf(b.localUri), reloaded.first().addedUris)
+            assertEquals(3, reloaded.last().songs.size)
+            store.removeSongs(id, setOf(b.localUri!!))
+            assertTrue(DevicePlaylistStore(context, filename).playlists.value.first().songs.isEmpty())
+            store.delete(id)
+            assertEquals("Other", DevicePlaylistStore(context, filename).playlists.value.single().name)
+            assertEquals("original audio", audio.readText())
+        } finally { context.deleteFile(filename); audio.delete() }
+    }
+
     @Test fun editsSurviveReloadAndKeepOfflineLocations() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val filename = "test-${UUID.randomUUID()}.json"
@@ -193,9 +225,9 @@ class DevicePlaylistStoreTest {
             val id = store.playlists.value.single().id
             store.setSort(id, PlaylistSort.ALBUM_ASC)
             val ordered = store.playlists.value.single().sortedSongs().map { it.videoId }
-            // Greatest Hits by Alpha, then by Zulu; then Set: disc 1 track 2,
-            // disc 1 track 10 (numeric, not textual), disc 2 track 1, untagged.
-            assertEquals(listOf("a1", "a2", "z1", "z2", "d1t2", "d1t10", "d2", "x"), ordered)
+            // With no year tags, groups keep first-seen order: Zulu, Set,
+            // Alpha. Each group's discs and tracks remain numeric.
+            assertEquals(listOf("z1", "z2", "d1t2", "d1t10", "d2", "x", "a1", "a2"), ordered)
             val reloaded = DevicePlaylistStore(context, filename).playlists.value.single()
             assertEquals(PlaylistSort.ALBUM_ASC, reloaded.sort)
             assertEquals(ordered, reloaded.sortedSongs().map { it.videoId })

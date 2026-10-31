@@ -36,6 +36,23 @@ class PlaylistSortTest {
         "id", "Test", listOf(z, a, b, m), sort = sort,
     ).sortedSongs().map { it.videoId }
 
+    @Test fun albumOrderUsesYearAndKeepsWholeAlbumTogether() {
+        val old2 = song("old2", "Two", "Artist", "Z last alphabetically", 2).copy(localYear = 2000)
+        val old1 = song("old1", "One", "Artist", "Z last alphabetically", 1)
+        val middle = song("middle", "Middle", "Artist", "M", 1).copy(localYear = 2002)
+        val recent = song("recent", "Recent", "Artist", "A first alphabetically", 1).copy(localYear = 2005)
+        val unknown = song("unknown", "Unknown", "Artist", "No year", 1)
+        val p = DevicePlaylist("id", "Test", listOf(recent, unknown, old2, middle, old1), PlaylistSort.ALBUM_ASC)
+        assertEquals(listOf("old1", "old2", "middle", "recent", "unknown"), p.sortedSongs().map { it.videoId })
+        assertEquals(listOf("recent", "middle", "old1", "old2", "unknown"), p.copy(sort = PlaylistSort.ALBUM_DESC).sortedSongs().map { it.videoId })
+    }
+
+    @Test fun sameYearAlbumsKeepTheirInsertionOrderRatherThanAlphabeticalOrder() {
+        val z = song("z", "Z", "Artist", "Z", 1).copy(localYear = 2000)
+        val a = song("a", "A", "Artist", "A", 1).copy(localYear = 2000)
+        assertEquals(listOf(z, a), DevicePlaylist("id", "Test", listOf(z, a), PlaylistSort.ALBUM_ASC).sortedSongs())
+    }
+
     @Test fun titleArtistRecentAndManualOrdersAreIndependent() {
         val original = Locale.getDefault()
         try {
@@ -62,9 +79,9 @@ class PlaylistSortTest {
         val original = Locale.getDefault()
         try {
             Locale.setDefault(Locale.forLanguageTag("es"))
-            assertEquals(listOf("a", "m", "b", "z"), ids(PlaylistSort.ALBUM_ASC))
-            // "Uno" first, but still its track 1 (b) before track 2 (z).
-            assertEquals(listOf("b", "z", "m", "a"), ids(PlaylistSort.ALBUM_DESC))
+            assertEquals(listOf("b", "z", "a", "m"), ids(PlaylistSort.ALBUM_ASC))
+            // Missing years retain the first-seen album order in both directions.
+            assertEquals(listOf("b", "z", "a", "m"), ids(PlaylistSort.ALBUM_DESC))
         } finally { Locale.setDefault(original) }
     }
 
@@ -130,7 +147,7 @@ class PlaylistSortTest {
                 sort = PlaylistSort.ALBUM_ASC,
             )
             assertEquals(
-                listOf("a1", "a2", "z1", "z2"),
+                listOf("z1", "z2", "a1", "a2"),
                 playlist.sortedSongs().map { it.videoId },
             )
         } finally { Locale.setDefault(original) }

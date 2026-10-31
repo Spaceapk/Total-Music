@@ -144,6 +144,7 @@ private const val LOCAL_TAB_PLAYLISTS = 3
 @Composable
 fun LocalMusicScreen(
     songs: List<Song>,
+    onQueueSelection: ((List<Song>, Boolean) -> Unit)? = null,
     favoriteSongs: List<Song> = emptyList(),
     onSongClick: (List<Song>, Int) -> Unit,
     onSongLongPress: (Song) -> Unit,
@@ -331,6 +332,7 @@ fun LocalMusicScreen(
     // Playlists own their search and sort; library controls must never change playlist order.
     if (selectedTab == LOCAL_TAB_PLAYLISTS && !isDownloads && navigationTab != null) {
         DevicePlaylistsTab(
+            onQueueSelection = onQueueSelection,
             songs = songs,
             onPlay = onSongClick,
             padding = bodyContentPadding,
@@ -493,6 +495,7 @@ fun LocalMusicScreen(
             when {
                 key == "tab:$LOCAL_TAB_PLAYLISTS" && !isDownloads -> {
                     DevicePlaylistsTab(
+            onQueueSelection = onQueueSelection,
                         songs = songs,
                         onPlay = onSongClick,
                         padding = bodyContentPadding,

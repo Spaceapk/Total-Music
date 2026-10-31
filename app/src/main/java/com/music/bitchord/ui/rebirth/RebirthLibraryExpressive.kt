@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
@@ -145,27 +146,15 @@ internal fun RebirthExpressiveLibrary(data: RebirthLibraryData, actions: Rebirth
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
         }
-        if (selectionActive) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.rebirth_selected_count, data.selection.size),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                TextButton(onClick = { actions.onSelectAll(data.visible) }) {
-                    Text(stringResource(R.string.select_all))
-                }
-                IconButton(onClick = { actions.onAddSelectionToPlaylist(data.visible.filter { it.videoId in data.selection }) }) {
-                    Icon(Icons.Rounded.PlaylistAdd, contentDescription = stringResource(R.string.add_to_playlist))
-                }
-                IconButton(onClick = actions.onClearSelection) {
-                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cancel))
-                }
-            }
+        if (data.selection.isNotEmpty()) {
+            com.music.bitchord.ui.components.PlaylistSelectionBar(
+                visible = data.visible, selectedIds = data.selection,
+                onSelection = actions.onSelection, onPlay = actions.onPlaySelection,
+                onAddToPlaylist = actions.onAddSelectionToPlaylist,
+                onQueue = actions.onQueueSelection,
+                onRemove = actions.onRemoveSelection, onMove = actions.onMoveSelection,
+                enabled = !actions.selectionBusy,
+            )
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
@@ -648,6 +637,9 @@ private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibra
                     )
                 }
                 if (collection.isPlaylist) {
+                    IconButton(onClick = { actions.onDeletePlaylist(collection) }) {
+                        Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.delete_playlist))
+                    }
                     IconButton(onClick = { actions.onRenamePlaylist(collection) }) {
                         Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.rename_playlist))
                     }
