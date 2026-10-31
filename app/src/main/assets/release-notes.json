@@ -1,5 +1,10 @@
 [
   {
+    "versionCode": 24,
+    "versionName": "1.8.6",
+    "notes": "Playlists ordenadas por año del álbum y por disco y pista dentro de cada álbum. Los álbumes sin año quedan al final. Selección múltiple con reproducción de lo marcado, reproducir después, añadir a la cola o a otra playlist, añadir o quitar favoritas, mover al inicio o al final, invertir selección y compartir los nombres de las canciones. Quitar varias canciones o vaciar una playlist en una sola operación con confirmación, conservando los archivos de audio. Eliminar playlist accesible desde la cabecera en ambos temas Plus. "
+  },
+  {
     "versionCode": 23,
     "versionName": "1.8.5",
     "notes": "Mis favoritas disponible y sincronizada en los cuatro temas: la misma colección del corazón compartido aparece en las listas de la biblioteca original y en las dos bibliotecas Plus, y se actualiza al instante al quitar un corazón en cualquier pantalla, reproductor o notificación. Las listas se reordenan arrastrando cada canción, con desplazamiento automático al acercarse a los extremos; ya no hay botones de subir y bajar. El orden manual se guarda, y arrastrar mientras hay otro criterio activo cambia a orden manual conservando exactamente el orden visible. Nueva ordenación por número de pista, además de manual, título, artista, álbum y fecha de incorporación. Por álbum se agrupan las canciones y se ordenan por disco y pista como números (1, 2, 3… 10); por artista se ordena por artista, álbum, disco y pista; los álbumes con el mismo nombre de artistas distintos no se mezclan; las canciones sin numeración quedan al final. El criterio se guarda por lista. Con el modo aleatorio desactivado, la cola y la reproducción siguen el orden mostrado. Se conservan los cuatro temas, el ecualizador, la firma permanente prevista y los datos de 1.8.4."

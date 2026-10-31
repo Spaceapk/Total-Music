@@ -2897,6 +2897,7 @@ private fun BitChordApp(
                             }
                         }
                         LocalMusicScreen(
+                            onQueueSelection = queueSongs,
                             navigationTab = spaceLibraryTab,
                             onOpenSettings = { showSettings = true },
                             songs = localSongs,
@@ -3075,6 +3076,7 @@ private fun BitChordApp(
                                 if (rebirthEnabled) {
                                     rebirthNavigationState.SaveableStateProvider("rebirth-library") {
                                     com.music.bitchord.ui.rebirth.RebirthLocalExperience(
+                                    onQueueSelection = queueSongs,
                                     style = rebirthStyle, songs = deviceSongs, currentSong = player.song,
                                     isPlaying = player.isPlaying, loading = playPauseBusy,
                                     favoriteIds = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys,
@@ -3114,6 +3116,7 @@ private fun BitChordApp(
                                     )
                                     }
                                 } else LocalMusicScreen(
+                            onQueueSelection = queueSongs,
                                     songs = deviceSongs,
                                     favoriteSongs = favoriteSongs,
                                     navigationTab = spaceLibraryTab,
