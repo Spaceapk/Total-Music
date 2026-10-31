@@ -103,8 +103,8 @@ class FavoriteCollectionUiTest {
     @Test fun aPlaylistCanBeOrderedByAlbumInBothDirectionsAndTheChoiceIsPersisted() {
         val store = DevicePlaylistStore.forDevice(context)
         val name = "184 order ${UUID.randomUUID()}"
-        val one = Song("content://media/184/a", "One", "Artist", null, albumName = "Primero", localUri = "content://media/184/a")
-        val two = Song("content://media/184/b", "Two", "Artist", null, albumName = "Segundo", localUri = "content://media/184/b")
+        val one = Song("content://media/184/a", "One", "Artist", null, albumName = "Zulu", localUri = "content://media/184/a", localYear = 2000)
+        val two = Song("content://media/184/b", "Two", "Artist", null, albumName = "Alpha", localUri = "content://media/184/b", localYear = 2005)
         store.createWithSongs(name, listOf(one, two))
         val id = store.playlists.value.first { it.name == name }.id
         try {
