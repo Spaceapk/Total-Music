@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<!-- Other locales use English fallback, as in 1.8.0–1.8.5. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="selection_actions">Selection actions</string>
     <string name="selection_favorite">Add to favorites</string>
     <string name="selection_unfavorite">Remove from favorites</string>
