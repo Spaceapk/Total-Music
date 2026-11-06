@@ -69,6 +69,11 @@ VALIDATION_WORKFLOWS = (
     ".github/workflows/total-music-181-validate.yml",
     ".github/workflows/total-music-182-validate.yml",
     ".github/workflows/total-music-185-validate.yml",
+    # The 1.8.6 arena session's validation workflow: it compiles, tests, lints
+    # on its own runner, drives an emulator for the rebirth styles and builds
+    # the unsigned release APK. It publishes nothing, references no secrets and
+    # this gate refuses it if that changes.
+    ".github/workflows/total-music-186-validate.yml",
     # 1.8.1's device probe of the *published* 1.8.0: it downloads the two
     # released APKs, verifies their hashes and installs them. It builds nothing,
     # signs nothing and publishes nothing — the same forbidden-marker check
