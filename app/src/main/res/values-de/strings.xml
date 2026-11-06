@@ -1308,4 +1308,16 @@
     <string name="space_open_source_notice">Total Music ist eine modifizierte Version von Star Music und BitChord unter GPL-3.0. Änderungen von nexlibre, Oktober 2026. Die ursprünglichen Autoren behalten ihre Urheberrechte. Die Lizenz erlaubt Kopieren, Ändern und Weitergeben; es besteht keine Gewährleistung. Quellcode und ursprüngliche Hinweise stehen in den verlinkten Repositories. Die GPL-Lizenz ist offline verfügbar.</string>
     <string name="total_eq_10_bands">10 unabhängige Bänder</string>
     <string name="total_accent">Akzentfarbe</string>
+    <string name="widget_immersive_label">Immersiv 4×4</string>
+    <string name="widget_immersive_description">Großes Albumcover mit Wiedergabesteuerung und Titeldetails.</string>
+    <string name="widget_dynamic_art_label">Dynamisches Cover</string>
+    <string name="widget_dynamic_art_description">Albumcover mit passenden Farben hinter den Steuerelementen.</string>
+    <string name="widget_glass_panel_label">Glaspanel</string>
+    <string name="widget_glass_panel_description">Albumcover mit durchscheinendem Wiedergabepanel.</string>
+    <string name="widget_config_title">Widget anpassen</string>
+    <string name="widget_config_theme">Darstellung dieses Widgets</string>
+    <string name="widget_theme_system">Systemeinstellung</string>
+    <string name="widget_theme_light">Hell</string>
+    <string name="widget_theme_dark">Dunkel</string>
+    <string name="widget_config_add">Widget hinzufügen</string>
 </resources>

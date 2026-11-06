@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -185,6 +186,14 @@ interface MiniPlayerPull {
     /** The finger lifted, moving this fast in pixels a second. */
     fun release(velocity: Float)
 }
+
+/**
+ * The host's link between a mini player and the player's sheet — the same
+ * gesture the classic bars carry, so a rebirth bar can be lifted the same way.
+ * Provided by the screen; the mini players read it themselves so a shell that
+ * lays them out has nothing new to thread.
+ */
+internal val LocalPlayerPull = staticCompositionLocalOf<MiniPlayerPull?> { null }
 
 /**
  * Both of the bar's drags, for both mini-player materials: sideways through

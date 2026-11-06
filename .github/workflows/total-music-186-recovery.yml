@@ -1,0 +1,106 @@
+name: Total Music 1.8.6 playlist validation
+on:
+  push:
+    branches: [work/playlist-chronology-selection-186]
+    paths: ['.github/workflows/total-music-186-recovery.yml', 'Total-Music-1.8.6-cambios.patch', 'app/**', 'shared/**']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: total-music-186-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ORG_GRADLE_PROJECT_spaceNdkVersion: '27.0.12077973'
+      GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx5120m -Dfile.encoding=UTF-8'
+      REUSE_RELEASE_COMMIT: 'a195e7087ccc032575e7278d47a53910670c42d7'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Recover reviewed source on the authorized branch
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = work/playlist-chronology-selection-186
+          if ! grep -q '^versionName=1.8.6$' total-music-release.properties; then
+            git apply --check --exclude='.github/workflows/total-music-android.yml' Total-Music-1.8.6-cambios.patch
+            git apply --exclude='.github/workflows/total-music-android.yml' Total-Music-1.8.6-cambios.patch
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add app shared docs/TOTAL_MUSIC_186.md total-music-release.properties
+            git commit -m 'Implement Total Music 1.8.6 playlist chronology and bulk actions'
+            git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"
+          fi
+          python3 scripts/release/check_release.py
+          if [ -n "$REUSE_RELEASE_COMMIT" ]; then
+            git diff --exit-code "$REUSE_RELEASE_COMMIT" HEAD -- app/src/main app/build.gradle.kts app/proguard-rules.pro shared sharedUi native gradle build.gradle.kts settings.gradle.kts gradle.properties total-music-release.properties
+          fi
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools emulator system-images;android-33;google_apis;x86_64
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+        with:
+          cache-read-only: false
+      - name: Install Android SDK
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+      - name: Run JVM regression tests
+        if: env.REUSE_RELEASE_COMMIT == ''
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew :shared:jvmTest :app:testProdDebugUnitTest --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true 2>&1 | tee tests-186.log
+      - name: Lint and build APKs
+        if: env.REUSE_RELEASE_COMMIT == ''
+        run: |
+          set -o pipefail
+          ./gradlew :app:lintProdDebug :app:lintVitalProdRelease :app:assembleProdDebug :app:assembleProdRelease --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true 2>&1 | tee build-186.log
+          python3 scripts/release/package_ci.py
+      - name: Build Android tests
+        run: |
+          ./gradlew :app:assembleProdDebug :app:assembleProdDebugAndroidTest -PspaceSpatialEdition=true -Pandroid.injected.build.abi=x86_64 --max-workers=2 --build-cache --stacktrace
+          ./gradlew --stop
+      - name: Boot Android 13
+        run: |
+          set -euo pipefail
+          sudo chmod a+rw /dev/kvm
+          adb start-server
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd -n ui -k 'system-images;android-33;google_apis;x86_64' --force
+          echo 'hw.ramSize=2048' >> "$ANDROID_AVD_HOME/ui.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -avd ui -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -gpu swiftshader_indirect -cores 2 -memory 2048 > emulator-186.log 2>&1 &
+          timeout 300 adb wait-for-device
+          timeout 600 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+      - name: Verify playlist selection and persistence on Android
+        run: |
+          set -o pipefail
+          ./gradlew :app:connectedProdDebugAndroidTest '-Dorg.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8' -PspaceSpatialEdition=true -Pandroid.injected.build.abi=x86_64 '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.PlaylistSelectionUiTest,com.music.bitchord.DevicePlaylistStoreTest,com.music.bitchord.PlaylistReorderUiTest,com.music.bitchord.FavoriteCollectionUiTest' --max-workers=2 --build-cache --stacktrace 2>&1 | tee android-tests-186.log
+          adb exec-out screencap -p > android-186.png
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-186-validation-${{ github.run_id }}
+          path: |
+            release-artifacts/
+            *186.log
+            android-186.png
+            app/build/reports/
+            app/build/test-results/
+            app/build/outputs/androidTest-results/
+            shared/build/reports/tests/
+            shared/build/test-results/
+          retention-days: 14
+          if-no-files-found: warn

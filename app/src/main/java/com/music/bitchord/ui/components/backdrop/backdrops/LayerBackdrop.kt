@@ -50,6 +50,20 @@ class LayerBackdrop internal constructor(
 
     internal var layerCoordinates: LayoutCoordinates? by mutableStateOf(null)
 
+    /**
+     * Whether this backdrop's own layer is being recorded right now.
+     *
+     * A surface composed *inside* the layer it samples records a layer that
+     * draws itself, and RenderThread then walks that tree until the stack is
+     * gone: a native SIGSEGV in RenderNode::prepareTreeImpl, which no Compose
+     * try/catch can see. 1.8.0 shipped exactly that in the Liquid Glass+
+     * library, where the recording node wrapped the floating capsule that
+     * samples it. The composition is fixed (the page and its chrome are
+     * siblings now); this is the guard behind the fix, so a future surface in
+     * the wrong place loses its blur instead of killing the process.
+     */
+    internal var isRecording: Boolean = false
+
     private var inverseLayerScope: InverseLayerScope? = null
 
     override fun DrawScope.drawBackdrop(
@@ -57,6 +71,7 @@ class LayerBackdrop internal constructor(
         coordinates: LayoutCoordinates?,
         layerBlock: (GraphicsLayerScope.() -> Unit)?
     ) {
+        if (isRecording) return
         val coordinates = coordinates ?: return
         val layerCoordinates = layerCoordinates ?: return
         withTransform({

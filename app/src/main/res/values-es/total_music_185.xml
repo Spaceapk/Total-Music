@@ -1,0 +1,6 @@
+<!-- Cadenas de 1.8.5: arrastre de listas y orden por número de pista. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="space_sort_track_ascending">Número de pista, ascendente</string>
+    <string name="space_sort_track_descending">Número de pista, descendente</string>
+    <string name="rebirth_reorder_manual_hint">Al arrastrar se guarda este orden como orden manual.</string>
+</resources>

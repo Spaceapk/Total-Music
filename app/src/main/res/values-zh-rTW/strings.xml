@@ -1286,4 +1286,16 @@
     <string name="space_open_source_notice">Total Music 是基於 Star Music 和 BitChord 修改的版本，採用 GPL-3.0 授權。修改者：nexlibre，2026 年 10 月。原作者保留其著作權。您可依授權條款複製、修改及重新散布本軟體，但不提供任何擔保。原始碼及原始聲明見下方儲存庫連結。隨附的 GPL 授權條款可離線閱讀。</string>
     <string name="total_eq_10_bands">10 個獨立頻段</string>
     <string name="total_accent">強調色</string>
+    <string name="widget_immersive_label">沉浸式 4×4</string>
+    <string name="widget_immersive_description">大型專輯封面、播放控制項及歌曲資訊。</string>
+    <string name="widget_dynamic_art_label">動態封面</string>
+    <string name="widget_dynamic_art_description">封面搭配與專輯色彩相襯的播放控制項背景。</string>
+    <string name="widget_glass_panel_label">玻璃面板</string>
+    <string name="widget_glass_panel_description">附半透明播放面板的專輯封面。</string>
+    <string name="widget_config_title">自訂小工具</string>
+    <string name="widget_config_theme">此小工具的外觀</string>
+    <string name="widget_theme_system">跟隨系統</string>
+    <string name="widget_theme_light">淺色</string>
+    <string name="widget_theme_dark">深色</string>
+    <string name="widget_config_add">新增小工具</string>
 </resources>

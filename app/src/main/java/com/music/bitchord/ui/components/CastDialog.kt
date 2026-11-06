@@ -127,7 +127,7 @@ private fun CastDeviceRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (pressed) Color.White.copy(alpha = 0.09f) else Color.Transparent)
+            .background(if (pressed) LocalAudioPopupInk.current.at(0.09f) else Color.Transparent)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -136,7 +136,7 @@ private fun CastDeviceRow(
             Icon(
                 imageVector = if (connected) Icons.Rounded.CastConnected else Icons.Rounded.Cast,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = if (connected) 1f else 0.8f),
+                tint = LocalAudioPopupInk.current.at(if (connected) 1f else 0.8f),
                 modifier = Modifier.size(20.dp),
             )
         }
@@ -148,7 +148,7 @@ private fun CastDeviceRow(
                     fontSize = 15.sp,
                     fontWeight = if (connected) FontWeight.W600 else FontWeight.Normal,
                 ),
-                color = Color.White,
+                color = LocalAudioPopupInk.current.primary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -159,20 +159,20 @@ private fun CastDeviceRow(
                     ),
                     modifier = Modifier.padding(top = 1.dp),
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
-                    color = Color.White.copy(alpha = 0.6f),
+                    color = LocalAudioPopupInk.current.at(0.6f),
                 )
             }
         }
         when {
             connecting -> CircularProgressIndicator(
                 modifier = Modifier.size(16.dp),
-                color = Color.White.copy(alpha = 0.8f),
+                color = LocalAudioPopupInk.current.at(0.8f),
                 strokeWidth = 1.75.dp,
             )
             connected -> Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = null,
-                tint = Color.White,
+                tint = LocalAudioPopupInk.current.primary,
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -190,20 +190,20 @@ private fun SearchingRow() {
     ) {
         CircularProgressIndicator(
             modifier = Modifier.size(20.dp),
-            color = Color.White.copy(alpha = 0.7f),
+            color = LocalAudioPopupInk.current.at(0.7f),
             strokeWidth = 2.dp,
         )
         Spacer(Modifier.height(12.dp))
         Text(
             text = stringResource(R.string.cast_searching),
             style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
-            color = Color.White,
+            color = LocalAudioPopupInk.current.primary,
         )
         Text(
             text = stringResource(R.string.cast_searching_hint),
             modifier = Modifier.padding(top = 4.dp),
             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp, lineHeight = 17.sp),
-            color = Color.White.copy(alpha = 0.6f),
+            color = LocalAudioPopupInk.current.at(0.6f),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
     }
@@ -216,7 +216,7 @@ private fun CastActionRow(label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (pressed) Color.White.copy(alpha = 0.09f) else Color.Transparent)
+            .background(if (pressed) LocalAudioPopupInk.current.at(0.09f) else Color.Transparent)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         contentAlignment = Alignment.CenterStart,

@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Animation
@@ -92,6 +93,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -149,6 +151,7 @@ import com.music.bitchord.data.settings.ThemeMode
 import com.music.bitchord.data.stats.Backup
 import com.music.bitchord.playback.AudioCache
 import com.music.bitchord.ui.player.fullBleedArtworkAvailable
+import com.music.bitchord.ui.player.PlayerVisualStyle
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
@@ -182,6 +185,20 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val rebirthStyle by AppSettings.playerVisualStyle.collectAsStateWithLifecycle()
+    // Which group the rebirth home drilled into. Null is the home itself, and
+    // only the home: the settings below are reached *through* it, so the old
+    // "escape to the legacy list" button has nothing left to do.
+    var rebirthSection by rememberSaveable(rebirthStyle) { mutableStateOf<Int?>(null) }
+    if (rebirthStyle != PlayerVisualStyle.ORIGINAL && rebirthSection == null) {
+        com.music.bitchord.ui.rebirth.RebirthSettings(
+            style = rebirthStyle,
+            padding = contentPadding,
+            onEqualizer = onEqualizer,
+            onSection = { rebirthSection = it },
+        )
+        return
+    }
 
     var showReleaseHistory by remember { mutableStateOf(false) }
     if (showReleaseHistory) AlertDialog(
@@ -219,6 +236,11 @@ fun SettingsScreen(
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
+    val playerVisualStyle by AppSettings.playerVisualStyle.collectAsStateWithLifecycle()
+    val playerDynamicBackground by AppSettings.playerDynamicBackground.collectAsStateWithLifecycle()
+    val playerGlassEffects by AppSettings.playerGlassEffects.collectAsStateWithLifecycle()
+    val playerAlternativeControls by AppSettings.playerAlternativeControls.collectAsStateWithLifecycle()
+    val playerAnimatedTransitions by AppSettings.playerAnimatedTransitions.collectAsStateWithLifecycle()
     val liquidGlassSupported = isGlassSupported()
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
@@ -373,13 +395,18 @@ fun SettingsScreen(
     // Made fresh on every pass rather than remembered: it tallies the rows
     // that answered to the query, and that tally has to start from zero each
     // time the query changes.
-    val search = SettingsSearch(searchQuery)
+    val activeRebirthSection = if (rebirthStyle != PlayerVisualStyle.ORIGINAL && searchQuery.isBlank()) {
+        rebirthSection?.takeIf { it != com.music.bitchord.ui.rebirth.REBIRTH_ALL_SETTINGS }?.let { stringResource(it) }
+    } else {
+        null
+    }
+    val search = SettingsSearch(searchQuery, activeRebirthSection)
 
     // What is left after a keystroke is a different list, and the offset the
     // last one was scrolled to means nothing in it.
     val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     var isFirstSearchComposition by remember { mutableStateOf(true) }
-    LaunchedEffect(searchQuery) {
+    LaunchedEffect(searchQuery, rebirthSection) {
         if (isFirstSearchComposition && searchQuery.isEmpty()) {
             // Skip the initial composition during Activity recreation:
             // rememberSaveable already restored the scroll position.
@@ -396,9 +423,29 @@ fun SettingsScreen(
             .verticalScroll(scrollState)
             .padding(contentPadding),
     ) {
+        if (rebirthStyle != PlayerVisualStyle.ORIGINAL) {
+            // The way back, drawn as the one thing above the group it returns
+            // from. The group itself is the same list of rows the original
+            // settings draw — see the handoff for which rows are still the
+            // legacy presentation.
+            androidx.compose.material3.TextButton(
+                onClick = { rebirthSection = null },
+                modifier = Modifier.padding(horizontal = 12.dp),
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.rebirth_back_to_customization))
+            }
+        }
         Text(
-            text = stringResource(R.string.settings),
-            style = MaterialTheme.typography.displayLarge,
+            text = if (rebirthStyle == PlayerVisualStyle.ORIGINAL) {
+                stringResource(R.string.settings)
+            } else if (rebirthSection == com.music.bitchord.ui.rebirth.REBIRTH_ALL_SETTINGS) {
+                stringResource(R.string.rebirth_all_settings)
+            } else {
+                rebirthSection?.let { stringResource(it) } ?: stringResource(R.string.settings)
+            },
+            style = if (rebirthStyle == PlayerVisualStyle.LIQUID_GLASS_PLUS) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.displayLarge,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp),
         )
@@ -410,7 +457,7 @@ fun SettingsScreen(
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
         )
 
-        SearchableSettingsGroup(search) {
+        SearchableSettingsGroup(search, section = stringResource(R.string.downloads)) {
             val accountTitle = stringResource(R.string.account_integrations)
             // What the row opens is the scrobbling screen, so the services it
             // signs into are worth typing at this field even though none of
@@ -653,7 +700,7 @@ fun SettingsScreen(
                     } else {
                         stringResource(R.string.spatial_audio_subtitle)
                     },
-                    trailing = { Icon(Icons.Rounded.Tune, contentDescription = "Configurar audio espacial") },
+                    trailing = { Icon(Icons.Rounded.Tune, contentDescription = stringResource(R.string.spatial_audio)) },
                     onClick = { showSpatialScene = true },
                 )
             }
@@ -672,19 +719,52 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.appearance)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.appearance_and_themes)) {
             val expressive by com.music.bitchord.data.settings.TotalMusicSettings.expressive.collectAsStateWithLifecycle()
-            row("Google Expressive", "Material You", "Material 3") {
-                SettingsRow(icon = Icons.Rounded.Brightness4, title = stringResource(R.string.total_appearance_style))
-                SegmentedControl(
-                    options = listOf(stringResource(R.string.total_original_theme), "Google Expressive"),
-                    selectedIndex = if (expressive) 1 else 0,
-                    onSelect = { com.music.bitchord.data.settings.TotalMusicSettings.setExpressive(it == 1) },
-                    modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+            row(stringResource(R.string.appearance_and_themes), "Google Expressive", "Liquid Glass", "temas", "themes") {
+                com.music.bitchord.ui.rebirth.AppearanceThemePicker()
+            }
+            row(stringResource(R.string.rebirth_effect_background), "Fondo dinámico", "player background", "artwork", "fondo") {
+                SettingsRow(
+                    icon = Icons.Rounded.Gradient,
+                    title = stringResource(R.string.rebirth_effect_background),
+                    subtitle = stringResource(R.string.rebirth_effect_background_hint),
+                    trailing = { Switch(checked = playerDynamicBackground, onCheckedChange = AppSettings::setPlayerDynamicBackground) },
+                    onClick = { AppSettings.setPlayerDynamicBackground(!playerDynamicBackground) },
                 )
             }
-            if (expressive) row("Color", "Accent", "Acento") { GoogleAccentPicker() }
-            if (expressive) row("Colores de carátula", "Google", "artwork colors") {
+            row(stringResource(R.string.rebirth_effect_glass), "Efectos de cristal", "glass effects", "Liquid Glass+", "cristal") {
+                SettingsRow(
+                    icon = Icons.Rounded.BlurOn,
+                    title = stringResource(R.string.rebirth_effect_glass),
+                    subtitle = stringResource(R.string.rebirth_effect_glass_hint),
+                    trailing = { Switch(checked = playerGlassEffects, onCheckedChange = AppSettings::setPlayerGlassEffects) },
+                    onClick = { AppSettings.setPlayerGlassEffects(!playerGlassEffects) },
+                )
+            }
+            row(stringResource(R.string.rebirth_effect_controls), "Controles alternativos", "alternative controls", "player") {
+                SettingsRow(
+                    icon = Icons.Rounded.Animation,
+                    title = stringResource(R.string.rebirth_effect_controls),
+                    subtitle = stringResource(R.string.rebirth_effect_controls_hint),
+                    trailing = { Switch(checked = playerAlternativeControls, onCheckedChange = AppSettings::setPlayerAlternativeControls) },
+                    onClick = { AppSettings.setPlayerAlternativeControls(!playerAlternativeControls) },
+                )
+            }
+            row(stringResource(R.string.rebirth_effect_motion), "Transiciones animadas", "player motion", "animation", "animación") {
+                SettingsRow(
+                    icon = Icons.Rounded.MotionPhotosOff,
+                    title = stringResource(R.string.rebirth_effect_motion),
+                    subtitle = stringResource(R.string.rebirth_effect_motion_hint),
+                    trailing = { Switch(checked = playerAnimatedTransitions, onCheckedChange = AppSettings::setPlayerAnimatedTransitions) },
+                    onClick = { AppSettings.setPlayerAnimatedTransitions(!playerAnimatedTransitions) },
+                )
+            }
+            if (expressive) {
+                val accentTitle = stringResource(R.string.total_accent)
+                row(accentTitle, "Color", "Accent", "Acento", "tema") { GoogleAccentPicker() }
+            }
+            if (expressive) row(stringResource(R.string.total_artwork_colors), "Colores de carátula", "Google", "artwork colors") {
                 val enabled by com.music.bitchord.data.settings.TotalMusicSettings.artworkColors.collectAsStateWithLifecycle()
                 SettingsRow(
                     icon = Icons.Rounded.AutoAwesome,
@@ -694,11 +774,11 @@ fun SettingsScreen(
                     onClick = { com.music.bitchord.data.settings.TotalMusicSettings.setArtworkColors(!enabled) },
                 )
             }
-            row("Novedades", "What's new", "version history") {
+            row(stringResource(R.string.release_history), "Novedades", "What's new", "version history") {
                 SettingsRow(icon = Icons.Rounded.History, title = stringResource(R.string.release_history),
                     onClick = { showReleaseHistory = true })
             }
-            row("Navegación adaptable", "Liquid Glass", "adaptive navigation") {
+            row(stringResource(R.string.total_adaptive_glass), "Navegación adaptable", "Liquid Glass", "adaptive navigation") {
                 val enabled by com.music.bitchord.data.settings.TotalMusicSettings.adaptiveGlass.collectAsStateWithLifecycle()
                 SettingsRow(
                     icon = Icons.Rounded.AutoAwesome,
@@ -1953,7 +2033,7 @@ internal val TEXT_INSET = ROW_INSET + ICON_SIZE + ICON_GAP
  * every group has had its turn, which is why this is made fresh on each pass
  * rather than remembered.
  */
-private class SettingsSearch(query: String) {
+private class SettingsSearch(query: String, val section: String? = null) {
     // Trimmed, because a trailing space is a typo rather than a search for
     // something ending in one — and on a phone keyboard it is one keystroke
     // away from every word typed.
@@ -2012,8 +2092,15 @@ private fun SearchableSettingsGroup(
     header: String? = null,
     footer: String? = null,
     topSpacing: Dp = 26.dp,
+    /**
+     * Which section this group belongs to, when that is not simply its header.
+     * The downloads group is drawn without a caption but is still one of the
+     * groups the rebirth home can open, so it names itself separately.
+     */
+    section: String? = header,
     content: @Composable SettingsGroupScope.() -> Unit,
 ) {
+    if (search.section != null && search.section != section) return
     val scope = SettingsGroupScope(search, header)
     scope.content()
     if (scope.entries.isEmpty()) return

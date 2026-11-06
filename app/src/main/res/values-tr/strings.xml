@@ -1265,4 +1265,16 @@
     <string name="space_open_source_notice">Total Music, Star Music ve BitChord temel alınarak değiştirilmiş bir sürümdür ve GPL-3.0 kapsamında dağıtılır. Değişiklikler: nexlibre, Ekim 2026. Özgün yazarların telif hakları korunur. Yazılımı lisansına göre kopyalayabilir, değiştirebilir ve yeniden dağıtabilirsiniz; garanti verilmez. Kaynak kodu ve özgün bildirimler bağlantılı depolardadır. GPL lisansı çevrimdışı okumak için eklenmiştir.</string>
     <string name="total_eq_10_bands">10 bağımsız bant</string>
     <string name="total_accent">Vurgu rengi</string>
+    <string name="widget_immersive_label">Sürükleyici 4×4</string>
+    <string name="widget_immersive_description">Oynatma kontrolleri ve parça ayrıntılarıyla büyük albüm kapağı.</string>
+    <string name="widget_dynamic_art_label">Dinamik kapak</string>
+    <string name="widget_dynamic_art_description">Kontrollerin arkasında uyumlu renkler içeren albüm kapağı.</string>
+    <string name="widget_glass_panel_label">Cam panel</string>
+    <string name="widget_glass_panel_description">Yarı saydam oynatma paneli olan albüm kapağı.</string>
+    <string name="widget_config_title">Widget özelleştir</string>
+    <string name="widget_config_theme">Bu widget için görünüm</string>
+    <string name="widget_theme_system">Sistemi izle</string>
+    <string name="widget_theme_light">Açık</string>
+    <string name="widget_theme_dark">Koyu</string>
+    <string name="widget_config_add">Widget ekle</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.music.bitchord
 
 import com.music.bitchord.playback.*
+import com.music.bitchord.data.settings.TotalMusicSettings
 import org.junit.Assert.*
 import org.junit.Test
 import kotlin.math.*
@@ -98,8 +99,32 @@ class TotalEqEngineTest {
         repeat(200) { block ->
             for (i in buffer.indices) buffer[i] = sin((block * 512 + i) * 0.021).toFloat()
             engine.process(buffer, 256)
-            assertTrue(buffer.all { it.isFinite() && abs(it) <= 0.97001f })
+            assertTrue(buffer.all { it.isFinite() && abs(it) <= 0.89126f })
         }
+    }
+
+    @Test fun everyFactoryPresetChangesAudioAndAutoHeadroomPreventsClipping() {
+        val names = setOf("Flat", "Rock", "Pop", "Jazz", "Clásica", "Electrónica", "Vocal", "Bass Boost")
+        assertTrue(names.all { it in TotalMusicSettings.factoryProfiles })
+        for ((name, preset) in TotalMusicSettings.factoryProfiles) {
+            val engine = TotalEqEngine()
+            engine.setConfig(preset.copy(graphicMode = TotalGraphicMode.TEN))
+            engine.configure(48000, 1)
+            val buffer = FloatArray(512)
+            var peak = 0f
+            repeat(100) { block ->
+                for (i in buffer.indices) buffer[i] = (0.8 * sin((block * 512 + i) * 0.021)).toFloat()
+                engine.process(buffer, buffer.size)
+                peak = maxOf(peak, buffer.maxOf { abs(it) })
+            }
+            assertTrue("$name produced silence", buffer.any { it != 0f })
+            assertTrue("$name clipped: $peak", peak <= 0.89126f)
+        }
+    }
+
+    @Test fun preampIsAudibleWhenProtectionAllowsIt() {
+        assertEquals(-6.0, measuredDb(TotalEqConfig(preamp = -6f), 1000.0), 0.02)
+        assertEquals(6.0, measuredDb(TotalEqConfig(preamp = 6f), 1000.0), 0.02)
     }
 
     @Test fun balanceWidthAndCrossfeedChangeStereoSamples() {

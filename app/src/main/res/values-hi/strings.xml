@@ -1308,4 +1308,16 @@
     <string name="space_open_source_notice">Total Music, Star Music और BitChord का संशोधित संस्करण है और GPL-3.0 के अंतर्गत वितरित है। बदलाव: nexlibre, अक्टूबर 2026। मूल लेखकों के कॉपीराइट सुरक्षित हैं। आप लाइसेंस के अनुसार इस सॉफ़्टवेयर की प्रतिलिपि बना सकते हैं, बदल सकते हैं और पुनर्वितरित कर सकते हैं। कोई वारंटी नहीं है। स्रोत कोड और मूल सूचनाएँ दिए गए रिपॉज़िटरी में हैं। GPL लाइसेंस ऑफ़लाइन पढ़ने के लिए शामिल है।</string>
     <string name="total_eq_10_bands">10 स्वतंत्र बैंड</string>
     <string name="total_accent">एक्सेंट रंग</string>
+    <string name="widget_immersive_label">इमर्सिव 4×4</string>
+    <string name="widget_immersive_description">प्लेबैक नियंत्रण और गीत के विवरण के साथ बड़ा एल्बम कवर।</string>
+    <string name="widget_dynamic_art_label">डायनामिक कवर</string>
+    <string name="widget_dynamic_art_description">नियंत्रणों के पीछे मिलते रंगों वाला एल्बम कवर।</string>
+    <string name="widget_glass_panel_label">ग्लास पैनल</string>
+    <string name="widget_glass_panel_description">पारदर्शी प्लेबैक पैनल वाला एल्बम कवर।</string>
+    <string name="widget_config_title">विजेट अनुकूलित करें</string>
+    <string name="widget_config_theme">इस विजेट का रूप</string>
+    <string name="widget_theme_system">सिस्टम के अनुसार</string>
+    <string name="widget_theme_light">हल्का</string>
+    <string name="widget_theme_dark">गहरा</string>
+    <string name="widget_config_add">विजेट जोड़ें</string>
 </resources>

@@ -1285,4 +1285,16 @@
     <string name="space_open_source_notice">Total Music adalah versi modifikasi dari Star Music dan BitChord dengan lisensi GPL-3.0. Perubahan oleh nexlibre, Oktober 2026. Hak cipta penulis asli tetap berlaku. Anda dapat menyalin, mengubah, dan mendistribusikan perangkat lunak ini sesuai lisensinya, tanpa jaminan. Kode sumber dan pemberitahuan asli tersedia di repositori tertaut. Lisensi GPL disertakan untuk dibaca secara offline.</string>
     <string name="total_eq_10_bands">10 pita independen</string>
     <string name="total_accent">Warna aksen</string>
+    <string name="widget_immersive_label">Imersif 4×4</string>
+    <string name="widget_immersive_description">Sampul besar dengan kontrol pemutaran dan detail lagu.</string>
+    <string name="widget_dynamic_art_label">Sampul dinamis</string>
+    <string name="widget_dynamic_art_description">Sampul dengan warna senada di belakang kontrol.</string>
+    <string name="widget_glass_panel_label">Panel kaca</string>
+    <string name="widget_glass_panel_description">Sampul dengan panel pemutaran tembus pandang.</string>
+    <string name="widget_config_title">Sesuaikan widget</string>
+    <string name="widget_config_theme">Tampilan widget ini</string>
+    <string name="widget_theme_system">Ikuti sistem</string>
+    <string name="widget_theme_light">Terang</string>
+    <string name="widget_theme_dark">Gelap</string>
+    <string name="widget_config_add">Tambahkan widget</string>
 </resources>

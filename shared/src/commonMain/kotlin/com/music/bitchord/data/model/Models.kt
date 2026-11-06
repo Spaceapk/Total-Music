@@ -93,6 +93,8 @@ data class Song(
     val localDateModifiedSeconds: Long? = null,
     val localTrackNumber: Int? = null,
     val localDiscNumber: Int? = null,
+    /** Release year from audio tags; never the file creation date. */
+    val localYear: Int? = null,
     /**
      * What a non-YouTube source says it can serve this recording at, as one of
      * `LOSSLESS`, `HIGH` or `LOW` — null for every row that didn't come from

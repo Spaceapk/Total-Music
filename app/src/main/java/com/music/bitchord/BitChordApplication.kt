@@ -114,6 +114,7 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory {
                 ?.let { Innertube.selectChannel(it.pageId, it.dataSyncId, it.authUser) }
             CoroutineScope(Dispatchers.IO).launch { Innertube.ensureSessionScope() }
         }
+        com.music.bitchord.data.DeviceFavoriteStore.initialize(this)
         AppSettings.init(this, authStore)
         AppSettings.setAutoplay(false)
         AppSettings.setAnimatedCanvas(false)

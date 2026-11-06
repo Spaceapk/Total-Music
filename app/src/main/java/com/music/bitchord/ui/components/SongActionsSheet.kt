@@ -201,6 +201,8 @@ fun SongActionsSheet(
      */
     presentation: SongActionsPresentation = SongActionsPresentation.Sheet,
 ) {
+    val visualStyle by com.music.bitchord.data.settings.AppSettings.playerVisualStyle.collectAsStateWithLifecycle()
+    val rebirth = visualStyle != com.music.bitchord.ui.player.PlayerVisualStyle.ORIGINAL
     val lyricsContext = LocalContext.current
     val lyricsScope = rememberCoroutineScope()
     val importSuccess = stringResource(R.string.local_lyrics_imported)
@@ -295,7 +297,7 @@ fun SongActionsSheet(
             GroupSeparator(palette)
         }
 
-        if (signedIn && !isOffline) {
+        run {
             ActionRow(
                 icon = if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                 label = if (liked) stringResource(R.string.remove_from_liked) else stringResource(R.string.like),
@@ -303,6 +305,8 @@ fun SongActionsSheet(
                 accent = palette.accent,
                 onClick = onToggleLike,
             )
+        }
+        if (signedIn && !isOffline) {
             ActionRow(
                 icon = if (disliked) Icons.Rounded.ThumbDown else Icons.Rounded.ThumbDownOffAlt,
                 label = if (disliked) stringResource(R.string.undo_dislike) else stringResource(R.string.dislike),
@@ -327,13 +331,13 @@ fun SongActionsSheet(
             GroupSeparator(palette)
         }
 
-        ActionRow(
+        if (!rebirth) ActionRow(
             icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
             label = stringResource(R.string.play_next),
             accent = palette.accent,
             onClick = onPlayNext,
         )
-        ActionRow(
+        if (!rebirth) ActionRow(
             icon = Icons.AutoMirrored.Rounded.QueueMusic,
             label = stringResource(R.string.add_to_queue),
             accent = palette.accent,
@@ -392,6 +396,12 @@ fun SongActionsSheet(
         }
     }
 
+    if (rebirth) {
+        com.music.bitchord.ui.rebirth.RebirthSongActions(visualStyle, song, onPlayNext, onAddToQueue, modifier) {
+            if (pickingSleepTimer) SleepTimerPicker(palette = palette, onBack = { pickingSleepTimer = false }) else rows()
+        }
+        return
+    }
     if (menu) {
         CompositionLocalProvider(LocalActionRowStyle provides ActionRowStyle.Menu) {
             Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), content = rows)

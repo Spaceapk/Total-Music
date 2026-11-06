@@ -38,6 +38,7 @@ keystore.properties
 
 # Project scratch / debug artifacts
 .shots/
+signing-secrets.md
 .tmp_verify/
 .debug/
 
@@ -53,3 +54,7 @@ keystore.properties
 *signing-password*
 private-signing/
 
+
+# Python validation caches
+__pycache__/
+*.pyc

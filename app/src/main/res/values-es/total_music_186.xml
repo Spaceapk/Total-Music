@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="selection_actions">Acciones de selección</string>
+    <string name="selection_favorite">Añadir a favoritas</string>
+    <string name="selection_unfavorite">Quitar de favoritas</string>
+    <string name="selection_to_start">Mover al inicio</string>
+    <string name="selection_to_end">Mover al final</string>
+    <string name="selection_invert">Invertir selección</string>
+    <string name="selection_remove">Quitar de esta playlist</string>
+    <string name="selection_remove_confirm">¿Quitar %1$d canciones de esta playlist? Los archivos de audio se conservarán en el teléfono.</string>
+    <string name="selection_share">Compartir lista de canciones</string>
+</resources>

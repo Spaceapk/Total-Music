@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Other locales use English fallback, as in 1.8.0–1.8.5. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="selection_actions">Selection actions</string>
+    <string name="selection_favorite">Add to favorites</string>
+    <string name="selection_unfavorite">Remove from favorites</string>
+    <string name="selection_to_start">Move to beginning</string>
+    <string name="selection_to_end">Move to end</string>
+    <string name="selection_invert">Invert selection</string>
+    <string name="selection_remove">Remove from this playlist</string>
+    <string name="selection_remove_confirm">Remove %1$d songs from this playlist? Audio files will stay on your device.</string>
+    <string name="selection_share">Share song list</string>
+</resources>

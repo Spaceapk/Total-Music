@@ -44,12 +44,14 @@ internal fun TotalEqControls(enabled: Boolean) {
     val allProfiles = TotalMusicSettings.factoryProfiles.mapValues { (_, c) -> c.copy(graphicMode = config.graphicMode) }
     val frequencies = TotalEqDesign.activeFrequencies(config)
     val gains = TotalEqDesign.activeGains(config)
-    val selected = profiles.entries.firstOrNull { it.value == config }?.key
+    val selectedKey = profiles.entries.firstOrNull { it.value == config }?.key
         ?: allProfiles.entries.firstOrNull { it.value == config }?.key
-        ?: stringResource(R.string.total_eq_custom)
+    val selected = if (selectedKey != null) com.music.bitchord.ui.rebirth.totalEqProfileLabel(selectedKey)
+        else stringResource(R.string.total_eq_custom)
 
     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Total EQ", style = MaterialTheme.typography.headlineLarge)
+        com.music.bitchord.ui.rebirth.TotalEqStudioHeader(enabled = enabled, glass = false)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TotalGraphicMode.entries.forEach { mode ->
                 FilterChip(selected = config.graphicMode == mode, enabled = enabled,
@@ -61,15 +63,15 @@ internal fun TotalEqControls(enabled: Boolean) {
             Box(Modifier.weight(1f)) {
                 OutlinedButton(onClick = { presets = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text(selected, maxLines = 1) }
                 DropdownMenu(expanded = presets, onDismissRequest = { presets = false }, modifier = Modifier.heightIn(max = 380.dp)) {
-                    allProfiles.forEach { (label, c) -> DropdownMenuItem(text = { Text(label) }, onClick = { TotalMusicSettings.update(c); selectedBand = 0; presets = false }) }
+                    allProfiles.forEach { (label, c) -> DropdownMenuItem(text = { Text(com.music.bitchord.ui.rebirth.totalEqProfileLabel(label)) }, onClick = { TotalMusicSettings.update(c); selectedBand = 0; presets = false }) }
                     if (profiles.isNotEmpty()) HorizontalDivider()
                     profiles.forEach { (label, c) -> DropdownMenuItem(text = { Text(label) }, onClick = { TotalMusicSettings.update(c); selectedBand = 0; presets = false }) }
                 }
             }
             FilledTonalButton(onClick = { name = ""; saving = true }, enabled = enabled) { Text(stringResource(R.string.total_eq_save)) }
         }
-        if (selected in profiles) TextButton(onClick = { TotalMusicSettings.deleteProfile(selected) }, enabled = enabled) {
-            Text(stringResource(R.string.total_eq_delete_profile))
+        com.music.bitchord.ui.rebirth.TotalEqProfileRows { preset ->
+            TotalMusicSettings.update(preset.copy(graphicMode = latest.graphicMode)); selectedBand = 0
         }
         Text(stringResource(if (config.graphicMode == TotalGraphicMode.TEN) R.string.total_eq_10_bands else R.string.total_eq_31_bands), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.total_eq_drag_bands), style = MaterialTheme.typography.bodySmall)

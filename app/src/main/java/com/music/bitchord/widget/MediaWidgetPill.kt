@@ -49,6 +49,7 @@ class MediaWidgetPill : AppWidgetProvider() {
 
     override fun onDeleted(context: Context, ids: IntArray) {
         for (id in ids) lastBody.remove(id)
+        MediaWidgetPreferences.delete(context, ids)
     }
 
     private fun renderAsync(context: Context, ids: IntArray) {
@@ -98,7 +99,7 @@ class MediaWidgetPill : AppWidgetProvider() {
                 if (cachedDisc == null || cachedBody == null) {
                     // With what this widget last drew, not with nothing: a
                     // RemoteViews replaces the whole tree. See MediaWidget.render.
-                    manager.push(id, views(context, snapshot, cachedDisc ?: lastDisc, cachedBody ?: lastBody[id]))
+                    manager.push(id, views(context, id, snapshot, cachedDisc ?: lastDisc, cachedBody ?: lastBody[id]))
                 }
                 val drawn = withTimeoutOrNull(RENDER_TIMEOUT_MS) {
                     val disc = cachedDisc ?: key?.let {
@@ -111,7 +112,7 @@ class MediaWidgetPill : AppWidgetProvider() {
                 // placeholder disc rather than the previous track's picture.
                 lastDisc = disc
                 lastBody[id] = body
-                manager.push(id, views(context, snapshot, disc, body))
+                manager.push(id, views(context, id, snapshot, disc, body))
             }
         }
 
@@ -133,11 +134,28 @@ class MediaWidgetPill : AppWidgetProvider() {
 
         private fun views(
             context: Context,
+            widgetId: Int,
             snapshot: MediaWidgetSnapshot,
             disc: Bitmap?,
             body: Bitmap?,
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_media_pill)
+            val dark = when (MediaWidgetPreferences.theme(context, widgetId)) {
+                WidgetThemeMode.SYSTEM -> (context.resources.configuration.uiMode and
+                    Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+                WidgetThemeMode.LIGHT -> false
+                WidgetThemeMode.DARK -> true
+            }
+            views.setInt(
+                R.id.widget_pill,
+                "setBackgroundResource",
+                if (dark) R.drawable.widget_band_dark else R.drawable.widget_band_light,
+            )
+            views.setInt(
+                R.id.widget_title,
+                "setTextColor",
+                if (dark) android.graphics.Color.WHITE else android.graphics.Color.BLACK,
+            )
             disc?.let { views.setImageViewBitmap(R.id.widget_art, it) }
             body?.let {
                 views.setImageViewBitmap(R.id.widget_pill_bg, it)
