@@ -358,7 +358,15 @@ jobs:
           if result.is_file():
            text=(r/'summary.md').read_text(); conclusion='success'
           else:
-           text='The original-APK baseline did not complete. See workflow artifact for partial evidence. No upgrade/data-preservation claim is made.'
+           parts=['The original-APK baseline did not complete. No upgrade/data-preservation claim is made.']
+           for name in ['checksum.txt','android-version.txt','api-level.txt','install-original.txt','launch-cold.txt','pid-cold.txt','launch-reopen.txt','pid-reopen.txt']:
+            path=r/name
+            if path.is_file(): parts += ['## '+name,'```text',path.read_text(errors='replace')[:8000],'```']
+           log=r/'logcat.txt'
+           if log.is_file(): parts += ['## logcat tail','```text','\n'.join(log.read_text(errors='replace').splitlines()[-160:]),'```']
+           emulator=r/'emulator.log'
+           if emulator.is_file(): parts += ['## emulator tail','```text','\n'.join(emulator.read_text(errors='replace').splitlines()[-60:]),'```']
+           text='\n'.join(parts)[:60000]
            conclusion='failure'
           payload={'name':'Obsidian 1100 / Android 13 original baseline','head_sha':os.environ['GITHUB_SHA'],
                    'status':'completed','conclusion':conclusion,
