@@ -513,7 +513,7 @@ dependencies {
     // The isolated obsidianTest target is not the debug build type, so the
     // ComponentActivity used by createAndroidComposeRule must be present in
     // that target APK manifest (not only the instrumentation APK).
-    obsidianTestImplementation("androidx.compose.ui:ui-test-manifest")
+    "obsidianTestImplementation"("androidx.compose.ui:ui-test-manifest")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
