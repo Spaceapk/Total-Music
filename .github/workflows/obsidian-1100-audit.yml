@@ -88,12 +88,22 @@ jobs:
           from androguard.core.dex import DEX
           report=Path('audit-report'); apk_path=Path((report/'apk-path.txt').read_text().strip())
           apk=APK(str(apk_path))
-          classes=set(); strings=[]; dex_info=[]
+          classes=set(); strings=[]; dex_info=[]; binary_components=[]
+          component_pattern=re.compile(r'obsidian|ui[./]motion|motionexperience|motioncontent|motionsettings|offlinelyrics|rebirthdock',re.I)
           pattern=re.compile(r'obsidian|fidelity|1\.10\.0|source.commit|build.commit|git.commit',re.I)
           for name,data in zip(apk.get_dex_names(),apk.get_all_dex()):
               dex=DEX(data)
               names=[c.get_name() for c in dex.get_classes()]
               classes.update(names)
+              for c in dex.get_classes():
+                  cname=c.get_name()
+                  if not component_pattern.search(cname): continue
+                  idx=c.get_source_file_idx()
+                  source=dex.get_cm_string(idx) if idx!=0xFFFFFFFF else None
+                  methods=[]
+                  for m in c.get_methods():
+                      methods.append(m.get_name()+str(m.get_descriptor()))
+                  binary_components.append({'class':cname,'source_file':source,'methods':methods})
               hits=[s for s in dex.get_strings() if pattern.search(s)]
               strings.extend(hits)
               dex_info.append({'name':name,'bytes':len(data),'classes':len(names)})
@@ -137,7 +147,7 @@ jobs:
                       text=subprocess.run(['git','cat-file','blob',blob],check=True,capture_output=True,text=True).stdout
                       p=re.search(r'^\s*package\s+([\w.]+)',text,re.M)
                       names={p[1]+'.'+m[1] for m in re.finditer(r'\b(?:class|interface|object)\s+(\w+)',text)} if p else set()
-                      facade=(p[1]+'.'+Path(path).stem+'Kt') if p else None
+                      facade=(p[1]+'.'+re.sub(r'[^A-Za-z0-9_]','_',Path(path).stem)+'Kt') if p else None
                       blob_cache[blob]=(names,facade)
                   names,facade=blob_cache[blob]
                   all_declarations.update(names)
@@ -159,7 +169,8 @@ jobs:
               'permissions':apk.get_permissions(),'activities':apk.get_activities(),
               'services':apk.get_services(),'receivers':apk.get_receivers(),'providers':apk.get_providers(),
               'dex':dex_info,'total_classes':len(classes),'app_classes':len(app_classes),
-              'obsidian_classes':obsidian_classes,'provenance_marker_count':len(markers),
+              'obsidian_classes':obsidian_classes,'binary_component_evidence':binary_components,
+              'provenance_marker_count':len(markers),
               'provenance_markers':markers[:250],
               'source_files_compared':source_files,'remote_branches_compared':len(refs),
               'unique_source_blobs_compared':len(blob_cache),
@@ -242,5 +253,123 @@ jobs:
         with:
           name: obsidian-1100-exact-binary-audit-${{ github.sha }}
           path: audit-report/
+          if-no-files-found: error
+          retention-days: 14
+
+  android13-original:
+    # Install the exact original as a baseline only. This is NOT an upgrade
+    # test and does not establish preservation across a version change.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools emulator system-images;android-33;google_apis;x86_64
+      - name: Download the exact original and boot Android 13
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p android13-results
+          gh release download v1.10.0 --repo Spaceapk/Total-Music \
+            --pattern Total-Music-1.10.0-universal.apk --dir "$RUNNER_TEMP/obsidian-original"
+          APK="$RUNNER_TEMP/obsidian-original/Total-Music-1.10.0-universal.apk"
+          echo "283154348d8c289d5d8305279c35a3cca23f9600b61019c0cbdbbad3ad33dff7  $APK" | sha256sum -c - | tee android13-results/checksum.txt
+          printf '%s\n' "$APK" > android13-results/apk-path.txt
+          sudo chmod a+rw /dev/kvm
+          adb start-server
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/obsidian-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd -n obsidian1100 -k 'system-images;android-33;google_apis;x86_64' --force
+          echo 'disk.dataPartition.size=6G' >> "$ANDROID_AVD_HOME/obsidian1100.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -avd obsidian1100 -no-window -no-audio -no-boot-anim \
+            -no-snapshot -no-metrics -gpu swiftshader_indirect -feature -Vulkan -cores 2 -memory 3072 \
+            > android13-results/emulator.log 2>&1 &
+          timeout 180 adb wait-for-device
+          timeout 600 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 1
+          adb shell settings put global transition_animation_scale 1
+          adb shell settings put global animator_duration_scale 1
+          adb shell getprop ro.build.version.release > android13-results/android-version.txt
+          adb shell getprop ro.build.version.sdk > android13-results/api-level.txt
+          test "$(cat android13-results/api-level.txt | tr -d '\r')" = 33
+      - name: Install, launch, reopen, and inspect the original without replacing data
+        run: |
+          set -euo pipefail
+          APK=$(cat android13-results/apk-path.txt)
+          timeout 300 adb install --no-streaming "$APK" 2>&1 | tee android13-results/install-original.txt
+          grep -q Success android13-results/install-original.txt
+          adb shell pm grant org.nexlibre.totalmusic android.permission.READ_MEDIA_AUDIO
+          adb shell pm grant org.nexlibre.totalmusic android.permission.POST_NOTIFICATIONS
+          adb shell dumpsys package org.nexlibre.totalmusic > android13-results/package-before.txt
+          grep -q 'versionCode=29' android13-results/package-before.txt
+          adb logcat -c
+          adb shell am start -W -n org.nexlibre.totalmusic/com.music.bitchord.MainActivity | tee android13-results/launch-cold.txt
+          sleep 15
+          adb shell pidof org.nexlibre.totalmusic | tee android13-results/pid-cold.txt
+          adb exec-out screencap -p > android13-results/launch-cold.png
+          adb shell uiautomator dump /sdcard/obsidian-window.xml
+          adb pull /sdcard/obsidian-window.xml android13-results/window-cold.xml
+          adb shell am force-stop org.nexlibre.totalmusic
+          adb shell am start -W -n org.nexlibre.totalmusic/com.music.bitchord.MainActivity | tee android13-results/launch-reopen.txt
+          sleep 10
+          adb shell pidof org.nexlibre.totalmusic | tee android13-results/pid-reopen.txt
+          adb exec-out screencap -p > android13-results/launch-reopen.png
+          adb shell dumpsys package org.nexlibre.totalmusic > android13-results/package-after.txt
+          adb logcat -d -v threadtime > android13-results/logcat.txt
+          if grep -E 'FATAL EXCEPTION|AndroidRuntime.*Process: org.nexlibre.totalmusic' android13-results/logcat.txt; then
+            echo 'Fatal application exception detected' >&2; exit 1
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, os
+          r=Path('android13-results')
+          result={'test_scope':'Original 1.10.0 clean install, cold launch, force-stop and reopen only',
+                  'android_version':(r/'android-version.txt').read_text().strip(),
+                  'api_level':int((r/'api-level.txt').read_text().strip()),
+                  'install_success':'Success' in (r/'install-original.txt').read_text(),
+                  'version_code':29,'cold_pid':(r/'pid-cold.txt').read_text().strip(),
+                  'reopen_pid':(r/'pid-reopen.txt').read_text().strip(),
+                  'fatal_exception_found':False,
+                  'upgrade_test':False,'data_preservation_across_upgrade_test':False,
+                  'obsidian_functional_acceptance':False,
+                  'limit':'No candidate APK exists; no signing key was used; no update or user-data migration was tested.'}
+          assert result['install_success'] and result['cold_pid'] and result['reopen_pid']
+          (r/'result.json').write_text(json.dumps(result,indent=2)+'\n')
+          text='# Original 1.10.0 Android 13 baseline\n```json\n'+json.dumps(result,indent=2)+'\n```\n'
+          (r/'summary.md').write_text(text)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write(text)
+          print(text)
+          PY
+      - name: Publish the bounded device result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,os
+          r=Path('android13-results'); result=r/'result.json'
+          if result.is_file():
+           text=(r/'summary.md').read_text(); conclusion='success'
+          else:
+           text='The original-APK baseline did not complete. See workflow artifact for partial evidence. No upgrade/data-preservation claim is made.'
+           conclusion='failure'
+          payload={'name':'Obsidian 1100 / Android 13 original baseline','head_sha':os.environ['GITHUB_SHA'],
+                   'status':'completed','conclusion':conclusion,
+                   'output':{'title':'Original install/launch/reopen only — not an upgrade test','summary':'Exact 1.10.0 APK; no application source or signing changes.','text':text}}
+          (r/'check-payload.json').write_text(json.dumps(payload))
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/check-runs" --input android13-results/check-payload.json --jq '{id,html_url,conclusion}'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: obsidian-1100-android13-original-baseline-${{ github.sha }}
+          path: android13-results/
           if-no-files-found: error
           retention-days: 14
