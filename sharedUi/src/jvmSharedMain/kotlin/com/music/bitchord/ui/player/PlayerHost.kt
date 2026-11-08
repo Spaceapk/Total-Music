@@ -149,6 +149,8 @@ object PlayerPlatform {
 interface PlayerSettingsSource {
     val visualStyle: StateFlow<PlayerVisualStyle>
     val dynamicBackground: StateFlow<Boolean>
+    /** Independent Obsidian artwork backdrop; the legacy player setting is unchanged. */
+    val obsidianDynamicBackground: StateFlow<Boolean>
     val glassEffects: StateFlow<Boolean>
     val alternativeControls: StateFlow<Boolean>
     val animatedTransitions: StateFlow<Boolean>

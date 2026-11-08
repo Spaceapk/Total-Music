@@ -15,11 +15,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -35,17 +37,19 @@ import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.TotalMusicSettings
 import com.music.bitchord.ui.player.PlayerVisualStyle
 
-/** The four existing experiences, expressed through the original persisted preferences. */
+/** The four preserved experiences plus the independent Obsidian theme. */
 internal enum class AppearanceTheme(val title: String, val style: PlayerVisualStyle, val expressive: Boolean) {
     GLASS("Liquid Glass", PlayerVisualStyle.ORIGINAL, false),
     GLASS_PLUS("Liquid Glass+", PlayerVisualStyle.LIQUID_GLASS_PLUS, false),
     GOOGLE("Google Expressive", PlayerVisualStyle.ORIGINAL, true),
-    GOOGLE_PLUS("Google Expressive+", PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS, true);
+    GOOGLE_PLUS("Google Expressive+", PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS, true),
+    OBSIDIAN("Obsidian", PlayerVisualStyle.OBSIDIAN, false);
 
     companion object {
         fun current(style: PlayerVisualStyle, expressive: Boolean): AppearanceTheme = when (style) {
             PlayerVisualStyle.LIQUID_GLASS_PLUS -> GLASS_PLUS
             PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS -> GOOGLE_PLUS
+            PlayerVisualStyle.OBSIDIAN -> OBSIDIAN
             PlayerVisualStyle.ORIGINAL -> if (expressive) GOOGLE else GLASS
         }
     }
@@ -58,6 +62,16 @@ internal fun AppearanceThemePicker() {
     val active = AppearanceTheme.current(style, expressive)
     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(stringResource(R.string.appearance_and_themes), style = MaterialTheme.typography.titleMedium)
+        if (active == AppearanceTheme.OBSIDIAN) {
+            val dynamic by AppSettings.obsidianDynamicBackground.collectAsStateWithLifecycle()
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.obsidian_dynamic_background), style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.obsidian_dynamic_background_hint), style = MaterialTheme.typography.labelSmall)
+                }
+                Switch(checked = dynamic, onCheckedChange = AppSettings::setObsidianDynamicBackground)
+            }
+        }
         BoxWithConstraints {
             // One column on narrow / large-font windows; two balanced columns otherwise.
             val columns = if (maxWidth < 340.dp || androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.4f) 1 else 2

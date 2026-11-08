@@ -386,10 +386,12 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 val appBackdrop = rememberLayerBackdrop(onDraw = paintBackdrop)
+                val systemMotionReduced by com.music.bitchord.ui.theme.rememberMotionReduced()
                 CompositionLocalProvider(
                     LocalOverscrollFactory provides iosOverscrollFactory,
                     LocalLiquidGlassEnabled provides liquidGlassEnabled,
                     LocalAppBackdrop provides appBackdrop,
+                    com.music.bitchord.ui.player.LocalMotionReduced provides systemMotionReduced,
                 ) {
                 // The window's width, measured rather than asked for.
                 //
@@ -538,7 +540,7 @@ private fun BitChordApp(
     // takes part in the docking asks for [activeDock] / this, never for the
     // dock or the motion directly.
     val reduceLegacyPlayerMotion by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
-    val reducePlayerMotion = reduceLegacyPlayerMotion
+    val reducePlayerMotion = reduceLegacyPlayerMotion || com.music.bitchord.ui.player.LocalMotionReduced.current
     val activeDock = playerDock.takeIf { !reducePlayerMotion }
     playerSheetMotion.flingVelocity = with(LocalDensity.current) { PLAYER_PULL_FLING_VELOCITY.toPx() }
     // How the app takes the player down, whatever for: a back press, or a page
@@ -3892,7 +3894,22 @@ private fun BitChordApp(
                                 onTabSelected(TAB_HOME)
                                 rebirthDestination = destination
                             }
-                            if (rebirthStyle == com.music.bitchord.ui.player.PlayerVisualStyle.LIQUID_GLASS_PLUS) {
+                            if (rebirthStyle == com.music.bitchord.ui.player.PlayerVisualStyle.OBSIDIAN) {
+                                com.music.bitchord.ui.rebirth.ObsidianNavigationDock(
+                                    song = player.song,
+                                    playing = player.isPlaying,
+                                    loading = playPauseBusy,
+                                    reduceMotion = reducePlayerMotion,
+                                    destination = rebirthDestination,
+                                    query = spaceQuery,
+                                    onQuery = { spaceQuery = it },
+                                    onDestination = navigate,
+                                    onExpandPlayer = expandPlayer,
+                                    onPlayPause = { togglePlayPause() },
+                                    onNext = { if (!controlsLocked) controller?.seekToNextMediaItem() else showHostOnlyNotice() },
+                                    onPrevious = { if (!controlsLocked) controller?.seekToPreviousMediaItem() else showHostOnlyNotice() },
+                                )
+                            } else if (rebirthStyle == com.music.bitchord.ui.player.PlayerVisualStyle.LIQUID_GLASS_PLUS) {
                                 com.music.bitchord.ui.rebirth.RebirthGlassMiniPlayer(
                                     song = player.song,
                                     playing = player.isPlaying,

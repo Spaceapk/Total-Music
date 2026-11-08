@@ -4,7 +4,9 @@ package com.music.bitchord.ui.player
 enum class PlayerVisualStyle {
     ORIGINAL,
     GOOGLE_EXPRESSIVE_PLUS,
-    LIQUID_GLASS_PLUS;
+    LIQUID_GLASS_PLUS,
+    /** The independent dark Obsidian experience; persisted by this exact name. */
+    OBSIDIAN;
 
     companion object {
         /** Unknown values from a future or damaged preference keep the legacy player. */

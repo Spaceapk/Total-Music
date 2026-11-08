@@ -1,5 +1,35 @@
 [
   {
+    "versionCode": 30,
+    "versionName": "1.10.1",
+    "notes": "Obsidian Fidelity: reconstrucción funcional sobre la fuente disponible. Tema oscuro independiente, biblioteca y artistas circulares, barra inferior transformable con búsqueda y navegación, mini reproductor continuo, disco animado, pantalla completa y letras sincronizadas. Conserva los cuatro temas, biblioteca, playlists, favoritas, ecualizador y ajustes. La compilación de prueba usa un paquete separado y no reemplaza Total Music 1.10.0; la actualización estable requiere la clave privada original."
+  },
+  {
+    "versionCode": 29,
+    "versionName": "1.10.0",
+    "notes": "Obsidian: quinto tema independiente con biblioteca oscura, artistas circulares, barra integrada de navegación y búsqueda, disco animado y reproductor inmersivo. Conserva la sesión de reproducción, playlists y traducción de letras."
+  },
+  {
+    "versionCode": 28,
+    "versionName": "1.9.1",
+    "notes": "Corrige el código interno de actualización: 28, superior al 27 de 1.8.9. Conserva Motion Experience y las reparaciones de los reproductores de 1.8.9. Traducción inteligente inglés ↔ español con detección automática, modelo local descargable por wifi, alternativa online y traducciones guardadas. Traducir alterna entre ambas letras, traducción y original. Conserva los tiempos y la letra original ante errores."
+  },
+  {
+    "versionCode": 27,
+    "versionName": "1.8.9",
+    "notes": "Se recupera el espacio del reproductor en Google Expressive+ y Liquid Glass+. Las pestañas mantienen su posición al cambiar de sección y los deslizadores de Liquid Glass responden con el movimiento del tema."
+  },
+  {
+    "versionCode": 26,
+    "versionName": "1.8.8",
+    "notes": "Motion Experience: respuesta al toque y transiciones coordinadas en Google Expressive+ y los dos temas Liquid Glass. Elasticidad y reflejos reactivos en cristal, respuesta de botones y deslizadores, y continuidad de carátula entre el minirreproductor y los reproductores Plus. Respeta la reducción de movimiento de la aplicación y del sistema. Conserva biblioteca, playlists, identidad Android y firma permanente."
+  },
+  {
+    "versionCode": 25,
+    "versionName": "1.8.7",
+    "notes": "Biblioteca local con artistas en ambos sentidos y álbumes por año. Dentro de cada álbum se mantiene el orden de disco y pista. En Canciones puedes cambiar el sentido del orden por título, artista, álbum o pista. Al arrastrar en una playlist se guarda el orden que ves, y añadir una canción que ya estaba en la lista conserva su posición de incorporación."
+  },
+  {
     "versionCode": 24,
     "versionName": "1.8.6",
     "notes": "Playlists ordenadas por año del álbum y por disco y pista dentro de cada álbum. Los álbumes sin año quedan al final. Selección múltiple con reproducción de lo marcado, reproducir después, añadir a la cola o a otra playlist, añadir o quitar favoritas, mover al inicio o al final, invertir selección y compartir los nombres de las canciones. Quitar varias canciones o vaciar una playlist en una sola operación con confirmación, conservando los archivos de audio. Eliminar playlist accesible desde la cabecera en ambos temas Plus. "

@@ -1,0 +1,11 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="obsidian_name">Obsidian</string>
+    <string name="obsidian_quick_picks">Quick picks</string>
+    <string name="obsidian_close">Close</string>
+    <string name="obsidian_search_hint">Search songs, albums and artists</string>
+    <string name="obsidian_artists">Artists</string>
+    <string name="obsidian_dynamic_background">Obsidian dynamic background</string>
+    <string name="obsidian_dynamic_background_hint">Blurred artwork behind the immersive player</string>
+    <string name="obsidian_test_label">Total Music Obsidian TEST</string>
+    <string name="obsidian_see_all">See all</string>
+</resources>

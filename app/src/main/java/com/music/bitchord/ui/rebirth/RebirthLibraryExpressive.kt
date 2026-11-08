@@ -430,7 +430,7 @@ private fun ExpressiveRows(data: RebirthLibraryData, actions: RebirthLibraryActi
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ExpressiveTrackRow(
+internal fun ExpressiveTrackRow(
     song: Song,
     position: Int,
     selected: Boolean,
@@ -597,7 +597,7 @@ private fun ExpressiveGallery(data: RebirthLibraryData, actions: RebirthLibraryA
 }
 
 @Composable
-private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibraryActions) {
+internal fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibraryActions) {
     val collection = data.opened ?: return
     val listState = rememberLazyListState()
     // One move per drop, decided on release — see [PlaylistDrag]. Near either

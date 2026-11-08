@@ -6,6 +6,7 @@ on:
       - 'app/**'
       - 'shared/**'
       - 'sharedUi/**'
+      - 'desktopApp/**'
       - 'gradle/**'
       - '*gradle*'
       - 'total-music-release.properties'
@@ -23,9 +24,9 @@ env:
   ORG_GRADLE_PROJECT_spaceNdkVersion: '27.0.12077973'
   GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8'
 jobs:
-  compile:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,30 +44,206 @@ jobs:
           set -euo pipefail
           sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
           if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
-      - name: Compile the integrated source before feature work
+      - name: Unit tests
+        id: tests
+        continue-on-error: true
         run: |
           set -o pipefail
           mkdir -p ci-results
-          ./gradlew :app:compileProdDebugKotlin --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true 2>&1 | tee ci-results/compile.log
-      - name: Publish actual compiler diagnostics
+          ./gradlew :shared:jvmTest :sharedUi:jvmTest :app:testProdDebugUnitTest --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true 2>&1 | tee ci-results/tests.log
+      - name: Assemble release and isolated Obsidian test APKs
+        id: assemble
+        run: |
+          set -o pipefail
+          mkdir -p ci-results
+          ./gradlew :app:assembleProdRelease :app:assembleProdObsidianTest :app:assembleProdObsidianTestAndroidTest \
+            --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true -PstarTestBuildType=obsidianTest \
+            2>&1 | tee ci-results/assemble.log
+      - name: Lint the delivered variant
+        id: lint
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./gradlew :app:lintProdObsidianTest --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true -PstarTestBuildType=obsidianTest 2>&1 | tee ci-results/lint.log
+      - name: Stage and verify the test APK
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p delivery
+          TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          TEST_APK=$(find app/build/outputs/apk/prod/obsidianTest -name '*universal*.apk' | head -1)
+          TEST_ANDROID=$(find app/build/outputs/apk/androidTest -name '*.apk' | head -1)
+          UNSIGNED=$(find app/build/outputs/apk/prod/release -name '*universal*release-unsigned.apk' | head -1)
+          if [ -n "$TEST_APK" ]; then
+            cp "$TEST_APK" delivery/Total-Music-Obsidian-Fidelity-1.10.1-code30-TEST-NOT-AN-UPDATE.apk
+            "$TOOLS/aapt" dump badging "$TEST_APK" > ci-results/test-apk-badging.txt
+            "$TOOLS/apksigner" verify --verbose --print-certs "$TEST_APK" > ci-results/test-apk-signature.txt
+            python3 - <<'PY'
+          from pathlib import Path
+          import re,hashlib,json
+          b=Path('ci-results/test-apk-badging.txt').read_text(); s=Path('ci-results/test-apk-signature.txt').read_text()
+          pkg=re.search(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'",b)
+          assert pkg and pkg[1]=='org.nexlibre.totalmusic.obsidian.test', 'Test APK must use the isolated package'
+          assert pkg[2]=='30' and pkg[3]=='1.10.1-obsidian-test', (pkg.groups() if pkg else b[:200])
+          assert 'application-debuggable' not in b, 'Delivered test APK must be release-like and non-debuggable'
+          cert=re.findall(r'certificate SHA-256 digest: ([0-9a-fA-F]+)',s)
+          assert cert and cert[0].lower()!='9ae145a703a85902fe6d6ab3d886f6801873d717929deaa3e3d0b0a81de829fa', 'Never present a throwaway key as the original'
+          apk=next(Path('delivery').glob('*.apk'))
+          result={'package':pkg[1],'versionCode':int(pkg[2]),'versionName':pkg[3],'debuggable':False,'sha256':hashlib.sha256(apk.read_bytes()).hexdigest(),'certificate_sha256':cert[0].lower(),'installable_over_1_10_0':False,'reason':'Isolated test package and non-original ephemeral debug certificate; original private key unavailable.'}
+          Path('ci-results/apk-verification.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result,indent=2))
+          PY
+            (cd delivery && sha256sum *.apk > SHA256SUMS)
+          fi
+          if [ -n "$TEST_ANDROID" ]; then cp "$TEST_ANDROID" delivery/android-test.apk; fi
+          if [ -n "$UNSIGNED" ]; then cp "$UNSIGNED" ci-results/unsigned-release-NOT-INSTALLABLE.apk; fi
+          cat > delivery/LEEME-PRUEBA.txt <<'EOF'
+          Total Music Obsidian Fidelity — APK DE PRUEBA
+          Paquete: org.nexlibre.totalmusic.obsidian.test
+          Versión: 1.10.1-obsidian-test (30)
+          Compilación release con R8, no depurable, firmada con clave Android debug efímera de CI.
+          NO es una actualización de Total Music 1.10.0. No reemplaza la aplicación original
+          ni conserva/accede a sus datos porque usa un paquete separado. Puede instalarse al lado.
+          La clave privada original no está disponible; no se ha generado una clave permanente de reemplazo.
+          EOF
+          ls -lh delivery ci-results || true
+      - name: Publish build evidence
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('ci-results/compile.log')
-          text=p.read_text(errors='replace') if p.exists() else 'Compiler did not start.'
-          lines=text.splitlines()
-          errors=[x for x in lines if x.startswith('e: ') or 'FAILURE:' in x or 'What went wrong:' in x or 'Caused by:' in x]
-          report='\n'.join(errors[:70])+'\n\nLAST LINES\n'+'\n'.join(lines[-90:])
-          Path('ci-results/compiler-report.md').write_text('Compiler result for '+__import__('os').environ['GITHUB_SHA']+'\n```text\n'+report[-23000:]+'\n```\n')
+          import glob,json,os,xml.etree.ElementTree as ET,subprocess
+          r=Path('ci-results'); parts=[]
+          for name in ['tests','assemble','lint']:
+           p=r/f'{name}.log'
+           if p.exists():
+            lines=p.read_text(errors='replace').splitlines()
+            errors=[x for x in lines if x.startswith('e: ') or 'FAILED' in x or 'FAILURE:' in x or 'What went wrong:' in x]
+            parts+=['## '+name,'```text','\n'.join((errors[:50] or lines[-25:]))[-12000:],'```']
+          total=fail=0
+          for path in glob.glob('**/build/test-results/**/TEST-*.xml',recursive=True):
+           try:
+            root=ET.parse(path).getroot(); total+=int(root.get('tests',0)); fail+=int(root.get('failures',0))+int(root.get('errors',0))
+           except Exception: pass
+          parts.insert(0,f'JUnit XML: {total} tests, {fail} failures/errors.')
+          v=r/'apk-verification.json'
+          if v.exists(): parts+=['## APK verification','```json',v.read_text(),'```']
+          text='\n'.join(parts)[:60000]
+          payload={'name':'Obsidian Fidelity build','head_sha':os.environ['GITHUB_SHA'],'status':'completed','conclusion':'neutral','output':{'title':'Build, tests and APK identity','summary':'Actual CI output; test APK is isolated from the installed original.','text':text}}
+          Path('ci-results/check.json').write_text(json.dumps(payload))
+          subprocess.run(['gh','api','repos/'+os.environ['GITHUB_REPOSITORY']+'/check-runs','--input','ci-results/check.json','--jq','.id'],check=False)
+          Path('ci-results/issue-comment.md').write_text(text[:50000])
+          subprocess.run(['gh','issue','comment','14','--repo',os.environ['GITHUB_REPOSITORY'],'--body-file','ci-results/issue-comment.md'],check=False)
           PY
-          gh issue comment 14 --repo "$GITHUB_REPOSITORY" --body-file ci-results/compiler-report.md
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: obsidian-compiler-${{ github.sha }}
+          name: obsidian-fidelity-apk-${{ github.sha }}
+          path: delivery/
+          if-no-files-found: warn
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: obsidian-fidelity-build-evidence-${{ github.sha }}
           path: ci-results/
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 30
+      - name: Fail if assembly or tests failed
+        if: always()
+        run: |
+          test "${{ steps.assemble.outcome }}" = success
+          test "${{ steps.tests.outcome }}" = success
+  android13:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools emulator system-images;android-33;google_apis;x86_64
+      - uses: actions/download-artifact@v4
+        with:
+          name: obsidian-fidelity-apk-${{ github.sha }}
+          path: delivery
+      - name: Boot Android 13 and install the isolated test APK
+        run: |
+          set -euo pipefail
+          mkdir -p device-results
+          sudo chmod a+rw /dev/kvm
+          adb start-server
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/obsidian-avd"; mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd -n obsidian -k 'system-images;android-33;google_apis;x86_64' --force
+          echo 'disk.dataPartition.size=6G' >> "$ANDROID_AVD_HOME/obsidian.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -avd obsidian -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics \
+            -gpu swiftshader_indirect -feature -Vulkan -cores 2 -memory 3072 > device-results/emulator.log 2>&1 &
+          timeout 180 adb wait-for-device
+          timeout 600 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 1
+          adb shell settings put global transition_animation_scale 1
+          adb shell settings put global animator_duration_scale 1
+          adb install -r delivery/Total-Music-Obsidian-Fidelity-1.10.1-code30-TEST-NOT-AN-UPDATE.apk | tee device-results/install.txt
+          adb install -r delivery/android-test.apk | tee device-results/install-test.txt
+          adb shell pm grant org.nexlibre.totalmusic.obsidian.test android.permission.READ_MEDIA_AUDIO || true
+          adb shell pm grant org.nexlibre.totalmusic.obsidian.test android.permission.POST_NOTIFICATIONS || true
+          adb shell pm list instrumentation | tee device-results/instrumentation.txt
+      - name: Run Obsidian and preservation regression tests
+        run: |
+          set -o pipefail
+          INSTR=$(adb shell pm list instrumentation | tr -d '\r' | sed -n 's/^instrumentation:\([^ ]*\).*/\1/p' | head -1)
+          test -n "$INSTR"
+          timeout 900 adb shell am instrument -w -r \
+            -e class com.music.bitchord.ObsidianFidelityUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DevicePlaylistStoreTest,com.music.bitchord.DeviceFavoriteStoreTest \
+            "$INSTR" 2>&1 | tee device-results/instrumentation.log
+          ! grep -q 'FAILURES\|Process crashed\|INSTRUMENTATION_FAILED' device-results/instrumentation.log
+          grep -q 'OK (' device-results/instrumentation.log || grep -q 'INSTRUMENTATION_CODE: -1' device-results/instrumentation.log
+      - name: Cold launch, reopen and capture the test app
+        if: always()
+        run: |
+          set +e
+          timeout 60 adb shell am start -W -n org.nexlibre.totalmusic.obsidian.test/com.music.bitchord.MainActivity > device-results/launch.txt 2>&1
+          sleep 10
+          adb shell pidof org.nexlibre.totalmusic.obsidian.test > device-results/pid.txt
+          timeout 30 adb exec-out screencap -p > device-results/obsidian-launch.png
+          adb shell am force-stop org.nexlibre.totalmusic.obsidian.test
+          timeout 60 adb shell am start -W -n org.nexlibre.totalmusic.obsidian.test/com.music.bitchord.MainActivity > device-results/reopen.txt 2>&1
+          sleep 5
+          adb shell pidof org.nexlibre.totalmusic.obsidian.test > device-results/reopen-pid.txt
+          timeout 30 adb exec-out screencap -p > device-results/obsidian-reopen.png
+          adb logcat -d -v threadtime > device-results/logcat.txt
+          adb logcat -d -b crash -v threadtime > device-results/crash.txt
+          exit 0
+      - name: Publish device evidence
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,os,subprocess,re
+          r=Path('device-results'); parts=[]
+          for name in ['install.txt','install-test.txt','launch.txt','pid.txt','reopen.txt','reopen-pid.txt']:
+           p=r/name
+           if p.exists(): parts+=['## '+name,'```text',p.read_text(errors='replace')[:4000],'```']
+          p=r/'instrumentation.log'
+          if p.exists():
+           text=p.read_text(errors='replace'); parts+=['## instrumentation tail','```text','\n'.join(text.splitlines()[-160:])[-16000:],'```']
+          crash=r/'crash.txt'
+          if crash.exists(): parts+=['## crash buffer','```text',crash.read_text(errors='replace')[-6000:],'```']
+          payload={'name':'Obsidian Fidelity Android 13','head_sha':os.environ['GITHUB_SHA'],'status':'completed','conclusion':'neutral','output':{'title':'Isolated test APK on API 33','summary':'No update over the original is claimed.','text':'\n'.join(parts)[:60000]}}
+          Path('device-results/check.json').write_text(json.dumps(payload))
+          subprocess.run(['gh','api','repos/'+os.environ['GITHUB_REPOSITORY']+'/check-runs','--input','device-results/check.json','--jq','.id'],check=False)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: obsidian-fidelity-android13-${{ github.sha }}
+          path: device-results/
+          if-no-files-found: warn
+          retention-days: 30

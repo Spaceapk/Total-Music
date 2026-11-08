@@ -78,6 +78,7 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     override val settings: PlayerSettingsSource = object : PlayerSettingsSource {
         override val visualStyle get() = AppSettings.playerVisualStyle
         override val dynamicBackground get() = AppSettings.playerDynamicBackground
+        override val obsidianDynamicBackground get() = AppSettings.obsidianDynamicBackground
         override val glassEffects get() = AppSettings.playerGlassEffects
         override val alternativeControls get() = AppSettings.playerAlternativeControls
         override val animatedTransitions get() = AppSettings.playerAnimatedTransitions

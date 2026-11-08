@@ -182,6 +182,7 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
 
     override val visualStyle = MutableStateFlow(PlayerVisualStyle.ORIGINAL)
     override val dynamicBackground = MutableStateFlow(false)
+    override val obsidianDynamicBackground = MutableStateFlow(true)
     override val glassEffects = MutableStateFlow(false)
     override val alternativeControls = MutableStateFlow(true)
     override val animatedTransitions = MutableStateFlow(true)

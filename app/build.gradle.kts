@@ -244,6 +244,21 @@ android {
             }
         }
         /*
+         * Obsidian Fidelity delivery when the permanent Total Music key is not
+         * available. It is the same R8 release code, but a separate package and
+         * an explicit TEST label/version suffix make it impossible to mistake
+         * for an in-place update of org.nexlibre.totalmusic. The Android debug
+         * key is ephemeral CI signing, never a replacement permanent key.
+         */
+        create("obsidianTest") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            applicationIdSuffix = ".obsidian.test"
+            versionNameSuffix = "-obsidian-test"
+            signingConfig = signingConfigs.getByName("debug")
+            resValue("string", "app_name", "Total Music Obsidian TEST")
+        }
+        /*
          * Independent on-device diagnosis. The shipped prodRelease variant is
          * untouched; this release-like copy has its own package, label and
          * debug certificate so it can be installed beside Total Music.

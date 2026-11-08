@@ -1,0 +1,11 @@
+<resources>
+    <string name="obsidian_name">Obsidian</string>
+    <string name="obsidian_quick_picks">Selección rápida</string>
+    <string name="obsidian_close">Cerrar</string>
+    <string name="obsidian_search_hint">Busca canciones, álbumes y artistas</string>
+    <string name="obsidian_artists">Artistas</string>
+    <string name="obsidian_dynamic_background">Fondo dinámico Obsidian</string>
+    <string name="obsidian_dynamic_background_hint">Carátula desenfocada tras el reproductor inmersivo</string>
+    <string name="obsidian_test_label">Total Music Obsidian PRUEBA</string>
+    <string name="obsidian_see_all">Ver todo</string>
+</resources>

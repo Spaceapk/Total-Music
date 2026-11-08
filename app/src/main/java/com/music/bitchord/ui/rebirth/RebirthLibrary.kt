@@ -310,12 +310,12 @@ fun RebirthLocalExperience(
                         Modifier
                             .fillMaxSize()
                             .statusBarsPadding()
-                            .navigationBarsPadding(),
+                            .then(if (style == PlayerVisualStyle.OBSIDIAN) Modifier else Modifier.navigationBarsPadding()),
                     ) {
-                        if (glass) {
-                            RebirthGlassLibrary(actions = actions, data = data)
-                        } else {
-                            RebirthExpressiveLibrary(actions = actions, data = data)
+                        when (style) {
+                            PlayerVisualStyle.OBSIDIAN -> ObsidianLibrary(data = data, actions = actions)
+                            PlayerVisualStyle.LIQUID_GLASS_PLUS -> RebirthGlassLibrary(actions = actions, data = data)
+                            else -> RebirthExpressiveLibrary(actions = actions, data = data)
                         }
                     }
                 }

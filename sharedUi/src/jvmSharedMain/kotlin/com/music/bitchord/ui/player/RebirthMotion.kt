@@ -17,6 +17,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,12 +48,15 @@ internal val RebirthEmphasizedAccelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.1
 internal fun rebirthSettleSpring(): AnimationSpec<Float> =
     spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
 
-/** Whether the player's motion is on at all: its switch and the app's. */
+/** Platform accessibility motion reduction, provided by the Android host. */
+val LocalMotionReduced = staticCompositionLocalOf { false }
+
+/** Whether the player's motion is on at all: its switch, the app's and the system's. */
 @Composable
 internal fun rememberRebirthMotionEnabled(): Boolean {
     val animated by PlayerSettings.animatedTransitions.collectAsStateWithLifecycle()
     val reduced by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
-    return animated && !reduced
+    return animated && !reduced && !LocalMotionReduced.current
 }
 
 /**

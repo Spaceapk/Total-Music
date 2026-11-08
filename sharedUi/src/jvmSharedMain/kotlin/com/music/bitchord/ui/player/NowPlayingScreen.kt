@@ -760,6 +760,7 @@ fun NowPlayingScreen(
         PlayerVisualStyle.ORIGINAL -> appExpressive
         PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS -> true
         PlayerVisualStyle.LIQUID_GLASS_PLUS -> false
+        PlayerVisualStyle.OBSIDIAN -> false
     }
     val useAlternativeControls = selectedVisualStyle != PlayerVisualStyle.ORIGINAL && alternativePlayerControls
     val playerForeground = if (expressive) MaterialTheme.colorScheme.onSurface else Color.White

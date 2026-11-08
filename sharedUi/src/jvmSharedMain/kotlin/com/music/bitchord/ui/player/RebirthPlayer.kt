@@ -112,6 +112,22 @@ internal fun RebirthPlayer(
         CompositionLocalProvider(LocalPlayerStyle provides style) {
         Box(Modifier.fillMaxSize().background(colors.background)) {
             when (style) {
+                PlayerVisualStyle.OBSIDIAN -> ObsidianScene(
+                    spec = spec, song = song, playing = playing, loading = loading,
+                    position = position, durationMs = duration, queue = queue, queueIndex = queueIndex,
+                    previousEnabled = previousEnabled, nextEnabled = nextEnabled, locked = locked,
+                    shuffled = shuffled, repeatMode = repeatMode, liked = liked,
+                    alternativeControls = alternativeControls, transport = transport,
+                    page = page, onPage = { page = it }, onLike = onLike, onMenu = onMenu,
+                    onDismiss = onDismiss, onJump = onJump, onMove = onMove, onRemove = onRemove,
+                    onClear = onClear, onDragActiveChange = onQueueDragActiveChange,
+                    onOpenLyricsOffset = { lyricsOffsetOpen = true },
+                    onOpenLyricsProviders = onOpenLyricsProviders,
+                    onAlbum = onAlbum, onArtist = onArtist, lyrics = lyrics,
+                    lyricsSource = lyricsSource, lyricsUnavailable = lyricsUnavailable,
+                    onSeekLine = onSeekLine, onTools = { toolsOpen = true },
+                    modifier = Modifier.fillMaxSize(),
+                )
                 PlayerVisualStyle.LIQUID_GLASS_PLUS -> RebirthGlassScene(
                     spec = spec,
                     song = song,

@@ -26,6 +26,16 @@ fun rebirthColors(style: PlayerVisualStyle, base: ColorScheme): ColorScheme {
     val dark = base.background.luminance() < .5f
     return when (style) {
         PlayerVisualStyle.ORIGINAL -> base
+        PlayerVisualStyle.OBSIDIAN -> darkColorScheme(
+            primary = Color(0xFFD4B6FF), onPrimary = Color(0xFF26004F),
+            primaryContainer = Color(0xFF39264F), onPrimaryContainer = Color(0xFFF0E2FF),
+            secondary = Color(0xFFBFC6DC), tertiary = Color(0xFF9ED8D0),
+            background = Color(0xFF08090C), surface = Color(0xFF0E1015),
+            surfaceVariant = Color(0xFF242630), onBackground = Color(0xFFF4F1FA),
+            onSurface = Color(0xFFF4F1FA), onSurfaceVariant = Color(0xFFB8B5C4),
+            surfaceContainer = Color(0xFF15171E), surfaceContainerHigh = Color(0xFF1D1F28),
+            surfaceContainerHighest = Color(0xFF282A35), outline = Color(0xFF555361),
+        )
         PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS -> base.copy(
             background = if (dark) Color.Black else Color(0xFFFFF9F0),
             surface = if (dark) Color.Black else Color(0xFFFFF9F0),
@@ -89,6 +99,12 @@ internal class RebirthSpec(
 internal fun rebirthSpec(style: PlayerVisualStyle): RebirthSpec {
     val type = MaterialTheme.typography
     return when (style) {
+        PlayerVisualStyle.OBSIDIAN -> RebirthSpec(
+            style = style, artworkCorner = 1000.dp, panelCorner = 24.dp,
+            controlCorner = 28.dp, gutter = 20.dp, gap = 16.dp,
+            titleStyle = type.headlineMedium.copy(fontWeight = FontWeight.Bold),
+            labelStyle = type.titleSmall, captionStyle = type.labelSmall,
+        )
         PlayerVisualStyle.ORIGINAL,
         PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS,
         -> RebirthSpec(

@@ -403,6 +403,8 @@ object AppSettings {
     /** Player presentation is independent from the application's overall theme. */
     val playerVisualStyle = MutableStateFlow(PlayerVisualStyle.ORIGINAL)
     val playerDynamicBackground = MutableStateFlow(false)
+    /** Exact 1.10.0 preference key; never collapse it into the legacy player setting. */
+    val obsidianDynamicBackground = MutableStateFlow(true)
     val playerGlassEffects = MutableStateFlow(true)
     val playerAlternativeControls = MutableStateFlow(true)
     val playerAnimatedTransitions = MutableStateFlow(true)
@@ -856,6 +858,7 @@ object AppSettings {
         liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, true)
         playerVisualStyle.value = PlayerVisualStyle.fromStorage(prefs.getString(KEY_PLAYER_VISUAL_STYLE, null))
         playerDynamicBackground.value = prefs.getBoolean(KEY_PLAYER_DYNAMIC_BACKGROUND, false)
+        obsidianDynamicBackground.value = prefs.getBoolean(KEY_OBSIDIAN_DYNAMIC_BACKGROUND, true)
         playerGlassEffects.value = prefs.getBoolean(KEY_PLAYER_GLASS_EFFECTS, true)
         playerAlternativeControls.value = prefs.getBoolean(KEY_PLAYER_ALTERNATIVE_CONTROLS, true)
         playerAnimatedTransitions.value = prefs.getBoolean(KEY_PLAYER_ANIMATED_TRANSITIONS, true)
@@ -1303,6 +1306,11 @@ object AppSettings {
     fun setPlayerDynamicBackground(value: Boolean) {
         playerDynamicBackground.value = value
         prefs.edit().putBoolean(KEY_PLAYER_DYNAMIC_BACKGROUND, value).apply()
+    }
+
+    fun setObsidianDynamicBackground(value: Boolean) {
+        obsidianDynamicBackground.value = value
+        prefs.edit().putBoolean(KEY_OBSIDIAN_DYNAMIC_BACKGROUND, value).apply()
     }
 
     fun setPlayerGlassEffects(value: Boolean) {
@@ -2053,6 +2061,7 @@ object AppSettings {
     private const val KEY_REDUCE_BLUR = "reduce_dynamic_blur"
     private const val KEY_LIQUID_GLASS = "liquid_glass"
     private const val KEY_PLAYER_VISUAL_STYLE = "player_visual_style"
+    private const val KEY_OBSIDIAN_DYNAMIC_BACKGROUND = "obsidian_dynamic_background"
     private const val KEY_PLAYER_DYNAMIC_BACKGROUND = "player_dynamic_background"
     private const val KEY_PLAYER_GLASS_EFFECTS = "player_glass_effects"
     private const val KEY_PLAYER_ALTERNATIVE_CONTROLS = "player_alternative_controls"

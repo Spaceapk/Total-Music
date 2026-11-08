@@ -42,6 +42,7 @@ internal fun playerSheetBackground(style: PlayerVisualStyle): Color = when (styl
     PlayerVisualStyle.ORIGINAL -> Color(0xFF121212)
     PlayerVisualStyle.LIQUID_GLASS_PLUS -> Color(0xFF0B1622)
     PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS -> androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerHigh
+    PlayerVisualStyle.OBSIDIAN -> Color(0xFF111318)
 }
 
 /** The text and icon colour on that surface. */
@@ -50,6 +51,7 @@ internal fun playerSheetForeground(style: PlayerVisualStyle): Color = when (styl
     PlayerVisualStyle.ORIGINAL -> Color.White
     PlayerVisualStyle.LIQUID_GLASS_PLUS -> Color(0xFFEAF3FA)
     PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS -> androidx.compose.material3.MaterialTheme.colorScheme.onSurface
+    PlayerVisualStyle.OBSIDIAN -> Color(0xFFF4F1FA)
 }
 
 /**
@@ -79,4 +81,5 @@ internal fun playerSheetCorner(style: PlayerVisualStyle) = when (style) {
     PlayerVisualStyle.LIQUID_GLASS_PLUS -> androidx.compose.foundation.shape.RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
     // Expressive is a printed page pulled up from the bottom: square shoulders.
     PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS -> androidx.compose.foundation.shape.RoundedCornerShape(topStart = 40.dp, topEnd = 40.dp)
+    PlayerVisualStyle.OBSIDIAN -> androidx.compose.foundation.shape.RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
 }
