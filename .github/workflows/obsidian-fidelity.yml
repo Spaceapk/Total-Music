@@ -101,7 +101,8 @@ jobs:
           Total Music Obsidian Fidelity — APK DE PRUEBA
           Paquete: org.nexlibre.totalmusic.obsidian.test
           Versión: 1.10.1-obsidian-test (30)
-          Compilación release con R8, no depurable, firmada con clave Android debug efímera de CI.
+          Compilación de prueba no depurable, sin minificar para permitir instrumentación,
+          firmada con clave Android debug efímera de CI.
           NO es una actualización de Total Music 1.10.0. No reemplaza la aplicación original
           ni conserva/accede a sus datos porque usa un paquete separado. Puede instalarse al lado.
           La clave privada original no está disponible; no se ha generado una clave permanente de reemplazo.
@@ -246,14 +247,14 @@ jobs:
           timeout 30 adb shell pm list instrumentation | tee device-results/instrumentation.txt
       - name: Run Obsidian and preservation regression tests
         run: |
-          set -o pipefail
+          set -euo pipefail
           INSTR=$(timeout 30 adb shell pm list instrumentation | tr -d '\r' | sed -n 's/^instrumentation:\([^ ]*\).*/\1/p' | head -1)
           test -n "$INSTR"
           timeout 900 adb shell am instrument -w -r \
             -e class com.music.bitchord.ObsidianFidelityUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DevicePlaylistStoreTest,com.music.bitchord.DeviceFavoriteStoreTest \
             "$INSTR" 2>&1 | tee device-results/instrumentation.log
-          ! grep -q 'FAILURES\|Process crashed\|INSTRUMENTATION_FAILED' device-results/instrumentation.log
-          grep -q 'OK (' device-results/instrumentation.log || grep -q 'INSTRUMENTATION_CODE: -1' device-results/instrumentation.log
+          if grep -q 'FAILURES!!!\|Process crashed\|INSTRUMENTATION_FAILED' device-results/instrumentation.log; then exit 1; fi
+          grep -q 'OK (' device-results/instrumentation.log
       - name: Cold launch, reopen and capture the test app
         if: always()
         run: |

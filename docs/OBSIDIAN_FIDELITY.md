@@ -25,7 +25,7 @@ La clave privada original no está disponible en este entorno. Por eso el APK in
 ```text
 Paquete: org.nexlibre.totalmusic.obsidian.test
 Versión: 1.10.1-obsidian-test (30)
-Tipo: release con R8, no depurable
+Tipo: compilación de prueba no depurable, sin minificar para instrumentación
 Firma: Android debug efímera de CI
 ```
 
