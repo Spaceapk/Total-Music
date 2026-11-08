@@ -37,6 +37,15 @@ jobs:
             com.music.bitchord.ui.rebirth.AppearanceThemePickerKt; do
             reference/tools/jadx/bin/jadx --no-res --no-debug-info --single-class "$cls" -d reference/out reference/Total-Music-1.10.0-universal.apk > "reference/out/$cls.log" 2>&1 || true
           done
+          # R8 merged the two Obsidian file facades into their callers. A targeted
+          # full-app decompile locates the actual surviving compositions; this is
+          # not another identity/signature audit.
+          if ! grep -R -q 'ObsidianHome\|ObsidianScene' reference/out/sources; then
+            mkdir -p reference/full
+            timeout 900 reference/tools/jadx/bin/jadx --no-res --no-debug-info --threads-count 2 --comments-level error -d reference/full reference/Total-Music-1.10.0-universal.apk > reference/full-decompile.log 2>&1 || true
+            mkdir -p reference/out/sources/merged
+            grep -R -l -E 'ObsidianHome|ObsidianScene|ObsidianNavigationDock|obsidian_quick_picks' reference/full/sources/com/music/bitchord --include='*.java' | while IFS= read -r f; do cp "$f" reference/out/sources/merged/; done
+          fi
           python3 - <<'PY'
           from pathlib import Path
           import json,os,subprocess
