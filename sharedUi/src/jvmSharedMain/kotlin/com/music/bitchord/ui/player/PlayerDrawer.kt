@@ -292,6 +292,10 @@ fun PlayerDrawer(
                         fontSize = 19.sp,
                         fontWeight = FontWeight.Bold,
                     )
+                    PlayerVisualStyle.OBSIDIAN -> MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 },
                 color = playerForeground,
                 modifier = Modifier

@@ -20,6 +20,7 @@ import com.music.bitchord.data.canvas.CanvasRepository
 import com.music.bitchord.data.listentogether.ListenTogether
 import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.data.lyrics.LyricsTranslation
+import com.music.bitchord.data.lyrics.OfflineLyricsEngine
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.LastPlayerScreen
@@ -50,6 +51,7 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     private val app = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val main = Handler(Looper.getMainLooper())
+    private val offlineLyrics = OfflineLyricsEngine(app)
 
     @Composable
     override fun GlassBackdrop(enabled: Boolean, background: @Composable () -> Unit, content: @Composable () -> Unit) {
@@ -165,12 +167,18 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         trackId: String,
         lines: List<LyricLine>,
         targetLanguageTag: String,
-    ): LyricsTranslationResult =
-        when (val result = LyricsTranslation.translate(trackId, lines, targetLanguageTag)) {
+    ): LyricsTranslationResult {
+        val local = offlineLyrics.translate(trackId, lines, targetLanguageTag)
+        val result = when (local) {
+            LyricsTranslation.Result.Unavailable -> LyricsTranslation.translate(trackId, lines, targetLanguageTag)
+            else -> local
+        }
+        return when (result) {
             is LyricsTranslation.Result.Translated -> LyricsTranslationResult.Translated(result.lines)
             is LyricsTranslation.Result.SameLanguage -> LyricsTranslationResult.SameLanguage(result.language)
             LyricsTranslation.Result.Unavailable -> LyricsTranslationResult.Unavailable
         }
+    }
 
     override suspend fun romanizeLyrics(
         trackId: String,

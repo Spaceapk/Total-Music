@@ -96,6 +96,11 @@ import com.music.bitchord.sharedui.resources.widget_next
 import com.music.bitchord.sharedui.resources.shuffle_on
 import com.music.bitchord.sharedui.resources.repeat_all
 import com.music.bitchord.sharedui.resources.lyrics_loading_lines
+import com.music.bitchord.sharedui.resources.more
+import com.music.bitchord.sharedui.resources.pause
+import com.music.bitchord.sharedui.resources.play
+import com.music.bitchord.sharedui.resources.like
+import com.music.bitchord.sharedui.resources.rebirth_playback_tools
 import org.jetbrains.compose.resources.stringArrayResource
 import com.music.bitchord.ui.haptics.rememberHaptics
 import org.jetbrains.compose.resources.stringResource

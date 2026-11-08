@@ -481,6 +481,11 @@ dependencies {
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.28.0")
 
     // ---- Casting: Google Cast sender + the route discovery it sits on ----
+    // Local lyric language identification and English/Spanish translation. Models
+    // are downloaded only on Wi-Fi; the existing online translator remains the fallback.
+    implementation("com.google.mlkit:language-id:17.0.6")
+    implementation("com.google.mlkit:translate:17.0.3")
+
     // The framework and the router only. media3-cast is left out on purpose:
     // its CastPlayer hands the receiver whatever URI a MediaItem carries, and
     // ours are `bitchord://` addresses that only the service's resolver can
