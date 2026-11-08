@@ -1,0 +1,113 @@
+name: Obsidian Fidelity Android 13 verification
+on:
+  push:
+    branches: [arena/1ae8428b-total-music]
+    paths: ['.github/workflows/obsidian-device.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  checks: write
+concurrency:
+  group: obsidian-device-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android13:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools emulator system-images;android-33;google_apis;x86_64
+      - uses: actions/download-artifact@v4
+        with:
+          name: obsidian-fidelity-apk-b2b859d91165426756b783d7f4349361b11f722d
+          run-id: 42498819598
+          path: delivery
+      - name: Boot Android 13 and install the isolated test APK
+        run: |
+          set -euo pipefail
+          mkdir -p device-results
+          sudo chmod a+rw /dev/kvm
+          adb start-server
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/obsidian-avd"; mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd -n obsidian -k 'system-images;android-33;google_apis;x86_64' --force
+          echo 'disk.dataPartition.size=6G' >> "$ANDROID_AVD_HOME/obsidian.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -avd obsidian -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics \
+            -gpu swiftshader_indirect -feature -Vulkan -cores 2 -memory 3072 > device-results/emulator.log 2>&1 &
+          timeout 180 adb wait-for-device
+          timeout 600 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
+          timeout 30 adb shell input keyevent 82
+          timeout 30 adb shell settings put global window_animation_scale 1
+          timeout 30 adb shell settings put global transition_animation_scale 1
+          timeout 30 adb shell settings put global animator_duration_scale 1
+          timeout 300 adb install -r delivery/Total-Music-Obsidian-Fidelity-1.10.1-code30-TEST-NOT-AN-UPDATE.apk | tee device-results/install.txt
+          timeout 300 adb install -r delivery/android-test.apk | tee device-results/install-test.txt
+          timeout 30 adb shell pm grant org.nexlibre.totalmusic.obsidian.test android.permission.READ_MEDIA_AUDIO || true
+          timeout 30 adb shell pm grant org.nexlibre.totalmusic.obsidian.test android.permission.POST_NOTIFICATIONS || true
+          timeout 30 adb shell pm list instrumentation | tee device-results/instrumentation.txt
+      - name: Run Obsidian and preservation regression tests
+        run: |
+          set -o pipefail
+          INSTR=$(timeout 30 adb shell pm list instrumentation | tr -d '\r' | sed -n 's/^instrumentation:\([^ ]*\).*/\1/p' | head -1)
+          test -n "$INSTR"
+          timeout 900 adb shell am instrument -w -r \
+            -e class com.music.bitchord.ObsidianFidelityUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DevicePlaylistStoreTest,com.music.bitchord.DeviceFavoriteStoreTest \
+            "$INSTR" 2>&1 | tee device-results/instrumentation.log
+          ! grep -q 'FAILURES\|Process crashed\|INSTRUMENTATION_FAILED' device-results/instrumentation.log
+          grep -q 'OK (' device-results/instrumentation.log || grep -q 'INSTRUMENTATION_CODE: -1' device-results/instrumentation.log
+      - name: Cold launch, reopen and capture the test app
+        if: always()
+        run: |
+          set +e
+          timeout 60 adb shell am start -W -n org.nexlibre.totalmusic.obsidian.test/com.music.bitchord.MainActivity > device-results/launch.txt 2>&1
+          echo $? > device-results/launch-exit.txt
+          sleep 10
+          timeout 20 adb shell pidof org.nexlibre.totalmusic.obsidian.test > device-results/pid.txt 2>&1
+          timeout 30 adb exec-out screencap -p > device-results/obsidian-launch.png
+          timeout 30 adb shell uiautomator dump --compressed /sdcard/obsidian.xml > device-results/ui-dump.txt 2>&1
+          timeout 30 adb pull /sdcard/obsidian.xml device-results/window.xml > device-results/ui-pull.txt 2>&1
+          timeout 30 adb shell am force-stop org.nexlibre.totalmusic.obsidian.test
+          timeout 60 adb shell am start -W -n org.nexlibre.totalmusic.obsidian.test/com.music.bitchord.MainActivity > device-results/reopen.txt 2>&1
+          echo $? > device-results/reopen-exit.txt
+          sleep 5
+          timeout 20 adb shell pidof org.nexlibre.totalmusic.obsidian.test > device-results/reopen-pid.txt 2>&1
+          timeout 30 adb exec-out screencap -p > device-results/obsidian-reopen.png
+          timeout 60 adb logcat -d -v threadtime > device-results/logcat.txt
+          timeout 30 adb logcat -d -b crash -v threadtime > device-results/crash.txt
+          exit 0
+      - name: Publish device evidence
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,os,subprocess
+          r=Path('device-results'); parts=[]
+          for name in ['install.txt','install-test.txt','launch.txt','launch-exit.txt','pid.txt','reopen.txt','reopen-exit.txt','reopen-pid.txt']:
+           p=r/name
+           if p.exists(): parts+=['## '+name,'```text',p.read_text(errors='replace')[:4000],'```']
+          p=r/'instrumentation.log'
+          if p.exists():
+           text=p.read_text(errors='replace'); parts+=['## instrumentation tail','```text','\n'.join(text.splitlines()[-180:])[-18000:],'```']
+          for name in ['crash.txt','ui-dump.txt']:
+           p=r/name
+           if p.exists(): parts+=['## '+name,'```text',p.read_text(errors='replace')[-6000:],'```']
+          log=r/'logcat.txt'
+          if log.exists():
+           lines=[x for x in log.read_text(errors='replace').splitlines() if 'FATAL EXCEPTION' in x or 'org.nexlibre.totalmusic.obsidian.test' in x and ('AndroidRuntime' in x or 'ActivityTaskManager' in x)]
+           parts+=['## relevant logcat','```text','\n'.join(lines[-100:])[-10000:],'```']
+          payload={'name':'Obsidian Fidelity Android 13 isolated APK','head_sha':os.environ['GITHUB_SHA'],'status':'completed','conclusion':'neutral','output':{'title':'API 33 install, instrumented tests, cold launch and reopen','summary':'APK from successful build b2b859d9; isolated test package, not an update over 1.10.0.','text':'\n'.join(parts)[:60000]}}
+          Path('device-results/check.json').write_text(json.dumps(payload))
+          subprocess.run(['gh','api','repos/'+os.environ['GITHUB_REPOSITORY']+'/check-runs','--input','device-results/check.json','--jq','.id'],check=False)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: obsidian-fidelity-android13-verified-${{ github.sha }}
+          path: device-results/
+          if-no-files-found: warn
+          retention-days: 30
