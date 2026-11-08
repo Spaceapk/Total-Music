@@ -856,7 +856,12 @@ object AppSettings {
         smartVersionAlignment.value = prefs.getBoolean(KEY_SMART_VERSION_ALIGNMENT, true)
         reduceDynamicBlur.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)
         liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, true)
-        playerVisualStyle.value = PlayerVisualStyle.fromStorage(prefs.getString(KEY_PLAYER_VISUAL_STYLE, null))
+        val storedVisualStyle = prefs.getString(KEY_PLAYER_VISUAL_STYLE, null)
+        playerVisualStyle.value = if (storedVisualStyle == null && BuildConfig.OBSIDIAN_TEST_DEFAULT) {
+            PlayerVisualStyle.OBSIDIAN
+        } else {
+            PlayerVisualStyle.fromStorage(storedVisualStyle)
+        }
         playerDynamicBackground.value = prefs.getBoolean(KEY_PLAYER_DYNAMIC_BACKGROUND, false)
         obsidianDynamicBackground.value = prefs.getBoolean(KEY_OBSIDIAN_DYNAMIC_BACKGROUND, true)
         playerGlassEffects.value = prefs.getBoolean(KEY_PLAYER_GLASS_EFFECTS, true)

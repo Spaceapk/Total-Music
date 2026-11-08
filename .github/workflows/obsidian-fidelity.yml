@@ -14,7 +14,7 @@ on:
       - '.github/workflows/obsidian-fidelity.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   issues: write
   checks: write
 concurrency:
@@ -107,29 +107,80 @@ jobs:
           La clave privada original no está disponible; no se ha generado una clave permanente de reemplazo.
           EOF
           ls -lh delivery ci-results || true
+      - name: Publish clearly-labelled TEST prerelease download
+        id: release
+        if: ${{ always() && steps.assemble.outcome == 'success' && steps.tests.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK=Total-Music-Obsidian-Fidelity-1.10.1-code30-TEST-NOT-AN-UPDATE.apk
+          test -f "delivery/$APK"
+          test -f ci-results/apk-verification.json
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,os
+          v=json.loads(Path('ci-results/apk-verification.json').read_text())
+          tag='obsidian-fidelity-test-'+os.environ['GITHUB_SHA'][:12]
+          url=f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}/Total-Music-Obsidian-Fidelity-1.10.1-code30-TEST-NOT-AN-UPDATE.apk"
+          notes=f"""# APK DE PRUEBA — NO ES UNA ACTUALIZACIÓN SOBRE 1.10.0
+
+          Descarga directa: {url}
+
+          - SHA-256: `{v['sha256']}`
+          - Paquete: `{v['package']}`
+          - Versión: `{v['versionName']}` (code `{v['versionCode']}`)
+          - Firma: clave Android debug efímera de CI, certificado `{v['certificate_sha256']}`.
+          - `installable_over_1_10_0=false`.
+
+          La clave privada original no está disponible. Este APK se instala al lado de Total Music 1.10.0,
+          usa un paquete separado y no reemplaza ni conserva/accede a los datos de la instalación original.
+          No se ha generado una clave permanente de reemplazo. No usar como actualización estable.
+          """
+          Path('delivery/RELEASE_NOTES.md').write_text(notes)
+          Path('ci-results/release.json').write_text(json.dumps({'tag':tag,'prerelease':True,'apk_url':url,'sha256':v['sha256']},indent=2)+'\n')
+          PY
+          TAG=$(python3 -c 'import json;print(json.load(open("ci-results/release.json"))["tag"])')
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+              --title "Obsidian Fidelity 1.10.1 TEST — no actualizable sobre 1.10.0" \
+              --notes-file delivery/RELEASE_NOTES.md
+          fi
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "delivery/$APK" delivery/SHA256SUMS delivery/LEEME-PRUEBA.txt delivery/RELEASE_NOTES.md
+          cat ci-results/release.json
       - name: Publish build evidence
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+          ASSEMBLE_OUTCOME: ${{ steps.assemble.outcome }}
+          LINT_OUTCOME: ${{ steps.lint.outcome }}
+          RELEASE_OUTCOME: ${{ steps.release.outcome }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import glob,json,os,xml.etree.ElementTree as ET,subprocess
           r=Path('ci-results'); parts=[]
+          parts+=[f"Step outcomes: tests={os.environ.get('TESTS_OUTCOME')}, assemble={os.environ.get('ASSEMBLE_OUTCOME')}, lint={os.environ.get('LINT_OUTCOME')}, release={os.environ.get('RELEASE_OUTCOME')}."]
           for name in ['tests','assemble','lint']:
            p=r/f'{name}.log'
            if p.exists():
             lines=p.read_text(errors='replace').splitlines()
             errors=[x for x in lines if x.startswith('e: ') or 'FAILED' in x or 'FAILURE:' in x or 'What went wrong:' in x]
-            parts+=['## '+name,'```text','\n'.join((errors[:50] or lines[-25:]))[-12000:],'```']
+            tail='\n'.join(lines[-35:])
+            block=tail if not errors else '\n'.join(errors[:25])+'\n...\n'+tail
+            parts+=['## '+name,'```text',block[-14000:],'```']
           total=fail=0
           for path in glob.glob('**/build/test-results/**/TEST-*.xml',recursive=True):
            try:
             root=ET.parse(path).getroot(); total+=int(root.get('tests',0)); fail+=int(root.get('failures',0))+int(root.get('errors',0))
            except Exception: pass
-          parts.insert(0,f'JUnit XML: {total} tests, {fail} failures/errors.')
+          parts.insert(1,f'JUnit XML: {total} tests, {fail} failures/errors.')
           v=r/'apk-verification.json'
           if v.exists(): parts+=['## APK verification','```json',v.read_text(),'```']
+          rel=r/'release.json'
+          if rel.exists(): parts+=['## TEST prerelease download','```json',rel.read_text(),'```']
           text='\n'.join(parts)[:60000]
           payload={'name':'Obsidian Fidelity build','head_sha':os.environ['GITHUB_SHA'],'status':'completed','conclusion':'neutral','output':{'title':'Build, tests and APK identity','summary':'Actual CI output; test APK is isolated from the installed original.','text':text}}
           Path('ci-results/check.json').write_text(json.dumps(payload))
@@ -184,19 +235,19 @@ jobs:
             -gpu swiftshader_indirect -feature -Vulkan -cores 2 -memory 3072 > device-results/emulator.log 2>&1 &
           timeout 180 adb wait-for-device
           timeout 600 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
-          adb shell input keyevent 82
-          adb shell settings put global window_animation_scale 1
-          adb shell settings put global transition_animation_scale 1
-          adb shell settings put global animator_duration_scale 1
-          adb install -r delivery/Total-Music-Obsidian-Fidelity-1.10.1-code30-TEST-NOT-AN-UPDATE.apk | tee device-results/install.txt
-          adb install -r delivery/android-test.apk | tee device-results/install-test.txt
-          adb shell pm grant org.nexlibre.totalmusic.obsidian.test android.permission.READ_MEDIA_AUDIO || true
-          adb shell pm grant org.nexlibre.totalmusic.obsidian.test android.permission.POST_NOTIFICATIONS || true
-          adb shell pm list instrumentation | tee device-results/instrumentation.txt
+          timeout 30 adb shell input keyevent 82
+          timeout 30 adb shell settings put global window_animation_scale 1
+          timeout 30 adb shell settings put global transition_animation_scale 1
+          timeout 30 adb shell settings put global animator_duration_scale 1
+          timeout 300 adb install -r delivery/Total-Music-Obsidian-Fidelity-1.10.1-code30-TEST-NOT-AN-UPDATE.apk | tee device-results/install.txt
+          timeout 300 adb install -r delivery/android-test.apk | tee device-results/install-test.txt
+          timeout 30 adb shell pm grant org.nexlibre.totalmusic.obsidian.test android.permission.READ_MEDIA_AUDIO || true
+          timeout 30 adb shell pm grant org.nexlibre.totalmusic.obsidian.test android.permission.POST_NOTIFICATIONS || true
+          timeout 30 adb shell pm list instrumentation | tee device-results/instrumentation.txt
       - name: Run Obsidian and preservation regression tests
         run: |
           set -o pipefail
-          INSTR=$(adb shell pm list instrumentation | tr -d '\r' | sed -n 's/^instrumentation:\([^ ]*\).*/\1/p' | head -1)
+          INSTR=$(timeout 30 adb shell pm list instrumentation | tr -d '\r' | sed -n 's/^instrumentation:\([^ ]*\).*/\1/p' | head -1)
           test -n "$INSTR"
           timeout 900 adb shell am instrument -w -r \
             -e class com.music.bitchord.ObsidianFidelityUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DevicePlaylistStoreTest,com.music.bitchord.DeviceFavoriteStoreTest \
@@ -207,35 +258,46 @@ jobs:
         if: always()
         run: |
           set +e
+          mkdir -p device-results
           timeout 60 adb shell am start -W -n org.nexlibre.totalmusic.obsidian.test/com.music.bitchord.MainActivity > device-results/launch.txt 2>&1
+          echo $? > device-results/launch-exit.txt
           sleep 10
-          adb shell pidof org.nexlibre.totalmusic.obsidian.test > device-results/pid.txt
+          timeout 20 adb shell pidof org.nexlibre.totalmusic.obsidian.test > device-results/pid.txt 2>&1
           timeout 30 adb exec-out screencap -p > device-results/obsidian-launch.png
-          adb shell am force-stop org.nexlibre.totalmusic.obsidian.test
+          timeout 30 adb shell uiautomator dump --compressed /sdcard/obsidian.xml > device-results/ui-dump.txt 2>&1
+          timeout 30 adb pull /sdcard/obsidian.xml device-results/window.xml > device-results/ui-pull.txt 2>&1
+          timeout 30 adb shell am force-stop org.nexlibre.totalmusic.obsidian.test
           timeout 60 adb shell am start -W -n org.nexlibre.totalmusic.obsidian.test/com.music.bitchord.MainActivity > device-results/reopen.txt 2>&1
+          echo $? > device-results/reopen-exit.txt
           sleep 5
-          adb shell pidof org.nexlibre.totalmusic.obsidian.test > device-results/reopen-pid.txt
+          timeout 20 adb shell pidof org.nexlibre.totalmusic.obsidian.test > device-results/reopen-pid.txt 2>&1
           timeout 30 adb exec-out screencap -p > device-results/obsidian-reopen.png
-          adb logcat -d -v threadtime > device-results/logcat.txt
-          adb logcat -d -b crash -v threadtime > device-results/crash.txt
+          timeout 60 adb logcat -d -v threadtime > device-results/logcat.txt
+          timeout 30 adb logcat -d -b crash -v threadtime > device-results/crash.txt
           exit 0
       - name: Publish device evidence
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          mkdir -p device-results
           python3 - <<'PY'
           from pathlib import Path
-          import json,os,subprocess,re
+          import json,os,subprocess
           r=Path('device-results'); parts=[]
-          for name in ['install.txt','install-test.txt','launch.txt','pid.txt','reopen.txt','reopen-pid.txt']:
+          for name in ['install.txt','install-test.txt','launch.txt','launch-exit.txt','pid.txt','reopen.txt','reopen-exit.txt','reopen-pid.txt']:
            p=r/name
            if p.exists(): parts+=['## '+name,'```text',p.read_text(errors='replace')[:4000],'```']
           p=r/'instrumentation.log'
           if p.exists():
-           text=p.read_text(errors='replace'); parts+=['## instrumentation tail','```text','\n'.join(text.splitlines()[-160:])[-16000:],'```']
-          crash=r/'crash.txt'
-          if crash.exists(): parts+=['## crash buffer','```text',crash.read_text(errors='replace')[-6000:],'```']
+           text=p.read_text(errors='replace'); parts+=['## instrumentation tail','```text','\n'.join(text.splitlines()[-180:])[-18000:],'```']
+          for name in ['crash.txt','ui-dump.txt']:
+           p=r/name
+           if p.exists(): parts+=['## '+name,'```text',p.read_text(errors='replace')[-6000:],'```']
+          log=r/'logcat.txt'
+          if log.exists():
+           lines=[x for x in log.read_text(errors='replace').splitlines() if 'FATAL EXCEPTION' in x or 'org.nexlibre.totalmusic.obsidian.test' in x and ('AndroidRuntime' in x or 'ActivityTaskManager' in x)]
+           parts+=['## relevant logcat','```text','\n'.join(lines[-100:])[-10000:],'```']
           payload={'name':'Obsidian Fidelity Android 13','head_sha':os.environ['GITHUB_SHA'],'status':'completed','conclusion':'neutral','output':{'title':'Isolated test APK on API 33','summary':'No update over the original is claimed.','text':'\n'.join(parts)[:60000]}}
           Path('device-results/check.json').write_text(json.dumps(payload))
           subprocess.run(['gh','api','repos/'+os.environ['GITHUB_REPOSITORY']+'/check-runs','--input','device-results/check.json','--jq','.id'],check=False)
@@ -247,3 +309,15 @@ jobs:
           path: device-results/
           if-no-files-found: warn
           retention-days: 30
+      - name: Fail if device verification failed
+        if: always()
+        run: |
+          set -euo pipefail
+          grep -q 'Success' device-results/install.txt
+          grep -q 'Success' device-results/install-test.txt
+          grep -q 'OK (' device-results/instrumentation.log
+          test "$(cat device-results/launch-exit.txt)" = 0
+          test -s device-results/pid.txt
+          test "$(cat device-results/reopen-exit.txt)" = 0
+          test -s device-results/reopen-pid.txt
+          if grep -q 'FATAL EXCEPTION' device-results/crash.txt; then exit 1; fi

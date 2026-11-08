@@ -107,6 +107,7 @@ android {
         versionName = if (spaceSpatialEdition) totalMusicRelease.getProperty("versionName") else "2.4.0"
         resValue("string", "app_name", if (spaceSpatialEdition) "Total Music" else "Space Music")
         buildConfigField("Boolean", "SPATIAL_EDITION", spaceSpatialEdition.toString())
+        buildConfigField("Boolean", "OBSIDIAN_TEST_DEFAULT", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -257,6 +258,7 @@ android {
             versionNameSuffix = "-obsidian-test"
             signingConfig = signingConfigs.getByName("debug")
             resValue("string", "app_name", "Total Music Obsidian TEST")
+            buildConfigField("Boolean", "OBSIDIAN_TEST_DEFAULT", "true")
         }
         /*
          * Independent on-device diagnosis. The shipped prodRelease variant is
