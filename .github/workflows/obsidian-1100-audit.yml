@@ -1,0 +1,196 @@
+name: 'Audit exact Total Music 1.10.0 APK — read only'
+on:
+  push:
+    branches: [arena/1ae8428b-total-music]
+    paths: ['.github/workflows/obsidian-1100-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  checks: write
+concurrency:
+  group: obsidian-1100-audit-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+      - name: Install public APK inspection tools
+        run: |
+          set -euo pipefail
+          sdkmanager 'build-tools;36.0.0'
+          python3 -m pip install --disable-pip-version-check 'androguard==4.1.4'
+      - name: Download and verify the exact published original
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA256: 283154348d8c289d5d8305279c35a3cca23f9600b61019c0cbdbbad3ad33dff7
+        run: |
+          set -euo pipefail
+          mkdir -p audit-report/embedded-assets
+          gh release download v1.10.0 --repo Spaceapk/Total-Music \
+            --pattern Total-Music-1.10.0-universal.apk \
+            --dir "$RUNNER_TEMP/obsidian-original"
+          APK="$RUNNER_TEMP/obsidian-original/Total-Music-1.10.0-universal.apk"
+          printf '%s  %s\n' "$EXPECTED_SHA256" "$APK" | sha256sum --check | tee audit-report/checksum.txt
+          printf '%s\n' "$APK" > audit-report/apk-path.txt
+          stat -c 'size_bytes=%s' "$APK" | tee audit-report/file-size.txt
+      - name: Verify package and existing signing certificate without signing anything
+        run: |
+          set -euo pipefail
+          APK=$(cat audit-report/apk-path.txt)
+          TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          "$TOOLS/aapt" dump badging "$APK" > audit-report/badging.txt
+          "$TOOLS/aapt" dump xmltree "$APK" AndroidManifest.xml > audit-report/manifest.txt
+          "$TOOLS/apksigner" verify --verbose --print-certs "$APK" > audit-report/signature.txt
+          cat audit-report/signature.txt
+          head -12 audit-report/badging.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, hashlib
+          report=Path('audit-report')
+          badging=(report/'badging.txt').read_text()
+          package=re.search(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'",badging)
+          assert package, 'Missing package identity'
+          assert package[1]=='org.nexlibre.totalmusic', 'Unexpected application ID'
+          assert package[3]=='1.10.0', 'The asset is not the requested version'
+          assert 'application-debuggable' not in badging, 'Original must not be debuggable'
+          expected='9ae145a703a85902fe6d6ab3d886f6801873d717929deaa3e3d0b0a81de829fa'
+          signature=(report/'signature.txt').read_text()
+          actual=re.findall(r'Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)',signature)
+          assert len(actual)==1 and actual[0].lower()==expected, 'Original certificate mismatch'
+          der=subprocess.run(['openssl','x509','-in','docs/total-music-signing-certificate.pem','-outform','DER'],check=True,capture_output=True).stdout
+          assert hashlib.sha256(der).hexdigest()==expected
+          (report/'identity-verified.txt').write_text(f'package={package[1]}\nversionName={package[3]}\nversionCode={package[2]}\ndebuggable=false\ncertificate_sha256={actual[0].lower()}\n')
+          print((report/'identity-verified.txt').read_text())
+          PY
+          "$TOOLS/aapt" dump resources "$APK" > audit-report/resources.txt
+      - name: Inventory DEX, assets, provenance markers, and repository differences
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile, json, re, subprocess, os
+          from loguru import logger
+          logger.remove()
+          from androguard.core.apk import APK
+          from androguard.core.dex import DEX
+          report=Path('audit-report'); apk_path=Path((report/'apk-path.txt').read_text().strip())
+          apk=APK(str(apk_path))
+          classes=set(); strings=[]; dex_info=[]
+          pattern=re.compile(r'obsidian|fidelity|1\.10\.0|source.commit|build.commit|git.commit',re.I)
+          for name,data in zip(apk.get_dex_names(),apk.get_all_dex()):
+              dex=DEX(data)
+              names=[c.get_name() for c in dex.get_classes()]
+              classes.update(names)
+              hits=[s for s in dex.get_strings() if pattern.search(s)]
+              strings.extend(hits)
+              dex_info.append({'name':name,'bytes':len(data),'classes':len(names)})
+          def normalize(name):
+              return name[1:-1].replace('/','.') if name.startswith('L') and name.endswith(';') else name
+          classes={normalize(n) for n in classes}
+          app_classes=sorted(n for n in classes if n.startswith(('com.music.bitchord.','org.nexlibre.totalmusic.')))
+          with zipfile.ZipFile(apk_path) as z:
+              entries=[{'name':i.filename,'bytes':i.file_size,'compressed':i.compress_size,'crc32':f'{i.CRC:08x}'} for i in z.infolist()]
+              for i in z.infolist():
+                  if i.filename.startswith('assets/') and not i.is_dir() and i.file_size<2_000_000 and i.filename.lower().endswith(('.json','.txt','.xml','.properties','.md','.lrc')):
+                      target=report/'embedded-assets'/i.filename
+                      target.parent.mkdir(parents=True,exist_ok=True)
+                      target.write_bytes(z.read(i))
+          (report/'zip-entries.json').write_text(json.dumps(entries,indent=2)+'\n')
+          (report/'dex-classes.txt').write_text('\n'.join(sorted(classes))+'\n')
+          markers=sorted(set(strings))
+          (report/'provenance-markers.json').write_text(json.dumps(markers,indent=2,ensure_ascii=False)+'\n')
+          obsidian_classes=sorted(n for n in classes if re.search(r'obsidian|fidelity',n,re.I))
+          # This is a conservative name-level comparison, not a claim of bytecode/source equivalence.
+          declarations=set(); source_files=0
+          for path in Path('.').rglob('*'):
+              if path.suffix not in ('.kt','.java') or not path.is_file() or '.git' in path.parts: continue
+              source_files+=1
+              text=path.read_text(errors='replace')
+              p=re.search(r'^\s*package\s+([\w.]+)',text,re.M)
+              if not p: continue
+              for m in re.finditer(r'\b(?:class|interface|object)\s+(\w+)',text):
+                  declarations.add(p[1]+'.'+m[1])
+          unmatched=[]
+          for name in app_classes:
+              if '$' in name or name.endswith(('BuildConfig','R')): continue
+              if name.rsplit('.',1)[-1] in {'ComposableSingletons','WhenMappings'}: continue
+              if name not in declarations: unmatched.append(name)
+          refs=subprocess.run(['git','for-each-ref','--format=%(refname)','refs/remotes/origin/'],check=True,capture_output=True,text=True).stdout.splitlines()
+          source_hits=[]
+          for ref in refs:
+              p=subprocess.run(['git','grep','-i','-n','-e','obsidian','-e','1\\.10\\.0',ref,'--','*.kt','*.java','*.json','*.properties','*.md','*.xml'],capture_output=True,text=True)
+              if p.returncode not in (0,1): raise RuntimeError(p.stderr)
+              if p.stdout: source_hits.append({'ref':ref,'lines':p.stdout.splitlines()[:100]})
+          result={
+              'package':apk.get_package(),'versionName':apk.get_androidversion_name(),
+              'versionCode':apk.get_androidversion_code(),'minSdk':apk.get_min_sdk_version(),
+              'targetSdk':apk.get_target_sdk_version(),'activity':apk.get_main_activity(),
+              'permissions':apk.get_permissions(),'activities':apk.get_activities(),
+              'services':apk.get_services(),'receivers':apk.get_receivers(),'providers':apk.get_providers(),
+              'dex':dex_info,'total_classes':len(classes),'app_classes':len(app_classes),
+              'obsidian_classes':obsidian_classes,'provenance_marker_count':len(markers),
+              'provenance_markers':markers[:250],
+              'source_files_compared':source_files,'name_unmatched_app_classes':unmatched,
+              'source_reference_hits':source_hits,
+              'text_assets':[str(p.relative_to(report)) for p in sorted((report/'embedded-assets').rglob('*')) if p.is_file()],
+              'comparison_limit':'Class names can survive or disappear through R8. Missing names are leads, not proof of missing functionality; no source equivalence is asserted.'
+          }
+          (report/'inventory.json').write_text(json.dumps(result,indent=2,ensure_ascii=False)+'\n')
+          identity=(report/'identity-verified.txt').read_text()
+          summary=['# Exact APK 1.10.0 audit','```text',identity,'```',
+                   f'- SHA-256 matched the digest published by GitHub.',
+                   f'- DEX files: {len(dex_info)}; classes: {len(classes)}; app classes: {len(app_classes)}.',
+                   f'- Obsidian/Fidelity class-name matches: {len(obsidian_classes)}.',
+                   f'- Provenance/feature marker matches: {len(markers)}.',
+                   f'- App class names absent from current checkout declarations: {len(unmatched)}.',
+                   '- No application source changed, no APK signed, no installation or data-preservation test performed.',
+                   '## Obsidian class matches','```json',json.dumps(obsidian_classes[:100],indent=2),'```',
+                   '## Marker sample','```json',json.dumps(markers[:80],indent=2,ensure_ascii=False),'```',
+                   '## Unmatched app class names (investigation leads only)','```json',json.dumps(unmatched[:150],indent=2),'```']
+          text='\n'.join(summary)+'\n'
+          (report/'summary.md').write_text(text)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write(text)
+          print(text)
+          PY
+      - name: Make the small audit report readable through the GitHub Checks API
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ ! -f audit-report/inventory.json ]; then
+            echo 'The inventory did not complete; consult the uploaded partial reports.' > audit-report/summary.md
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, os
+          p=Path('audit-report/summary.md')
+          text=p.read_text() if p.exists() else 'Audit did not produce a summary.'
+          # Check Run output has a 65535-character limit; the complete report remains in the artifact.
+          if len(text)>60000: text=text[:60000]+'\n\nTruncated here; full reports are in the workflow artifact.\n'
+          payload={'name':'Obsidian 1.10.0 exact-binary audit','head_sha':os.environ['GITHUB_SHA'],
+                   'status':'completed','conclusion':'neutral',
+                   'output':{'title':'Read-only APK provenance and component inventory','summary':'No application changes, signing, installation, or upgrade validation.','text':text}}
+          Path('audit-report/check-payload.json').write_text(json.dumps(payload))
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/check-runs" --input audit-report/check-payload.json --jq '{id,html_url,name,status,conclusion}'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: obsidian-1100-exact-binary-audit-${{ github.sha }}
+          path: audit-report/
+          if-no-files-found: error
+          retention-days: 14
