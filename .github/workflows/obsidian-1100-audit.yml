@@ -123,12 +123,30 @@ jobs:
               if not p: continue
               for m in re.finditer(r'\b(?:class|interface|object)\s+(\w+)',text):
                   declarations.add(p[1]+'.'+m[1])
+          refs=subprocess.run(['git','for-each-ref','--format=%(refname)','refs/remotes/origin/'],check=True,capture_output=True,text=True).stdout.splitlines()
+          # Union of declarations across all existing remote branches. This is
+          # only an inventory comparison; no older branch is selected as a base.
+          all_declarations=set(); facade_files=set(); blob_cache={}
+          for ref in refs:
+              listing=subprocess.run(['git','ls-tree','-r',ref,'--','app/src','sharedUi/src','shared/src'],check=True,capture_output=True,text=True).stdout
+              for line in listing.splitlines():
+                  meta,path=line.split('\t',1)
+                  if not path.endswith(('.kt','.java')): continue
+                  blob=meta.split()[2]
+                  if blob not in blob_cache:
+                      text=subprocess.run(['git','cat-file','blob',blob],check=True,capture_output=True,text=True).stdout
+                      p=re.search(r'^\s*package\s+([\w.]+)',text,re.M)
+                      names={p[1]+'.'+m[1] for m in re.finditer(r'\b(?:class|interface|object)\s+(\w+)',text)} if p else set()
+                      facade=(p[1]+'.'+Path(path).stem+'Kt') if p else None
+                      blob_cache[blob]=(names,facade)
+                  names,facade=blob_cache[blob]
+                  all_declarations.update(names)
+                  if facade: facade_files.add(facade)
           unmatched=[]
           for name in app_classes:
               if '$' in name or name.endswith(('BuildConfig','R')): continue
               if name.rsplit('.',1)[-1] in {'ComposableSingletons','WhenMappings'}: continue
-              if name not in declarations: unmatched.append(name)
-          refs=subprocess.run(['git','for-each-ref','--format=%(refname)','refs/remotes/origin/'],check=True,capture_output=True,text=True).stdout.splitlines()
+              if name not in all_declarations and name not in facade_files: unmatched.append(name)
           source_hits=[]
           for ref in refs:
               p=subprocess.run(['git','grep','-i','-n','-e','obsidian','-e','1\\.10\\.0',ref,'--','*.kt','*.java','*.json','*.properties','*.md','*.xml'],capture_output=True,text=True)
@@ -143,8 +161,9 @@ jobs:
               'dex':dex_info,'total_classes':len(classes),'app_classes':len(app_classes),
               'obsidian_classes':obsidian_classes,'provenance_marker_count':len(markers),
               'provenance_markers':markers[:250],
-              'source_files_compared':source_files,'name_unmatched_app_classes':unmatched,
-              'source_reference_hits':source_hits,
+              'source_files_compared':source_files,'remote_branches_compared':len(refs),
+              'unique_source_blobs_compared':len(blob_cache),
+              'name_unmatched_app_classes':unmatched,'source_reference_hits':source_hits,
               'text_assets':[str(p.relative_to(report)) for p in sorted((report/'embedded-assets').rglob('*')) if p.is_file()],
               'comparison_limit':'Class names can survive or disappear through R8. Missing names are leads, not proof of missing functionality; no source equivalence is asserted.'
           }
@@ -155,7 +174,8 @@ jobs:
                    f'- DEX files: {len(dex_info)}; classes: {len(classes)}; app classes: {len(app_classes)}.',
                    f'- Obsidian/Fidelity class-name matches: {len(obsidian_classes)}.',
                    f'- Provenance/feature marker matches: {len(markers)}.',
-                   f'- App class names absent from current checkout declarations: {len(unmatched)}.',
+                   f'- Remote branches compared: {len(refs)}; unique source blobs: {len(blob_cache)}.',
+                   f'- App class names not located in any branch declaration/file facade: {len(unmatched)}.',
                    '- No application source changed, no APK signed, no installation or data-preservation test performed.',
                    '## Obsidian class matches','```json',json.dumps(obsidian_classes[:100],indent=2),'```',
                    '## Marker sample','```json',json.dumps(markers[:80],indent=2,ensure_ascii=False),'```',
@@ -187,6 +207,36 @@ jobs:
           Path('audit-report/check-payload.json').write_text(json.dumps(payload))
           PY
           gh api "repos/$GITHUB_REPOSITORY/check-runs" --input audit-report/check-payload.json --jq '{id,html_url,name,status,conclusion}'
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, os, subprocess
+          report=Path('audit-report')
+          # The sandbox cannot reach GitHub's artifact-storage redirect host.
+          # Publish only small textual audit evidence through the permitted API.
+          files=[('signature','signature.txt'),('identity','identity-verified.txt'),
+                 ('inventory','inventory.json'),('release-notes','embedded-assets/assets/release-notes.json'),
+                 ('manifest','manifest.txt')]
+          for label,rel in files:
+              path=report/rel
+              if not path.is_file(): continue
+              text=path.read_text(errors='replace')
+              if len(text)>60000: text=text[:60000]+'\n[Truncated; complete file in workflow artifact]\n'
+              payload={'name':'Obsidian 1100 audit / '+label,'head_sha':os.environ['GITHUB_SHA'],
+                       'status':'completed','conclusion':'neutral',
+                       'output':{'title':rel,'summary':'Read-only evidence extracted from the exact published 1.10.0 APK.','text':text}}
+              payload_path=report/('check-'+label+'.json'); payload_path.write_text(json.dumps(payload))
+              subprocess.run(['gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/check-runs",'--input',str(payload_path),'--jq','.id'],check=True)
+          if (report/'resources.txt').is_file():
+              lines=(report/'resources.txt').read_text(errors='replace').splitlines()
+              hits=[]
+              for i,line in enumerate(lines):
+                  if 'obsidian' in line.lower(): hits.extend(lines[max(0,i-2):min(len(lines),i+5)])
+              text='\n'.join(hits)[:60000]
+              payload={'name':'Obsidian 1100 audit / resources','head_sha':os.environ['GITHUB_SHA'],
+                       'status':'completed','conclusion':'neutral','output':{'title':'Obsidian resource entries','summary':'Exact binary resource-table excerpts.','text':text}}
+              path=report/'check-resources.json'; path.write_text(json.dumps(payload))
+              subprocess.run(['gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/check-runs",'--input',str(path),'--jq','.id'],check=True)
+          PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
