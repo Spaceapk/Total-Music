@@ -298,35 +298,38 @@ jobs:
           adb shell getprop ro.build.version.sdk > android13-results/api-level.txt
           test "$(cat android13-results/api-level.txt | tr -d '\r')" = 33
       - name: Install, launch, reopen, and inspect the original without replacing data
+        timeout-minutes: 6
         run: |
           set -euo pipefail
           APK=$(cat android13-results/apk-path.txt)
           timeout 300 adb install --no-streaming "$APK" 2>&1 | tee android13-results/install-original.txt
           grep -q Success android13-results/install-original.txt
-          adb shell pm grant org.nexlibre.totalmusic android.permission.READ_MEDIA_AUDIO
-          adb shell pm grant org.nexlibre.totalmusic android.permission.POST_NOTIFICATIONS
-          adb shell dumpsys package org.nexlibre.totalmusic > android13-results/package-before.txt
+          timeout 30 adb shell pm grant org.nexlibre.totalmusic android.permission.READ_MEDIA_AUDIO
+          timeout 30 adb shell pm grant org.nexlibre.totalmusic android.permission.POST_NOTIFICATIONS
+          timeout 30 adb shell dumpsys package org.nexlibre.totalmusic > android13-results/package-before.txt
           grep -q 'versionCode=29' android13-results/package-before.txt
-          adb logcat -c
+          timeout 30 adb logcat -c
           # Keep collecting evidence if am itself returns nonzero or the app
           # exits before pidof. The assertions happen after logs are saved.
+          # Every adb call is bounded: uiautomator can wait forever for an
+          # animated UI to become idle, which must not hang the whole probe.
           set +e
           timeout 60 adb shell am start -W -n org.nexlibre.totalmusic/com.music.bitchord.MainActivity > android13-results/launch-cold.txt 2>&1
           echo $? > android13-results/launch-cold-exit.txt
           sleep 15
-          adb shell pidof org.nexlibre.totalmusic > android13-results/pid-cold.txt 2>&1
-          adb exec-out screencap -p > android13-results/launch-cold.png
-          adb shell uiautomator dump /sdcard/obsidian-window.xml > android13-results/ui-dump-cold.txt 2>&1
-          adb pull /sdcard/obsidian-window.xml android13-results/window-cold.xml > android13-results/ui-pull-cold.txt 2>&1
-          adb shell am force-stop org.nexlibre.totalmusic
+          timeout 20 adb shell pidof org.nexlibre.totalmusic > android13-results/pid-cold.txt 2>&1
+          timeout 30 adb exec-out screencap -p > android13-results/launch-cold.png
+          timeout 30 adb shell uiautomator dump --compressed /sdcard/obsidian-window.xml > android13-results/ui-dump-cold.txt 2>&1
+          timeout 30 adb pull /sdcard/obsidian-window.xml android13-results/window-cold.xml > android13-results/ui-pull-cold.txt 2>&1
+          timeout 30 adb shell am force-stop org.nexlibre.totalmusic
           timeout 60 adb shell am start -W -n org.nexlibre.totalmusic/com.music.bitchord.MainActivity > android13-results/launch-reopen.txt 2>&1
           echo $? > android13-results/launch-reopen-exit.txt
           sleep 10
-          adb shell pidof org.nexlibre.totalmusic > android13-results/pid-reopen.txt 2>&1
-          adb exec-out screencap -p > android13-results/launch-reopen.png
-          adb shell dumpsys package org.nexlibre.totalmusic > android13-results/package-after.txt
-          adb logcat -d -v threadtime > android13-results/logcat.txt
-          adb logcat -d -b crash -v threadtime > android13-results/crash-buffer.txt
+          timeout 20 adb shell pidof org.nexlibre.totalmusic > android13-results/pid-reopen.txt 2>&1
+          timeout 30 adb exec-out screencap -p > android13-results/launch-reopen.png
+          timeout 30 adb shell dumpsys package org.nexlibre.totalmusic > android13-results/package-after.txt
+          timeout 60 adb logcat -d -v threadtime > android13-results/logcat.txt
+          timeout 30 adb logcat -d -b crash -v threadtime > android13-results/crash-buffer.txt
           set -e
           if grep -E 'FATAL EXCEPTION|AndroidRuntime.*Process: org.nexlibre.totalmusic' android13-results/logcat.txt; then
             echo 'Fatal application exception detected' >&2; exit 1
