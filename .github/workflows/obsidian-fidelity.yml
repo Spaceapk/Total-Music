@@ -18,7 +18,7 @@ permissions:
   issues: write
   checks: write
 concurrency:
-  group: obsidian-fidelity-${{ github.ref }}
+  group: obsidian-fidelity-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 env:
   ORG_GRADLE_PROJECT_spaceNdkVersion: '27.0.12077973'
