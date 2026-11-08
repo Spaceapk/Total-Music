@@ -83,7 +83,12 @@ private class LayerBackdropNode(
             drawContent()
             return
         }
-        recordLayer(this@LayerBackdropNode, backdrop.graphicsLayer) { backdrop.onDraw(this@draw) }
+        backdrop.isRecording = true
+        try {
+            recordLayer(this@LayerBackdropNode, backdrop.graphicsLayer) { backdrop.onDraw(this@draw) }
+        } finally {
+            backdrop.isRecording = false
+        }
         drawLayer(backdrop.graphicsLayer)
     }
 

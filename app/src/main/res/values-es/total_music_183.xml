@@ -1,0 +1,18 @@
+<resources>
+    <string name="favorites_sort">Ordenar favoritas</string>
+    <string name="favorites_sort_date">Fecha de incorporación</string>
+    <string name="total_eq_studio_title">Curva y monitor A/B</string>
+    <string name="total_eq_ab_original">A · Original</string>
+    <string name="total_eq_ab_processed">B · Procesado</string>
+    <string name="total_eq_ab_original_hint">Escuchando la entrada del ecualizador. El audio espacial y la normalización de volumen no cambian.</string>
+    <string name="total_eq_ab_processed_hint">Escuchando la curva guardada del ecualizador.</string>
+    <string name="total_eq_curve_graphic">Gráfica</string>
+    <string name="total_eq_curve_access">Curva de respuesta editable del ecualizador</string>
+    <string name="total_eq_curve_graphic_hint">Arrastra un nodo de banda en vertical. Usa los deslizadores de abajo para teclado y accesibilidad.</string>
+    <string name="total_eq_curve_parametric_hint">Arrastra un nodo de filtro para ajustar frecuencia y ganancia. Ajusta Q en los filtros paramétricos de abajo.</string>
+    <string name="total_eq_protection_warning">El margen automático o el limitador está desactivado. Las ganancias pueden saturar; baja la preamplificación o reactiva la protección.</string>
+    <string name="total_eq_load">Cargar</string>
+    <string name="total_eq_rename_profile">Renombrar perfil</string>
+    <string name="total_eq_preset_pop">Pop</string>
+    <string name="total_eq_preset_deep_bass">Graves profundos</string>
+</resources>

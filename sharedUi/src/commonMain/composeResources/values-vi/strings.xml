@@ -200,4 +200,22 @@
     <string name="search_library_empty">Tìm các bài hát trong thư mục Nhạc cục bộ của bạn.</string>
     <string name="search_library_hint">Bài hát, nghệ sĩ và album</string>
     <string name="search_library_no_results">Không có gì trong Nhạc cục bộ khớp với “%1$s”.</string>
+    <string name="rebirth_playback_tools">Công cụ phát</string>
+    <string name="rebirth_lyrics_page">Lời bài hát</string>
+    <string name="rebirth_output">Đầu ra</string>
+    <string name="rebirth_tools_short">Công cụ</string>
+    <string name="rebirth_translate">Dịch</string>
+    <string name="rebirth_romanize">La-tinh hóa</string>
+    <string name="rebirth_queue_tracks">%1$d trong hàng đợi</string>
+    <string name="rebirth_clear_added">Xóa mục đã thêm</string>
+    <string name="rebirth_next_up_empty">Không còn bài nào sau bài này</string>
+    <string name="rebirth_equalizer">Bộ cân bằng</string>
+    <string name="rebirth_classic_player">Trình phát cổ điển</string>
+    <string name="rebirth_classic_player_caption">Chia sẻ thẻ lời bài hát và điều khiển lời nâng cao</string>
+    <string name="rebirth_queue_locked">Trong phiên này hàng đợi theo máy chủ</string>
+    <string name="rebirth_queue_move_up">Di chuyển lên</string>
+    <string name="rebirth_queue_move_down">Di chuyển xuống</string>
+    <string name="rebirth_lyrics_sync_off">Lời đồng bộ đang tắt trong Cài đặt</string>
+    <string name="rebirth_lyrics_offset">Độ lệch lời</string>
+    <string name="rebirth_lyrics_offset_value">Độ lệch %1$s</string>
 </resources>

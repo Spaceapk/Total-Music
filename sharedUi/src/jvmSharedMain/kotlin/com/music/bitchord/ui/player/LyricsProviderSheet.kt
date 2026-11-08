@@ -30,7 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -101,8 +100,7 @@ private fun LyricsProviderRow(
     current: Boolean,
     onClick: () -> Unit,
 ) {
-    val playerForeground = if (com.music.bitchord.ui.theme.LocalGoogleExpressive.current)
-        androidx.compose.material3.MaterialTheme.colorScheme.onSurface else Color.White
+    val playerForeground = playerSheetInk()
 
     val haptics = rememberHaptics()
     // A running automatic request can still be selected: it is marked as the

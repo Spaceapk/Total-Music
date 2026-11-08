@@ -92,6 +92,7 @@ object LocalMediaRepository {
                     MediaStore.Audio.Media.ALBUM,
                     MediaStore.Audio.Media.ALBUM_ID,
                     MediaStore.Audio.Media.TRACK,
+            MediaStore.Audio.Media.YEAR,
                     MediaStore.Audio.Media.DATE_ADDED,
                     MediaStore.Audio.Media.DATE_MODIFIED,
                 )
@@ -109,6 +110,7 @@ object LocalMediaRepository {
                     val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
                     val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
                     val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                    val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
                     val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
                     val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
                     val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
@@ -128,6 +130,7 @@ object LocalMediaRepository {
                             },
                             trackNumber = (cursor.getInt(trackCol) % 1000).takeIf { it > 0 },
                             discNumber = (cursor.getInt(trackCol) / 1000).takeIf { it > 0 },
+                            year = cursor.getInt(yearCol).takeIf { it > 0 },
                             dateAddedSeconds = cursor.getLong(dateAddedCol),
                             dateModifiedSeconds = cursor.getLong(dateModifiedCol),
                         )
@@ -172,6 +175,7 @@ object LocalMediaRepository {
                 albumName = song.albumName ?: tags.albumName,
                 localTrackNumber = tags.trackNumber ?: song.localTrackNumber,
                 localDiscNumber = tags.discNumber ?: song.localDiscNumber,
+                localYear = tags.year ?: song.localYear,
                 localDateAddedSeconds = tags.dateAddedSeconds,
                 localDateModifiedSeconds = tags.dateModifiedSeconds,
             )
@@ -191,6 +195,7 @@ object LocalMediaRepository {
         val dateModifiedSeconds: Long?,
         val trackNumber: Int? = null,
         val discNumber: Int? = null,
+        val year: Int? = null,
     )
 
     /** What MediaStore writes into a column it has nothing for. */
@@ -224,6 +229,7 @@ object LocalMediaRepository {
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.TRACK,
+            MediaStore.Audio.Media.YEAR,
             MediaStore.Audio.Media.DATE_ADDED,
             MediaStore.Audio.Media.DATE_MODIFIED,
         )
@@ -278,6 +284,7 @@ object LocalMediaRepository {
                 val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
                 val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
                 val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
                 val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
                 val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
@@ -318,6 +325,7 @@ object LocalMediaRepository {
                             localPath = path,
                             localTrackNumber = (cursor.getInt(trackCol) % 1000).takeIf { it > 0 },
                             localDiscNumber = (cursor.getInt(trackCol) / 1000).takeIf { it > 0 },
+                            localYear = cursor.getInt(yearCol).takeIf { it > 0 },
                             localDateAddedSeconds = cursor.getLong(dateAddedCol),
                             localDateModifiedSeconds = cursor.getLong(dateModifiedCol),
                         )
@@ -428,6 +436,7 @@ object LocalMediaRepository {
         var durationText: String? = null
         var trackNumber: Int? = null
         var discNumber: Int? = null
+        var year: Int? = null
 
         runCatching {
             val retriever = MediaMetadataRetriever()
@@ -438,6 +447,7 @@ object LocalMediaRepository {
             val metaAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
             trackNumber = parseTrackTag(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER))
             discNumber = parseTrackTag(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER))
+            year = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)?.take(4)?.toIntOrNull()?.takeIf { it > 0 }
             val metaDur = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
 
             if (!metaTitle.isNullOrBlank()) title = metaTitle
@@ -457,6 +467,7 @@ object LocalMediaRepository {
             localUri = uriStr,
             localTrackNumber = trackNumber ?: scanned?.trackNumber,
             localDiscNumber = discNumber ?: scanned?.discNumber,
+            localYear = year ?: scanned?.year,
             localDateAddedSeconds = scanned?.dateAddedSeconds,
             localDateModifiedSeconds = scanned?.dateModifiedSeconds,
         )

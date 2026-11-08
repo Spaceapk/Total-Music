@@ -115,3 +115,10 @@ compose.resources {
     packageOfResClass = "com.music.bitchord.sharedui.resources"
     generateResClass = always
 }
+
+// The pinned Kotlin/Compose toolchain carries generated common resource declarations
+// into incremental Android recompiles. Compile this UI module as a whole; keep the
+// application and data modules incremental. No runtime behavior or dependency changes.
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile<*>>().configureEach {
+    incremental = false
+}

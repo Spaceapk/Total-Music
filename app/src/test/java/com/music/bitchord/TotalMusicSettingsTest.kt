@@ -66,6 +66,26 @@ class TotalMusicSettingsTest {
         assertTrue(TotalMusicSettings.profiles.value.isEmpty())
     }
 
+    @Test fun profilesRenamePreservesOrderAndRejectsCollisions() {
+        TotalMusicSettings.init(preferences())
+        TotalMusicSettings.saveProfile("A"); TotalMusicSettings.saveProfile("B")
+        assertTrue(TotalMusicSettings.renameProfile("A", "C"))
+        assertEquals(listOf("C", "B"), TotalMusicSettings.profiles.value.keys.toList())
+        assertFalse(TotalMusicSettings.renameProfile("C", "B"))
+        assertFalse(TotalMusicSettings.renameProfile("C", "Rock"))
+        assertFalse(TotalMusicSettings.renameProfile("missing", "D"))
+    }
+
+    @Test fun abMonitorIsTransientAndDoesNotRewriteSavedCurve() {
+        val prefs = preferences(); TotalMusicSettings.init(prefs)
+        val config = TotalEqConfig(bass = 5f); TotalMusicSettings.update(config)
+        TotalMusicSettings.setCompareOriginal(true)
+        assertTrue(TotalMusicSettings.compareOriginal.value)
+        assertEquals(config, TotalMusicSettings.config.value)
+        TotalMusicSettings.init(prefs)
+        assertFalse(TotalMusicSettings.compareOriginal.value)
+    }
+
     @Test fun brokenImportedJsonFallsBackWithoutLosingLegacyPreferences() {
         val data = mutableMapOf<String, Any>("total_eq" to "broken", "total_eq_profiles" to "[", "equalizer_bands" to "1,2,3")
         TotalMusicSettings.init(preferences(data))

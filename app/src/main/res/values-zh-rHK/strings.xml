@@ -1282,4 +1282,16 @@
     <string name="space_sort_artist">歌手</string>
     <string name="space_sort_recent">最近加入此清單</string>
     <string name="total_eq_10_bands">10 個獨立頻段</string>
+    <string name="widget_immersive_label">沉浸式 4×4</string>
+    <string name="widget_immersive_description">大型專輯封面、播放控制項及歌曲資訊。</string>
+    <string name="widget_dynamic_art_label">動態封面</string>
+    <string name="widget_dynamic_art_description">封面搭配與專輯色彩相襯的播放控制項背景。</string>
+    <string name="widget_glass_panel_label">玻璃面板</string>
+    <string name="widget_glass_panel_description">附半透明播放面板的專輯封面。</string>
+    <string name="widget_config_title">自訂小工具</string>
+    <string name="widget_config_theme">此小工具的外觀</string>
+    <string name="widget_theme_system">跟隨系統</string>
+    <string name="widget_theme_light">淺色</string>
+    <string name="widget_theme_dark">深色</string>
+    <string name="widget_config_add">新增小工具</string>
 </resources>

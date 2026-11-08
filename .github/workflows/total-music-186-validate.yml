@@ -1,0 +1,574 @@
+name: Total Music 1.8.6 validation
+
+# Motion Experience validation for 1.8.6: the three player styles (Google Plus,
+# Liquid Glass Plus, Liquid Glass Original). No publishing and no permanent
+# signing credentials. APKs stay explicitly test-only/unsigned.
+
+on:
+  # Pushing the 1.8.6 arena branch is the trigger: `workflow_dispatch` also
+  # exists so the same file can be dispatched by hand once it reaches main.
+  # The branch this session is tied to is fixed (arena/ce925682-total-music).
+  push:
+    branches: [arena/ce925682-total-music]
+    paths:
+      - 'app/**'
+      - 'shared/**'
+      - 'sharedUi/**'
+      - 'macrobenchmark/**'
+      - 'native/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'total-music-release.properties'
+      - 'scripts/release/**'
+      - 'scripts/verify/**'
+      - 'app/src/androidTest/**'
+      # This file, so a change to how the build is validated re-runs it.
+      - '.github/workflows/total-music-186-validate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: total-music-186-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ORG_GRADLE_PROJECT_spaceNdkVersion: '27.0.12077973'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx5120m -Dfile.encoding=UTF-8 -Djava.net.preferIPv4Stack=true'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+      - name: Install the SDK this project compiles against
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+
+      - name: Compile the whole app
+        run: |
+          set -o pipefail
+          mkdir -p ci-logs
+          chmod +x gradlew
+          ./gradlew :app:compileProdDebugKotlin --max-workers=2 --build-cache --stacktrace \
+            -PspaceSpatialEdition=true 2>&1 | tee ci-logs/compile.log
+
+      # The APKs before the tests, so a failing assertion still leaves something
+      # installable behind it. prodMeasurement is the shipped release build
+      # signed with the runner's own debug key so the emulator will take it.
+      - name: Assemble the debug, release-like probe and release APKs
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleProdDebug :app:assembleProdMeasurement :app:assembleProdRelease \
+            :app:assembleProdDebugAndroidTest \
+            --max-workers=2 --build-cache --stacktrace \
+            -PspaceSpatialEdition=true -PtotalMusicMeasurementDebugSigning=true \
+            2>&1 | tee ci-logs/assemble.log
+
+      - name: Run every unit test in the tree
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./gradlew :shared:jvmTest :app:testProdDebugUnitTest \
+            --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true \
+            2>&1 | tee ci-logs/test.log
+
+      - name: Read the unit test results
+        if: always()
+        run: |
+          python3 - <<'PY' > ci-logs/tests-summary.md
+          import glob, xml.etree.ElementTree as ET
+          rows, failed, total, classes = [], 0, 0, set()
+          paths = (glob.glob("app/build/test-results/testProdDebugUnitTest/TEST-*.xml")
+                   + glob.glob("shared/build/test-results/jvmTest/TEST-*.xml"))
+          for path in sorted(paths):
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception as error:
+                  rows.append(f"- could not read {path}: {error}")
+                  continue
+              for case in root.iter("testcase"):
+                  total += 1
+                  classes.add(case.get("classname", "?"))
+                  problem = case.find("failure")
+                  if problem is None:
+                      problem = case.find("error")
+                  if problem is None:
+                      continue
+                  failed += 1
+                  message = (problem.get("message") or "").strip().splitlines()
+                  where = (problem.get("type") or "").strip()
+                  rows.append(f"- **{case.get('classname','?').split('.')[-1]} > {case.get('name')}** — {where}")
+                  rows += [f"  > {line.strip()[:300]}" for line in message[:4]]
+                  body = (problem.text or "").strip().splitlines()
+                  rows += [f"  `{line.strip()[:220]}`" for line in body[:6]]
+          head = (f"### Unit tests: **{failed} failed** of {total} in {len(classes)} classes"
+                  if failed else f"### Unit tests: **{total} passed** in {len(classes)} classes")
+          print(head)
+          print()
+          print("\n".join(rows) if rows else "No failures.")
+          PY
+          cat ci-logs/tests-summary.md
+
+      - name: Annotate unit test failures
+        if: steps.tests.outcome == 'failure'
+        run: |
+          grep -E '^(e: |FAILED|AssertionError|org\.gradle|> Task .*FAILED)|expected:|but was:' ci-logs/test.log \
+            | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+
+      - name: Package the APKs with the repository's own verifier
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python3 scripts/release/package_ci.py 2>&1 | tee ci-logs/package.log || true
+          ls -l release-artifacts || true
+
+      - name: Record version, version code and signatures
+        if: always()
+        run: |
+          set -uo pipefail
+          TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          {
+            echo "### Build identity"
+            echo
+            echo '```'
+            grep -E '^(applicationId|versionName|versionCode|certificateSha256|keyAlias)=' total-music-release.properties
+            echo '```'
+            for apk in $(find app/build/outputs/apk -name '*.apk' | sort); do
+              echo
+              echo "#### $(basename "$apk")"
+              echo
+              echo '```'
+              "$TOOLS"/aapt dump badging "$apk" 2>/dev/null | head -1
+              sha256sum "$apk"
+              if "$TOOLS"/apksigner verify "$apk" >/dev/null 2>&1; then
+                "$TOOLS"/apksigner verify --print-certs "$apk" 2>/dev/null | grep -E 'certificate (DN|SHA-256 digest)'
+              else
+                echo "NOT SIGNED — the release build waiting for the permanent key."
+              fi
+              echo '```'
+            done
+            echo
+            echo "Only an APK whose certificate SHA-256 is the permanent one named above can update an"
+            echo "installed Total Music. Neither the debug nor the release-like probe APK carries it;"
+            echo "they are test builds, and the permanent keystore is not available to CI."
+          } > ci-logs/apk-signature.txt
+          cat ci-logs/apk-signature.txt
+
+      # Two deliverables, kept apart on purpose: the unsigned release APK (the
+      # only file that could ever become an update, once signed with the
+      # permanent key) and the test APK (installable, worthless for updates).
+      - name: Stage the unsigned release APK and the test APK separately
+        if: always()
+        run: |
+          set -uo pipefail
+          rm -rf delivery
+          mkdir -p delivery/unsigned-release delivery/test-apk
+          TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+
+          release=$(find app/build/outputs/apk/prod/release -name '*universal*release-unsigned.apk' 2>/dev/null | head -1)
+          if [ -n "${release:-}" ]; then
+            cp "$release" delivery/unsigned-release/
+            ( cd delivery/unsigned-release && sha256sum ./*.apk > SHA256SUMS )
+            {
+              echo "Total Music 1.8.6 — release APK"
+              echo
+              echo "NOT SIGNED. This is the build that waits for the permanent"
+              echo "signing key; it cannot be installed as an update over an"
+              echo "existing Total Music until it is signed with that key."
+              echo
+              echo "package:      $("$TOOLS"/aapt dump badging "$release" 2>/dev/null | head -1 | sed -E "s/.*name='([^']+)' versionCode='([^']+)' versionName='([^']+)'.*/\1 \2 \3/")"
+              echo "certificate:  none"
+              echo "expected:     9ae145a703a85902fe6d6ab3d886f6801873d717929deaa3e3d0b0a81de829fa"
+              echo "              (the certificate of the published 1.7.0 and 1.8.0)"
+              echo
+              echo "To make it an update, sign it outside CI with that keystore:"
+              echo "  python3 scripts/release/sign_apk.py <this file> dist \\"
+              echo "    --previous-apk Total-Music-1.8.0-universal.apk"
+              echo "and keep TOTAL_MUSIC_KEYSTORE / TOTAL_MUSIC_PASSWORD_FILE outside"
+              echo "the checkout, as that script requires."
+            } > delivery/unsigned-release/SIGNING-STATUS.txt
+            cat delivery/unsigned-release/SIGNING-STATUS.txt
+          else
+            echo "no universal release APK was produced" > delivery/unsigned-release/MISSING.txt
+          fi
+
+          for apk in $(find app/build/outputs/apk/prod/debug -name '*universal*debug.apk' 2>/dev/null | head -1) \
+                     $(find app/build/outputs/apk/prod/measurement -name '*universal*measurement.apk' 2>/dev/null | head -1); do
+            cp "$apk" delivery/test-apk/
+          done
+          cp ci-logs/apk-signature.txt delivery/test-apk/ 2>/dev/null || true
+          ( cd delivery/test-apk && sha256sum ./*.apk > SHA256SUMS )
+          {
+            echo "Total Music 1.8.6 — TEST build, do not ship"
+            echo
+            echo "Signed with the CI runner's throwaway Android debug certificate."
+            echo "It installs on a clean device and cannot be installed over a"
+            echo "published Total Music, and no future update can be signed with"
+            echo "the same key because that key is deleted with the runner."
+            echo
+            echo "Its purpose is to exercise the app: the rebirth shell on a real"
+            echo "Android 13, in both rebirth styles, and the R8 build (measurement)"
+            echo "with the shipped package name."
+          } > delivery/test-apk/TEST-ONLY.txt
+          cat delivery/test-apk/TEST-ONLY.txt
+          ls -l delivery/unsigned-release delivery/test-apk
+
+          {
+            echo "### Deliverables"
+            echo
+            echo "Artifact \`total-music-186-release-unsigned\` — the release APK. **Not signed.**"
+            echo
+            echo '```'
+            ( cd delivery/unsigned-release && sha256sum ./*.apk 2>/dev/null || echo "(no release APK)" )
+            echo '```'
+            echo
+            echo "Artifact \`total-music-186-test-apk\` — installable test builds, debug certificate."
+            echo
+            echo '```'
+            ( cd delivery/test-apk && sha256sum ./*.apk 2>/dev/null || echo "(no test APK)" )
+            echo '```'
+          } > ci-logs/delivery-manifest.md
+          cat ci-logs/delivery-manifest.md
+
+      - name: Hand over the unsigned release APK
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: total-music-186-release-unsigned
+          path: delivery/unsigned-release/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Hand over the test APK
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: total-music-186-test-apk
+          path: delivery/test-apk/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-186-apks
+          path: |
+            ci-logs/apks/
+            ci-logs/tests-summary.md
+            ci-logs/apk-signature.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-186-logs
+          path: ci-logs/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Fail when the unit tests failed
+        if: steps.tests.outcome == 'failure'
+        run: |
+          echo "Unit tests failed; see the run's ci-logs artifact and ci-logs/tests-summary.md."
+          exit 1
+
+  lint:
+    # Its own runner on purpose: one Gradle worker and an explicit heap, so a
+    # lint finding gets a verdict instead of an out-of-memory kill.
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+      - name: Install the SDK this project compiles against
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+      - name: Android lint
+        id: lint
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          mkdir -p ci-logs
+          chmod +x gradlew
+          ./gradlew :app:lintProdDebug \
+            -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8' \
+            --max-workers=1 --no-daemon --stacktrace -PspaceSpatialEdition=true \
+            2>&1 | tee ci-logs/lint.log
+      - name: Summarise the lint report
+        if: always()
+        run: |
+          python3 - <<'PY' > ci-logs/lint-summary.md
+          import glob, xml.etree.ElementTree as ET
+          reports = sorted(glob.glob("app/build/reports/lint-results-*.xml"))
+          if not reports:
+              print("### Android lint: **no report produced**")
+              print()
+              print("Gradle did not get as far as writing a lint result. The log says why.")
+              raise SystemExit(0)
+          for report in reports:
+              root = ET.parse(report).getroot()
+              issues = root.findall("issue")
+              errors = [i for i in issues if i.get("severity") in ("Error", "Fatal")]
+              warnings = [i for i in issues if i.get("severity") == "Warning"]
+              print(f"### Android lint ({report}): **{len(errors)} errors**, {len(warnings)} warnings")
+              print()
+              for issue in errors[:40]:
+                  where = issue.find("location")
+                  place = f"{where.get('file')}:{where.get('line')}" if where is not None else "?"
+                  print(f"- **{issue.get('id')}** — {issue.get('message')}")
+                  print(f"  `{place}`")
+          PY
+          cat ci-logs/lint-summary.md
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-186-lint
+          path: |
+            ci-logs/lint.log
+            ci-logs/lint-summary.md
+            app/build/reports/lint-results-*.xml
+            app/build/reports/lint-results-*.html
+          if-no-files-found: warn
+          retention-days: 30
+
+  device:
+    # Scripted probe on a real Android 13 emulator: both rebirth styles, tone
+    # playback, player and categories flows, screenshots. Report-only: it never
+    # fails the run, the evidence travels in the artifacts.
+    if: ${{ always() && needs.build.result != 'cancelled' && needs.build.result != 'skipped' }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools emulator system-images;android-33;google_apis;x86_64
+      - name: Download the built APKs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: total-music-186-apks
+          path: apks
+      - name: List what arrived
+        run: find apks -type f | head -20
+      - name: Boot Android 13
+        run: |
+          set -euo pipefail
+          sudo chmod a+rw /dev/kvm || { echo "no /dev/kvm on this runner"; exit 1; }
+          adb start-server >/dev/null
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd -n probe -k 'system-images;android-33;google_apis;x86_64' --force
+          "$ANDROID_HOME/emulator/emulator" -avd probe -no-window -no-audio -no-boot-anim \
+            -no-snapshot -no-metrics -gpu swiftshader_indirect -cores 2 -memory 2048 \
+            > emulator.log 2>&1 &
+          timeout 240 adb wait-for-device
+          timeout 900 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
+          adb shell input keyevent 82
+          adb shell getprop > device-properties.txt
+          echo "booted"
+      - name: Probe the release-like build (R8, shipped package)
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          APK=$(find apks -name '*universal*measurement*.apk' | head -1)
+          echo "APK: $APK"
+          python3 scripts/verify/device_probe.py --apk "$APK" --label release-like \
+            --styles LIQUID_GLASS_PLUS,GOOGLE_EXPRESSIVE_PLUS --flows settings,player,categories \
+            --tone --screenshots screenshots > probe-release-like.log 2>&1 || echo "probe reported failures"
+          tail -80 probe-release-like.log
+      - name: Probe the debug build in both rebirth styles
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          APK=$(find apks -name '*universal*debug.apk' | head -1)
+          echo "APK: $APK"
+          python3 scripts/verify/device_probe.py --apk "$APK" --label debug \
+            --package org.nexlibre.totalmusic \
+            --styles LIQUID_GLASS_PLUS,GOOGLE_EXPRESSIVE_PLUS --flows categories,settings,player,reopen \
+            --tone --screenshots screenshots > probe-debug.log 2>&1 || echo "probe reported failures"
+          tail -80 probe-debug.log
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-186-device
+          path: |
+            probe-*.log
+            device-properties.txt
+            emulator.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Hand over the real screen captures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: total-music-186-screenshots
+          path: screenshots/
+          if-no-files-found: warn
+          retention-days: 30
+
+  ui:
+    # Instrumented tests on Android 13, same class list the 1.8.5 validation
+    # ran. Continue-on-error per step; the run reports the verdict either way
+    # and the artifacts carry the evidence.
+    if: ${{ always() && needs.build.result != 'cancelled' && needs.build.result != 'skipped' }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools emulator system-images;android-33;google_apis;x86_64
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+
+      - name: Install the SDK this project compiles against
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+
+      - name: Compile instrumented APKs before allocating emulator memory
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:assembleProdDebug :app:assembleProdDebugAndroidTest \
+            -PspaceSpatialEdition=true -Pandroid.injected.build.abi=x86_64 \
+            --max-workers=2 --build-cache --stacktrace 2>&1 | tee ui-compile.log
+          python3 - <<'PYCACHE'
+          import os, pathlib, shutil
+          target = pathlib.Path(os.environ['RUNNER_TEMP']) / 'ui-apks'
+          target.mkdir(exist_ok=True)
+          for apk in pathlib.Path('app').rglob('*.apk'):
+              shutil.copy2(apk, target / apk.name)
+          print('Cached UI APKs:', [p.name for p in target.glob('*.apk')])
+          PYCACHE
+          ./gradlew --stop
+
+      - name: Boot Android 13
+        run: |
+          set -euo pipefail
+          sudo chmod a+rw /dev/kvm || { echo "no /dev/kvm on this runner"; exit 1; }
+          adb start-server >/dev/null
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd -n ui -k 'system-images;android-33;google_apis;x86_64' --force
+          echo "disk.dataPartition.size=6G" >> "$ANDROID_AVD_HOME/ui.avd/config.ini"
+          echo "hw.ramSize=2048" >> "$ANDROID_AVD_HOME/ui.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -avd ui -no-window -no-audio -no-boot-anim \
+            -no-snapshot -no-metrics -gpu swiftshader_indirect -cores 2 -memory 2048 \
+            > emulator-ui.log 2>&1 &
+          timeout 300 adb wait-for-device
+          timeout 900 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb devices
+          echo "booted"
+
+      - name: Test the rebirth shell, favorites and playlists on Android
+        id: uitest
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew :app:connectedProdDebugAndroidTest \
+            '-Dorg.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8' \
+            -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
+            -PspaceSpatialEdition=true \
+            -Pandroid.injected.build.abi=x86_64 \
+            '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.RebirthNavigationStateTest,com.music.bitchord.FavoritePlayerUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.FavoritePlaybackJourneyTest,com.music.bitchord.FavoriteCatalogUiTest,com.music.bitchord.FavoriteCollectionUiTest,com.music.bitchord.TotalEqStudioUiTest,com.music.bitchord.DevicePlaylistStoreTest,com.music.bitchord.PlaylistReorderUiTest' \
+            --max-workers=2 --build-cache --stacktrace 2>&1 | tee ui-test.log
+
+      - name: Read the UI test results
+        if: always()
+        run: |
+          python3 - <<'PY' > ui-test-summary.md
+          import glob, xml.etree.ElementTree as ET
+          rows, total, failed = [], 0, 0
+          for path in sorted(glob.glob("app/build/outputs/androidTest-results/connected/**/*.xml", recursive=True)):
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception as error:
+                  rows.append(f"- could not read {path}: {error}")
+                  continue
+              for case in root.iter("testcase"):
+                  total += 1
+                  problem = case.find("failure")
+                  if problem is None:
+                      problem = case.find("error")
+                  name = f"{case.get('classname','?').split('.')[-1]} > {case.get('name')}"
+                  if problem is None:
+                      rows.append(f"- passed: {name}")
+                      continue
+                  failed += 1
+                  rows.append(f"- **failed: {name}**")
+                  body = (problem.text or "").strip().splitlines()
+                  rows += [f"  `{line.strip()[:200]}`" for line in body[:6]]
+          if failed:
+              print(f"### Instrumented tests: **{failed} failed** of {total}")
+          elif total:
+              print(f"### Instrumented tests: **{total} passed**")
+          else:
+              print("### Instrumented tests: **no result**")
+          print()
+          print("\n".join(rows) if rows else "No report was written; see the log.")
+          PY
+          cat ui-test-summary.md
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: total-music-186-uitest
+          path: |
+            ui-test.log
+            ui-compile.log
+            ui-test-summary.md
+            app/build/outputs/androidTest-results/
+            app/build/reports/androidTests/
+            emulator-ui.log
+          if-no-files-found: warn
+          retention-days: 30

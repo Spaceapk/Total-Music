@@ -14,6 +14,7 @@ import com.music.bitchord.data.lyrics.LyricsSource
 import com.music.bitchord.data.sources.SourceKind
 import com.music.bitchord.playback.EqLayout
 import com.music.bitchord.playback.EqualizerPreset
+import com.music.bitchord.ui.player.PlayerVisualStyle
 import kotlinx.coroutines.flow.MutableStateFlow
 
 
@@ -106,6 +107,8 @@ enum class ThemeMode(val label: String) {
  * same curve, and summing them would mean a tone pad sitting at dead centre
  * still quietly altering whatever the sliders said.
  */
+enum class FavoriteSort { DATE_ADDED, TITLE, ARTIST }
+
 enum class EqualizerMode {
     /** The tone pad: tilt, contour, and how wide each is. */
     DYNAMIC,
@@ -315,6 +318,7 @@ object AppSettings {
     val equalizerEnabled = MutableStateFlow(false)
 
     /** Which tab is driving it. */
+    val favoriteSort = MutableStateFlow(FavoriteSort.DATE_ADDED)
     val equalizerMode = MutableStateFlow(EqualizerMode.DYNAMIC)
 
     /** Tone pad, horizontal: warm at -5, bright at +5. */
@@ -395,6 +399,13 @@ object AppSettings {
 
     /** Real backdrop-sampled glass (blur, lens refraction) on the floating nav bar, Android 12+ only. */
     val liquidGlass = MutableStateFlow(true)
+
+    /** Player presentation is independent from the application's overall theme. */
+    val playerVisualStyle = MutableStateFlow(PlayerVisualStyle.ORIGINAL)
+    val playerDynamicBackground = MutableStateFlow(false)
+    val playerGlassEffects = MutableStateFlow(true)
+    val playerAlternativeControls = MutableStateFlow(true)
+    val playerAnimatedTransitions = MutableStateFlow(true)
 
     /** Blurs unfocused lyric lines, keeping the active line sharp. */
     val lyricsBlur = MutableStateFlow(true)
@@ -809,8 +820,11 @@ object AppSettings {
         spatialAudio.value = prefs.getBoolean(KEY_SPATIAL_AUDIO, false)
         spatialScene.value = readSpatialScene()
         equalizerEnabled.value = prefs.getBoolean(KEY_EQ_ENABLED, false)
+        favoriteSort.value = runCatching {
+            FavoriteSort.valueOf(prefs.getString("favorite_sort", null) ?: FavoriteSort.DATE_ADDED.name)
+        }.getOrDefault(FavoriteSort.DATE_ADDED)
         equalizerMode.value = runCatching {
-            EqualizerMode.valueOf(prefs.getString(KEY_EQ_MODE, null) ?: EqualizerMode.DYNAMIC.name)
+            EqualizerMode.valueOf(prefs.getString(KEY_EQ_MODE, null) ?: EqualizerMode.TOTAL.name)
         }.getOrDefault(EqualizerMode.DYNAMIC)
         equalizerToneX.value = prefs.getInt(KEY_EQ_TONE_X, 0).coerceIn(-EqLayout.TONE_STEPS, EqLayout.TONE_STEPS)
         equalizerToneY.value = prefs.getInt(KEY_EQ_TONE_Y, 0).coerceIn(-EqLayout.TONE_STEPS, EqLayout.TONE_STEPS)
@@ -840,6 +854,11 @@ object AppSettings {
         smartVersionAlignment.value = prefs.getBoolean(KEY_SMART_VERSION_ALIGNMENT, true)
         reduceDynamicBlur.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)
         liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, true)
+        playerVisualStyle.value = PlayerVisualStyle.fromStorage(prefs.getString(KEY_PLAYER_VISUAL_STYLE, null))
+        playerDynamicBackground.value = prefs.getBoolean(KEY_PLAYER_DYNAMIC_BACKGROUND, false)
+        playerGlassEffects.value = prefs.getBoolean(KEY_PLAYER_GLASS_EFFECTS, true)
+        playerAlternativeControls.value = prefs.getBoolean(KEY_PLAYER_ALTERNATIVE_CONTROLS, true)
+        playerAnimatedTransitions.value = prefs.getBoolean(KEY_PLAYER_ANIMATED_TRANSITIONS, true)
         lyricsBlur.value = prefs.getBoolean(KEY_LYRICS_BLUR, true)
         lyricsOffsetMs.value = prefs.getInt(KEY_LYRICS_OFFSET_MS, 0)
             .coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
@@ -1136,6 +1155,11 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_SPATIAL_AUDIO, value).apply()
     }
 
+    fun setFavoriteSort(value: FavoriteSort) {
+        favoriteSort.value = value
+        prefs.edit().putString("favorite_sort", value.name).apply()
+    }
+
     fun setEqualizerEnabled(value: Boolean) {
         equalizerEnabled.value = value
         prefs.edit().putBoolean(KEY_EQ_ENABLED, value).apply()
@@ -1269,6 +1293,31 @@ object AppSettings {
     fun setLiquidGlass(value: Boolean) {
         liquidGlass.value = value
         prefs.edit().putBoolean(KEY_LIQUID_GLASS, value).apply()
+    }
+
+    fun setPlayerVisualStyle(value: PlayerVisualStyle) {
+        playerVisualStyle.value = value
+        prefs.edit().putString(KEY_PLAYER_VISUAL_STYLE, value.name).apply()
+    }
+
+    fun setPlayerDynamicBackground(value: Boolean) {
+        playerDynamicBackground.value = value
+        prefs.edit().putBoolean(KEY_PLAYER_DYNAMIC_BACKGROUND, value).apply()
+    }
+
+    fun setPlayerGlassEffects(value: Boolean) {
+        playerGlassEffects.value = value
+        prefs.edit().putBoolean(KEY_PLAYER_GLASS_EFFECTS, value).apply()
+    }
+
+    fun setPlayerAlternativeControls(value: Boolean) {
+        playerAlternativeControls.value = value
+        prefs.edit().putBoolean(KEY_PLAYER_ALTERNATIVE_CONTROLS, value).apply()
+    }
+
+    fun setPlayerAnimatedTransitions(value: Boolean) {
+        playerAnimatedTransitions.value = value
+        prefs.edit().putBoolean(KEY_PLAYER_ANIMATED_TRANSITIONS, value).apply()
     }
 
     fun setHighPerformanceMode(value: Boolean) {
@@ -2003,6 +2052,11 @@ object AppSettings {
     private const val KEY_SMART_VERSION_ALIGNMENT = "smart_version_alignment"
     private const val KEY_REDUCE_BLUR = "reduce_dynamic_blur"
     private const val KEY_LIQUID_GLASS = "liquid_glass"
+    private const val KEY_PLAYER_VISUAL_STYLE = "player_visual_style"
+    private const val KEY_PLAYER_DYNAMIC_BACKGROUND = "player_dynamic_background"
+    private const val KEY_PLAYER_GLASS_EFFECTS = "player_glass_effects"
+    private const val KEY_PLAYER_ALTERNATIVE_CONTROLS = "player_alternative_controls"
+    private const val KEY_PLAYER_ANIMATED_TRANSITIONS = "player_animated_transitions"
     private const val KEY_LYRICS_BLUR = "lyrics_blur"
     private const val KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
     private const val KEY_TRANSLATION_LANGUAGE = "translation_language"

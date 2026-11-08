@@ -200,4 +200,22 @@
     <string name="search_library_empty">Pesquise as músicas da sua pasta de Música local.</string>
     <string name="search_library_hint">Músicas, artistas e álbuns</string>
     <string name="search_library_no_results">Nada na Música local corresponde a “%1$s”.</string>
+    <string name="rebirth_playback_tools">Ferramentas de reprodução</string>
+    <string name="rebirth_lyrics_page">Letra</string>
+    <string name="rebirth_output">Saída</string>
+    <string name="rebirth_tools_short">Ferramentas</string>
+    <string name="rebirth_translate">Traduzir</string>
+    <string name="rebirth_romanize">Romanizar</string>
+    <string name="rebirth_queue_tracks">%1$d na fila</string>
+    <string name="rebirth_clear_added">Limpar adicionadas</string>
+    <string name="rebirth_next_up_empty">Nada depois desta faixa</string>
+    <string name="rebirth_equalizer">Equalizador</string>
+    <string name="rebirth_classic_player">Player clássico</string>
+    <string name="rebirth_classic_player_caption">Compartilhar cartão de letra e os controles avançados de letra</string>
+    <string name="rebirth_queue_locked">Nesta sessão a fila segue o anfitrião</string>
+    <string name="rebirth_queue_move_up">Mover para cima</string>
+    <string name="rebirth_queue_move_down">Mover para baixo</string>
+    <string name="rebirth_lyrics_sync_off">As letras sincronizadas estão desativadas nos ajustes</string>
+    <string name="rebirth_lyrics_offset">Deslocamento da letra</string>
+    <string name="rebirth_lyrics_offset_value">Deslocamento %1$s</string>
 </resources>

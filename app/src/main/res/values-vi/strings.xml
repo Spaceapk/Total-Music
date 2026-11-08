@@ -1225,4 +1225,16 @@
     <string name="space_open_source_notice">Total Music là phiên bản sửa đổi từ Star Music và BitChord, phân phối theo GPL-3.0. Sửa đổi bởi nexlibre, tháng 10 năm 2026. Các tác giả gốc giữ bản quyền. Bạn có thể sao chép, sửa đổi và phân phối lại phần mềm theo giấy phép, không có bảo hành. Mã nguồn và thông báo gốc có trong các kho được liên kết. Giấy phép GPL được đính kèm để đọc ngoại tuyến.</string>
     <string name="total_eq_10_bands">10 dải tần độc lập</string>
     <string name="total_accent">Màu nhấn</string>
+    <string name="widget_immersive_label">Đắm chìm 4×4</string>
+    <string name="widget_immersive_description">Ảnh bìa lớn với điều khiển phát và thông tin bài hát.</string>
+    <string name="widget_dynamic_art_label">Ảnh bìa động</string>
+    <string name="widget_dynamic_art_description">Ảnh bìa với màu nền điều khiển phù hợp.</string>
+    <string name="widget_glass_panel_label">Bảng kính</string>
+    <string name="widget_glass_panel_description">Ảnh bìa với bảng điều khiển phát trong mờ.</string>
+    <string name="widget_config_title">Tùy chỉnh tiện ích</string>
+    <string name="widget_config_theme">Giao diện của tiện ích này</string>
+    <string name="widget_theme_system">Theo hệ thống</string>
+    <string name="widget_theme_light">Sáng</string>
+    <string name="widget_theme_dark">Tối</string>
+    <string name="widget_config_add">Thêm tiện ích</string>
 </resources>

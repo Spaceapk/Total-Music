@@ -1,0 +1,7 @@
+<!-- Total Music 1.8.5 playlist reordering and track-number order. Other locales
+     fall back to English, following the 1.8.0 resource convention. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="space_sort_track_ascending">Track number, ascending</string>
+    <string name="space_sort_track_descending">Track number, descending</string>
+    <string name="rebirth_reorder_manual_hint">Dragging saves this order as the manual order.</string>
+</resources>

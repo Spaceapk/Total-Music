@@ -200,4 +200,22 @@
     <string name="search_library_empty">ローカル音楽フォルダ内の曲を検索します。</string>
     <string name="search_library_hint">曲・アーティスト・アルバム</string>
     <string name="search_library_no_results">ローカル音楽に「%1$s」に一致するものはありません。</string>
+    <string name="rebirth_playback_tools">再生ツール</string>
+    <string name="rebirth_lyrics_page">歌詞</string>
+    <string name="rebirth_output">出力</string>
+    <string name="rebirth_tools_short">ツール</string>
+    <string name="rebirth_translate">翻訳</string>
+    <string name="rebirth_romanize">ローマ字化</string>
+    <string name="rebirth_queue_tracks">キューに %1$d 曲</string>
+    <string name="rebirth_clear_added">追加分を消去</string>
+    <string name="rebirth_next_up_empty">この曲の後に曲はありません</string>
+    <string name="rebirth_equalizer">イコライザー</string>
+    <string name="rebirth_classic_player">クラシックプレーヤー</string>
+    <string name="rebirth_classic_player_caption">歌詞カードの共有と詳細な歌詞コントロール</string>
+    <string name="rebirth_queue_locked">このセッションではキューはホストに従います</string>
+    <string name="rebirth_queue_move_up">上へ移動</string>
+    <string name="rebirth_queue_move_down">下へ移動</string>
+    <string name="rebirth_lyrics_sync_off">同期歌詞は設定でオフです</string>
+    <string name="rebirth_lyrics_offset">歌詞のオフセット</string>
+    <string name="rebirth_lyrics_offset_value">オフセット %1$s</string>
 </resources>

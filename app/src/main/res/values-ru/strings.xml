@@ -1340,4 +1340,16 @@
     <string name="space_open_source_notice">Total Music — изменённая версия Star Music и BitChord под GPL-3.0. Изменения: nexlibre, октябрь 2026 года. Авторские права исходных авторов сохраняются. Программу можно копировать, изменять и распространять по условиям лицензии, без гарантий. Исходный код и первоначальные уведомления доступны в указанных репозиториях. Лицензия GPL включена для чтения без интернета.</string>
     <string name="total_eq_10_bands">10 независимых полос</string>
     <string name="total_accent">Цвет акцента</string>
+    <string name="widget_immersive_label">Погружение 4×4</string>
+    <string name="widget_immersive_description">Крупная обложка с управлением и сведениями о треке.</string>
+    <string name="widget_dynamic_art_label">Динамическая обложка</string>
+    <string name="widget_dynamic_art_description">Обложка с подходящими цветами под элементами управления.</string>
+    <string name="widget_glass_panel_label">Стеклянная панель</string>
+    <string name="widget_glass_panel_description">Обложка с полупрозрачной панелью воспроизведения.</string>
+    <string name="widget_config_title">Настроить виджет</string>
+    <string name="widget_config_theme">Оформление этого виджета</string>
+    <string name="widget_theme_system">Как в системе</string>
+    <string name="widget_theme_light">Светлая</string>
+    <string name="widget_theme_dark">Тёмная</string>
+    <string name="widget_config_add">Добавить виджет</string>
 </resources>

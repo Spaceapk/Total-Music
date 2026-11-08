@@ -1,0 +1,1146 @@
+diff --git a/.github/workflows/total-music-android.yml b/.github/workflows/total-music-android.yml
+index d604420..1068e15 100644
+--- a/.github/workflows/total-music-android.yml
++++ b/.github/workflows/total-music-android.yml
+@@ -1,7 +1,7 @@
+ name: Total Music Android verification
+ on:
+   push:
+-    branches: [main]
++    branches: [main, work/playlist-chronology-selection-186]
+     paths-ignore: ['docs/**', '**/*.md', '.github/**']
+   pull_request:
+     branches: [main]
+diff --git a/app/src/androidTest/java/com/music/bitchord/DevicePlaylistStoreTest.kt b/app/src/androidTest/java/com/music/bitchord/DevicePlaylistStoreTest.kt
+index e2192c4..ba844b4 100644
+--- a/app/src/androidTest/java/com/music/bitchord/DevicePlaylistStoreTest.kt
++++ b/app/src/androidTest/java/com/music/bitchord/DevicePlaylistStoreTest.kt
+@@ -9,6 +9,38 @@ import org.junit.Test
+ import java.util.UUID
+ 
+ class DevicePlaylistStoreTest {
++    @Test fun bulkMovesAndRemovalSurviveReloadWithoutDeletingAudioOrOtherLists() {
++        val context = InstrumentationRegistry.getInstrumentation().targetContext
++        val filename = "bulk-${UUID.randomUUID()}.json"
++        val audio = java.io.File(context.filesDir, "keep-${UUID.randomUUID()}.mp3")
++        try {
++            audio.writeText("original audio")
++            val a = Song("a", "A", "Artist", null, localUri = android.net.Uri.fromFile(audio).toString(), albumName = "Z", localTrackNumber = 1, localYear = 2000)
++            val b = Song("b", "B", "Artist", null, localUri = "file:///b.mp3", albumName = "A", localTrackNumber = 2, localYear = 2002)
++            val c = Song("c", "C", "Artist", null, localUri = "file:///c.mp3", albumName = "A", localTrackNumber = 1, localYear = 2002)
++            val store = DevicePlaylistStore(context, filename)
++            store.createWithSongs("First", listOf(b, a, c))
++            store.createWithSongs("Other", listOf(a, b, c))
++            val id = store.playlists.value.first().id
++            store.setSort(id, PlaylistSort.ALBUM_ASC)
++            store.moveSongs(id, setOf(b.localUri!!, c.localUri!!), true)
++            var reloaded = DevicePlaylistStore(context, filename).playlists.value
++            assertEquals(listOf("c", "b", "a"), reloaded.first().songs.map { it.videoId })
++            assertEquals(PlaylistSort.MANUAL, reloaded.first().sort)
++            assertEquals(2000, reloaded.first().songs.last().localYear)
++            store.removeSongs(id, setOf(a.localUri!!, c.localUri!!))
++            reloaded = DevicePlaylistStore(context, filename).playlists.value
++            assertEquals(listOf("b"), reloaded.first().songs.map { it.videoId })
++            assertEquals(listOf(b.localUri), reloaded.first().addedUris)
++            assertEquals(3, reloaded.last().songs.size)
++            store.removeSongs(id, setOf(b.localUri!!))
++            assertTrue(DevicePlaylistStore(context, filename).playlists.value.first().songs.isEmpty())
++            store.delete(id)
++            assertEquals("Other", DevicePlaylistStore(context, filename).playlists.value.single().name)
++            assertEquals("original audio", audio.readText())
++        } finally { context.deleteFile(filename); audio.delete() }
++    }
++
+     @Test fun editsSurviveReloadAndKeepOfflineLocations() {
+         val context = InstrumentationRegistry.getInstrumentation().targetContext
+         val filename = "test-${UUID.randomUUID()}.json"
+@@ -193,9 +225,9 @@ class DevicePlaylistStoreTest {
+             val id = store.playlists.value.single().id
+             store.setSort(id, PlaylistSort.ALBUM_ASC)
+             val ordered = store.playlists.value.single().sortedSongs().map { it.videoId }
+-            // Greatest Hits by Alpha, then by Zulu; then Set: disc 1 track 2,
+-            // disc 1 track 10 (numeric, not textual), disc 2 track 1, untagged.
+-            assertEquals(listOf("a1", "a2", "z1", "z2", "d1t2", "d1t10", "d2", "x"), ordered)
++            // With no year tags, groups keep first-seen order: Zulu, Set,
++            // Alpha. Each group's discs and tracks remain numeric.
++            assertEquals(listOf("z1", "z2", "d1t2", "d1t10", "d2", "x", "a1", "a2"), ordered)
+             val reloaded = DevicePlaylistStore(context, filename).playlists.value.single()
+             assertEquals(PlaylistSort.ALBUM_ASC, reloaded.sort)
+             assertEquals(ordered, reloaded.sortedSongs().map { it.videoId })
+diff --git a/app/src/androidTest/java/com/music/bitchord/PlaylistSelectionUiTest.kt b/app/src/androidTest/java/com/music/bitchord/PlaylistSelectionUiTest.kt
+new file mode 100644
+index 0000000..3e2a4bc
+--- /dev/null
++++ b/app/src/androidTest/java/com/music/bitchord/PlaylistSelectionUiTest.kt
+@@ -0,0 +1,67 @@
++package com.music.bitchord
++
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.onNodeWithTag
++import androidx.compose.ui.test.onNodeWithContentDescription
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.performScrollTo
++import androidx.compose.ui.test.performTouchInput
++import androidx.compose.ui.test.longClick
++import androidx.test.platform.app.InstrumentationRegistry
++import com.music.bitchord.data.DevicePlaylistStore
++import com.music.bitchord.data.model.Song
++import com.music.bitchord.ui.player.PlayerVisualStyle
++import com.music.bitchord.ui.rebirth.RebirthDestination
++import com.music.bitchord.ui.rebirth.RebirthLocalExperience
++import com.music.bitchord.ui.screens.DevicePlaylistsTab
++import org.junit.Assert.assertEquals
++import org.junit.Rule
++import org.junit.Test
++import java.util.UUID
++
++class PlaylistSelectionUiTest {
++    @get:Rule val compose = createComposeRule()
++    private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
++
++    @Test fun originalPlaylistCanRemoveAllSelected() = removeAll(null)
++    @Test fun expressivePlaylistCanRemoveAllSelected() = removeAll(PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS)
++    @Test fun glassPlaylistCanRemoveAllSelected() = removeAll(PlayerVisualStyle.LIQUID_GLASS_PLUS)
++
++    private fun removeAll(style: PlayerVisualStyle?) {
++        val store = DevicePlaylistStore.forDevice(context)
++        val title = "Selection ${UUID.randomUUID()}"
++        val songs = (1..3).map { Song("content://media/186/$it", "Track $it", "Artist", null, localUri = "content://media/186/$it") }
++        store.createWithSongs(title, songs)
++        val id = store.playlists.value.first { it.name == title }.id
++        var played = 0
++        try {
++            compose.setContent {
++                MaterialTheme {
++                    if (style == null) DevicePlaylistsTab(songs, onPlay = { _, _ -> played++ }, padding = PaddingValues())
++                    else RebirthLocalExperience(
++                        style = style, songs = songs, currentSong = null, isPlaying = false, loading = false,
++                        favoriteIds = emptySet(), initialQuery = "", destination = RebirthDestination.LIBRARY,
++                        onPlay = { _, _ -> played++ }, onSongMenu = {}, onSettings = {},
++                        onPlayPause = {}, onNext = {}, onExpandPlayer = {},
++                    )
++                }
++            }
++            if (style != null) compose.onNodeWithText(context.getString(R.string.playlists)).performScrollTo().performClick()
++            compose.onNodeWithText(title).performScrollTo().performClick()
++            compose.onNodeWithText("Track 1").performTouchInput { longClick() }
++            // A normal tap now selects rather than starting playback.
++            compose.onNodeWithText("Track 2").performClick()
++            compose.runOnIdle { assertEquals(0, played) }
++            compose.onNodeWithText(context.getString(R.string.select_all)).performClick()
++            compose.onNodeWithContentDescription(context.getString(R.string.selection_actions)).performClick()
++            compose.onNodeWithTag("playlist-remove-selected").performClick()
++            compose.runOnIdle { assertEquals(3, store.playlists.value.first { it.id == id }.songs.size) }
++            compose.onNodeWithText(context.getString(R.string.remove)).performClick()
++            compose.waitUntil(5_000) { store.playlists.value.first { it.id == id }.songs.isEmpty() }
++            compose.runOnIdle { assertEquals(0, played) }
++        } finally { store.delete(id) }
++    }
++}
+diff --git a/app/src/main/assets/release-notes.json b/app/src/main/assets/release-notes.json
+index c09b223..ee614d6 100644
+--- a/app/src/main/assets/release-notes.json
++++ b/app/src/main/assets/release-notes.json
+@@ -1,4 +1,9 @@
+ [
++  {
++    "versionCode": 24,
++    "versionName": "1.8.6",
++    "notes": "Playlists ordenadas por año del álbum y por disco y pista dentro de cada álbum. Los álbumes sin año quedan al final. Selección múltiple con reproducción de lo marcado, reproducir después, añadir a la cola o a otra playlist, añadir o quitar favoritas, mover al inicio o al final, invertir selección y compartir los nombres de las canciones. Quitar varias canciones o vaciar una playlist en una sola operación con confirmación, conservando los archivos de audio. Eliminar playlist accesible desde la cabecera en ambos temas Plus. "
++  },
+   {
+     "versionCode": 23,
+     "versionName": "1.8.5",
+diff --git a/app/src/main/java/com/music/bitchord/MainActivity.kt b/app/src/main/java/com/music/bitchord/MainActivity.kt
+index 4fc7c00..98776c1 100644
+--- a/app/src/main/java/com/music/bitchord/MainActivity.kt
++++ b/app/src/main/java/com/music/bitchord/MainActivity.kt
+@@ -2897,6 +2897,7 @@ private fun BitChordApp(
+                             }
+                         }
+                         LocalMusicScreen(
++                            onQueueSelection = queueSongs,
+                             navigationTab = spaceLibraryTab,
+                             onOpenSettings = { showSettings = true },
+                             songs = localSongs,
+@@ -3075,6 +3076,7 @@ private fun BitChordApp(
+                                 if (rebirthEnabled) {
+                                     rebirthNavigationState.SaveableStateProvider("rebirth-library") {
+                                     com.music.bitchord.ui.rebirth.RebirthLocalExperience(
++                                    onQueueSelection = queueSongs,
+                                     style = rebirthStyle, songs = deviceSongs, currentSong = player.song,
+                                     isPlaying = player.isPlaying, loading = playPauseBusy,
+                                     favoriteIds = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys,
+@@ -3114,6 +3116,7 @@ private fun BitChordApp(
+                                     )
+                                     }
+                                 } else LocalMusicScreen(
++                            onQueueSelection = queueSongs,
+                                     songs = deviceSongs,
+                                     favoriteSongs = favoriteSongs,
+                                     navigationTab = spaceLibraryTab,
+diff --git a/app/src/main/java/com/music/bitchord/data/DevicePlaylistStore.kt b/app/src/main/java/com/music/bitchord/data/DevicePlaylistStore.kt
+index 7d01d9c..d9dffc5 100644
+--- a/app/src/main/java/com/music/bitchord/data/DevicePlaylistStore.kt
++++ b/app/src/main/java/com/music/bitchord/data/DevicePlaylistStore.kt
+@@ -53,18 +53,15 @@ data class DevicePlaylist(
+     /**
+      * The playlist in the order its own picker asks for.
+      *
+-     * Album order is groups of *(album, artist)*: two records that happen to
+-     * share a name are two records, so one artist's never interleaves with the
+-     * other's. Inside a group, discs and track numbers are compared as numbers
+-     * (so 2 comes before 10), and a track with no number goes last — the same
+-     * rule as `AlbumOrdering`, so the library and a playlist cannot disagree.
++     * Album groups follow their tagged release year, with unknown years last.
++     * Each group keeps discs and track numbers ascending in both directions.
++     * Equal years keep their original group order rather than sorting by name.
+      *
+      * Artist order is artist, then album, then disc and track, which is what
+      * "by artist" has to mean to stay readable: grouping by the artist but
+      * sorting his records alphabetically by song title is not an artist order.
+      *
+-     * Descending reverses the group key only. A record's tracks never run
+-     * backwards just because its artist is listed Z–A.
++     * Descending changes the artist or year direction, never track order.
+      */
+     fun sortedSongs(): List<Song> {
+         if (sort == PlaylistSort.MANUAL) return songs
+@@ -85,11 +82,6 @@ data class DevicePlaylist(
+             .thenByDescending { it.numberedDisc() }
+             .thenByDescending { it.numberedTrack() ?: -1 }
+             .thenComparing(byTitle)
+-        // The album group is the name *and* its artist, so homonymous albums
+-        // remain separate groups. Descending reverses the name only; the
+-        // artist is still ascending inside it.
+-        val albumGroup = byAlbum.thenComparing(byArtist)
+-        val albumGroupDescending = byAlbum.reversed().thenComparing(byArtist)
+         return when (sort) {
+             PlaylistSort.MANUAL -> songs
+             PlaylistSort.TITLE_ASC -> songs.sortedWith(byTitle)
+@@ -100,8 +92,8 @@ data class DevicePlaylist(
+             PlaylistSort.ARTIST_DESC -> songs.sortedWith(
+                 byArtist.reversed().thenComparing(byAlbum).thenComparing(discAndTrack),
+             )
+-            PlaylistSort.ALBUM_ASC -> songs.sortedWith(albumGroup.thenComparing(discAndTrack))
+-            PlaylistSort.ALBUM_DESC -> songs.sortedWith(albumGroupDescending.thenComparing(discAndTrack))
++            PlaylistSort.ALBUM_ASC -> chronologicalAlbums(descending = false, discAndTrack)
++            PlaylistSort.ALBUM_DESC -> chronologicalAlbums(descending = true, discAndTrack)
+             PlaylistSort.TRACK_ASC -> songs.sortedWith(discAndTrack)
+             PlaylistSort.TRACK_DESC -> songs.sortedWith(discAndTrackDescending)
+             PlaylistSort.RECENTLY_ADDED -> {
+@@ -112,6 +104,22 @@ data class DevicePlaylist(
+             }
+         }
+     }
++    private fun chronologicalAlbums(descending: Boolean, tracks: Comparator<Song>): List<Song> {
++        // Group first: missing or inconsistent years on individual tracks must
++        // never split a record. Album ids keep compilation artists together.
++        val groups = songs.groupBy { song ->
++            song.albumId?.let { "id:$it" }
++                ?: "${song.albumName.orEmpty().trim().lowercase(java.util.Locale.ROOT)}\u0000${song.artist.trim().lowercase(java.util.Locale.ROOT)}"
++        }.values
++        fun year(group: List<Song>) = group.mapNotNull { it.localYear?.takeIf { y -> y > 0 } }.minOrNull()
++        // Stable input order breaks year ties; album names are never an order.
++        val byYear = compareBy<List<Song>> { year(it) == null }.thenComparator { a, b ->
++            val comparison = (year(a) ?: 0).compareTo(year(b) ?: 0)
++            if (descending) -comparison else comparison
++        }
++        return groups.sortedWith(byYear).flatMap { it.sortedWith(tracks) }
++    }
++
+ }
+ 
+ /**
+@@ -160,7 +168,8 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
+                     thumbnailUrl = optional("art"), durationText = optional("duration"), albumName = optional("album"),
+                     localUri = s.getString("uri"), localPath = optional("path"), downloadFormat = optional("format"),
+                     localTrackNumber = s.optInt("track").takeIf { it > 0 },
+-                    localDiscNumber = s.optInt("disc").takeIf { it > 0 })
++                    localDiscNumber = s.optInt("disc").takeIf { it > 0 },
++                    localYear = s.optInt("year").takeIf { it > 0 })
+             }, sort = PlaylistSort.fromPersisted(p.optString("sort")),
+                 addedUris = p.optJSONArray("addedUris")?.let { uris ->
+                     (0 until uris.length()).map { uris.getString(it) }
+@@ -178,7 +187,7 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
+                 tracks.put(JSONObject().put("id", s.videoId).put("title", s.title).put("artist", s.artist)
+                     .put("art", s.thumbnailUrl).put("duration", s.durationText).put("album", s.albumName)
+                     .put("uri", s.localUri).put("path", s.localPath).put("format", s.downloadFormat)
+-                    .put("track", s.localTrackNumber).put("disc", s.localDiscNumber))
++                    .put("track", s.localTrackNumber).put("disc", s.localDiscNumber).put("year", s.localYear))
+             }
+             array.put(JSONObject().put("id", p.id).put("name", p.name).put("songs", tracks)
+                 .put("sort", p.sort.name).put("addedUris", JSONArray(p.addedUris)))
+@@ -194,6 +203,14 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
+         state.value = next
+     }
+ 
++    fun refreshMetadata(songs: List<Song>) {
++        val byUri = songs.filter { it.localUri != null }.associateBy { it.localUri }
++        synchronized(this) {
++            if (state.value.none { p -> p.songs.any { byUri[it.localUri]?.let { fresh -> fresh != it } == true } }) return
++            update { list -> list.map { p -> p.copy(songs = p.songs.map { byUri[it.localUri] ?: it }) } }
++        }
++    }
++
+     fun create(name: String) {
+         require(name.trim().isNotEmpty())
+         update { it + DevicePlaylist(UUID.randomUUID().toString(), name.trim(), emptyList()) }
+@@ -225,6 +242,20 @@ class DevicePlaylistStore(context: Context, filename: String = "star-device-play
+         if (p.id == id) p.copy(songs = p.songs.filterNot { it.localUri == uri },
+             addedUris = p.addedUris.filterNot { it == uri }) else p
+     } }
++    /** One atomic write, with identities captured from the visible selection. */
++    fun removeSongs(id: String, uris: Set<String>) = update { list -> list.map { p ->
++        if (p.id == id) p.copy(songs = p.songs.filterNot { it.localUri in uris },
++            addedUris = p.addedUris.filterNot { it in uris }) else p
++    } }
++
++    fun moveSongs(id: String, uris: Set<String>, toStart: Boolean) = update { list -> list.map { p ->
++        if (p.id != id) p else {
++            val visible = p.sortedSongs()
++            val (selected, rest) = visible.partition { it.localUri in uris }
++            p.copy(songs = if (toStart) selected + rest else rest + selected, sort = PlaylistSort.MANUAL)
++        }
++    } }
++
+     /** Apply a permutation only; reject stale edits rather than losing newer tracks. */
+     fun reorder(id: String, uris: List<String>) = update { list -> list.map { p ->
+         if (p.id == id) {
+diff --git a/app/src/main/java/com/music/bitchord/data/LocalMediaRepository.kt b/app/src/main/java/com/music/bitchord/data/LocalMediaRepository.kt
+index 6b370a1..328a171 100644
+--- a/app/src/main/java/com/music/bitchord/data/LocalMediaRepository.kt
++++ b/app/src/main/java/com/music/bitchord/data/LocalMediaRepository.kt
+@@ -92,6 +92,7 @@ object LocalMediaRepository {
+                     MediaStore.Audio.Media.ALBUM,
+                     MediaStore.Audio.Media.ALBUM_ID,
+                     MediaStore.Audio.Media.TRACK,
++            MediaStore.Audio.Media.YEAR,
+                     MediaStore.Audio.Media.DATE_ADDED,
+                     MediaStore.Audio.Media.DATE_MODIFIED,
+                 )
+@@ -109,6 +110,7 @@ object LocalMediaRepository {
+                     val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                     val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                     val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
++                    val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
+                     val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+                     val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+                     val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+@@ -128,6 +130,7 @@ object LocalMediaRepository {
+                             },
+                             trackNumber = (cursor.getInt(trackCol) % 1000).takeIf { it > 0 },
+                             discNumber = (cursor.getInt(trackCol) / 1000).takeIf { it > 0 },
++                            year = cursor.getInt(yearCol).takeIf { it > 0 },
+                             dateAddedSeconds = cursor.getLong(dateAddedCol),
+                             dateModifiedSeconds = cursor.getLong(dateModifiedCol),
+                         )
+@@ -172,6 +175,7 @@ object LocalMediaRepository {
+                 albumName = song.albumName ?: tags.albumName,
+                 localTrackNumber = tags.trackNumber ?: song.localTrackNumber,
+                 localDiscNumber = tags.discNumber ?: song.localDiscNumber,
++                localYear = tags.year ?: song.localYear,
+                 localDateAddedSeconds = tags.dateAddedSeconds,
+                 localDateModifiedSeconds = tags.dateModifiedSeconds,
+             )
+@@ -191,6 +195,7 @@ object LocalMediaRepository {
+         val dateModifiedSeconds: Long?,
+         val trackNumber: Int? = null,
+         val discNumber: Int? = null,
++        val year: Int? = null,
+     )
+ 
+     /** What MediaStore writes into a column it has nothing for. */
+@@ -224,6 +229,7 @@ object LocalMediaRepository {
+             MediaStore.Audio.Media.DURATION,
+             MediaStore.Audio.Media.DATA,
+             MediaStore.Audio.Media.TRACK,
++            MediaStore.Audio.Media.YEAR,
+             MediaStore.Audio.Media.DATE_ADDED,
+             MediaStore.Audio.Media.DATE_MODIFIED,
+         )
+@@ -278,6 +284,7 @@ object LocalMediaRepository {
+                 val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                 val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                 val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
++                val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
+                 val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+                 val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+                 val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+@@ -318,6 +325,7 @@ object LocalMediaRepository {
+                             localPath = path,
+                             localTrackNumber = (cursor.getInt(trackCol) % 1000).takeIf { it > 0 },
+                             localDiscNumber = (cursor.getInt(trackCol) / 1000).takeIf { it > 0 },
++                            localYear = cursor.getInt(yearCol).takeIf { it > 0 },
+                             localDateAddedSeconds = cursor.getLong(dateAddedCol),
+                             localDateModifiedSeconds = cursor.getLong(dateModifiedCol),
+                         )
+@@ -428,6 +436,7 @@ object LocalMediaRepository {
+         var durationText: String? = null
+         var trackNumber: Int? = null
+         var discNumber: Int? = null
++        var year: Int? = null
+ 
+         runCatching {
+             val retriever = MediaMetadataRetriever()
+@@ -438,6 +447,7 @@ object LocalMediaRepository {
+             val metaAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+             trackNumber = parseTrackTag(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER))
+             discNumber = parseTrackTag(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER))
++            year = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)?.take(4)?.toIntOrNull()?.takeIf { it > 0 }
+             val metaDur = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+ 
+             if (!metaTitle.isNullOrBlank()) title = metaTitle
+@@ -457,6 +467,7 @@ object LocalMediaRepository {
+             localUri = uriStr,
+             localTrackNumber = trackNumber ?: scanned?.trackNumber,
+             localDiscNumber = discNumber ?: scanned?.discNumber,
++            localYear = year ?: scanned?.year,
+             localDateAddedSeconds = scanned?.dateAddedSeconds,
+             localDateModifiedSeconds = scanned?.dateModifiedSeconds,
+         )
+diff --git a/app/src/main/java/com/music/bitchord/ui/components/PlaylistSelectionBar.kt b/app/src/main/java/com/music/bitchord/ui/components/PlaylistSelectionBar.kt
+new file mode 100644
+index 0000000..6f30aff
+--- /dev/null
++++ b/app/src/main/java/com/music/bitchord/ui/components/PlaylistSelectionBar.kt
+@@ -0,0 +1,94 @@
++package com.music.bitchord.ui.components
++
++import androidx.compose.foundation.layout.*
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.rounded.Close
++import androidx.compose.material.icons.rounded.MoreVert
++import androidx.compose.material3.*
++import androidx.compose.runtime.*
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.platform.testTag
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import com.music.bitchord.R
++import com.music.bitchord.data.LikeState
++import com.music.bitchord.data.model.LikeStatus
++import com.music.bitchord.data.model.Song
++
++/** One action menu for every local playlist appearance. Rows always follow visible order. */
++@Composable
++internal fun PlaylistSelectionBar(
++    visible: List<Song>,
++    selectedIds: Set<String>,
++    onSelection: (Set<String>) -> Unit,
++    onPlay: (List<Song>, Int) -> Unit,
++    onAddToPlaylist: (List<Song>) -> Unit,
++    onQueue: ((List<Song>, Boolean) -> Unit)?,
++    onRemove: ((List<Song>) -> Unit)? = null,
++    onMove: ((List<Song>, Boolean) -> Unit)? = null,
++    enabled: Boolean = true,
++) {
++    val context = LocalContext.current
++    val rows = visible.filter { it.videoId in selectedIds }
++    var menu by remember { mutableStateOf(false) }
++    var confirmRemove by remember { mutableStateOf<List<Song>?>(null) }
++    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).testTag("playlist-selection"), verticalAlignment = Alignment.CenterVertically) {
++        Text(stringResource(R.string.rebirth_selected_count, rows.size), Modifier.weight(1f))
++        TextButton(enabled = enabled, onClick = { onSelection(visible.mapTo(HashSet()) { it.videoId }) }) {
++            Text(stringResource(R.string.select_all))
++        }
++        Box {
++            IconButton(enabled = enabled && rows.isNotEmpty(), onClick = { menu = true }) {
++                Icon(Icons.Rounded.MoreVert, stringResource(R.string.selection_actions))
++            }
++            DropdownMenu(menu, onDismissRequest = { menu = false }) {
++                fun act(action: () -> Unit) { menu = false; action() }
++                DropdownMenuItem(text = { Text(stringResource(R.string.play)) }, onClick = { act { onPlay(rows, 0); onSelection(emptySet()) } })
++                if (onQueue != null) {
++                    DropdownMenuItem(text = { Text(stringResource(R.string.play_next)) }, onClick = { act { onQueue(rows, true); onSelection(emptySet()) } })
++                    DropdownMenuItem(text = { Text(stringResource(R.string.add_to_queue)) }, onClick = { act { onQueue(rows, false); onSelection(emptySet()) } })
++                }
++                DropdownMenuItem(text = { Text(stringResource(R.string.add_to_playlist)) }, onClick = { act { onAddToPlaylist(rows) } })
++                DropdownMenuItem(text = { Text(stringResource(R.string.selection_favorite)) }, onClick = { act {
++                    rows.forEach { LikeState.set(it.videoId, LikeStatus.LIKE, it) }; onSelection(emptySet())
++                } })
++                DropdownMenuItem(text = { Text(stringResource(R.string.selection_unfavorite)) }, onClick = { act {
++                    rows.forEach { LikeState.set(it.videoId, LikeStatus.INDIFFERENT, it) }; onSelection(emptySet())
++                } })
++                if (onMove != null) {
++                    DropdownMenuItem(text = { Text(stringResource(R.string.selection_to_start)) }, onClick = { act { onMove(rows, true); onSelection(emptySet()) } })
++                    DropdownMenuItem(text = { Text(stringResource(R.string.selection_to_end)) }, onClick = { act { onMove(rows, false); onSelection(emptySet()) } })
++                }
++                DropdownMenuItem(text = { Text(stringResource(R.string.selection_share)) }, onClick = { act {
++                    val text = rows.joinToString("\n") { "${it.artist} — ${it.title}" }
++                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
++                        type = "text/plain"
++                        putExtra(android.content.Intent.EXTRA_TEXT, text)
++                    }
++                    context.startActivity(android.content.Intent.createChooser(send, null))
++                } })
++                DropdownMenuItem(text = { Text(stringResource(R.string.selection_invert)) }, onClick = { act {
++                    onSelection(visible.filterNot { it.videoId in selectedIds }.mapTo(HashSet()) { it.videoId })
++                } })
++                if (onRemove != null) DropdownMenuItem(
++                    text = { Text(stringResource(R.string.selection_remove), color = MaterialTheme.colorScheme.error) },
++                    modifier = Modifier.testTag("playlist-remove-selected"),
++                    onClick = { act { confirmRemove = rows.toList() } },
++                )
++            }
++        }
++        IconButton(onClick = { onSelection(emptySet()) }) { Icon(Icons.Rounded.Close, stringResource(R.string.cancel)) }
++    }
++    confirmRemove?.let { captured ->
++        AlertDialog(onDismissRequest = { confirmRemove = null },
++            title = { Text(stringResource(R.string.selection_remove)) },
++            text = { Text(stringResource(R.string.selection_remove_confirm, captured.size)) },
++            confirmButton = { TextButton(enabled = enabled, onClick = {
++                onRemove?.invoke(captured); confirmRemove = null; onSelection(emptySet())
++            }) { Text(stringResource(R.string.remove)) } },
++            dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text(stringResource(R.string.cancel)) } },
++        )
++    }
++}
+diff --git a/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibrary.kt b/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibrary.kt
+index 39daed9..55bbdcd 100644
+--- a/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibrary.kt
++++ b/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibrary.kt
+@@ -12,6 +12,8 @@ import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
++import kotlinx.coroutines.launch
++import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.saveable.rememberSaveable
+ import androidx.compose.runtime.setValue
+@@ -64,12 +66,37 @@ fun RebirthLocalExperience(
+     emptyMessage: String? = null,
+     onShuffle: ((List<Song>) -> Unit)? = null,
+     onOpenGlobalSearch: (() -> Unit)? = null,
++    onQueueSelection: ((List<Song>, Boolean) -> Unit)? = null,
+     destination: RebirthDestination? = null,
+     onDestinationChange: (RebirthDestination) -> Unit = {},
+ ) {
+     val context = LocalContext.current
+     val store = remember(context) { DevicePlaylistStore.forDevice(context) }
+-    val playlists by store.playlists.collectAsStateWithLifecycle()
++    val scope = rememberCoroutineScope()
++    var mutationBusy by remember { mutableStateOf(false) }
++    var mutationError by remember { mutableStateOf<String?>(null) }
++    fun change(action: () -> Unit) {
++        if (mutationBusy) return
++        mutationBusy = true
++        scope.launch {
++            try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { action() } }
++            catch (error: Exception) { mutationError = error.localizedMessage ?: "Could not save playlist" }
++            finally { mutationBusy = false }
++        }
++    }
++
++    LaunchedEffect(store, songs) {
++        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
++            runCatching { store.refreshMetadata(songs) }.onFailure {
++                com.music.bitchord.data.DebugLog.w("BitChord", "Could not refresh playlist metadata: ${it.message}")
++            }
++        }
++    }
++    val storedPlaylists by store.playlists.collectAsStateWithLifecycle()
++    val playlists = remember(storedPlaylists, songs) {
++        val current = songs.associateBy { it.localUri }
++        storedPlaylists.map { p -> p.copy(songs = p.songs.map { current[it.localUri] ?: it }) }
++    }
+     val order by AppSettings.localMusicSort.collectAsStateWithLifecycle()
+     val favoriteSort by AppSettings.favoriteSort.collectAsStateWithLifecycle()
+     val favoriteEntries by LikeState.entries.collectAsStateWithLifecycle()
+@@ -213,7 +240,12 @@ fun RebirthLocalExperience(
+     )
+ 
+     val actions = RebirthLibraryActions(
+-        onPlay = onPlay,
++        onPlay = { rows, index ->
++            val song = rows.getOrNull(index)
++            if (selection.isNotEmpty() && song != null) {
++                selection = if (song.videoId in selectionIds) selection.filterNot { it == song.videoId } else selection + song.videoId
++            } else onPlay(rows, index)
++        },
+         onShuffle = { list -> onShuffle?.invoke(list) ?: onPlay(list, (list.indices).random()) },
+         onSongMenu = onSongMenu,
+         onSettings = onSettings,
+@@ -227,13 +259,23 @@ fun RebirthLocalExperience(
+         onSort = AppSettings::setLocalMusicSort,
+         onFavoriteSort = AppSettings::setFavoriteSort,
+         onRemoveFavorite = { song -> LikeState.set(song.videoId, LikeStatus.INDIFFERENT, song) },
+-        onPlaylistSort = { sort -> opened?.playlistId?.let { id -> store.setSort(id, sort) } },
++        onPlaylistSort = { sort -> opened?.playlistId?.let { id -> change { store.setSort(id, sort) } } },
+         onToggleSelection = { id ->
+             selection = if (id in selectionIds) selection.filterNot { it == id } else selection + id
+         },
+         onSelectAll = { rows -> selection = rows.map { it.videoId } },
+         onClearSelection = { selection = emptyList() },
+         onAddSelectionToPlaylist = { rows -> if (rows.isNotEmpty()) addToPlaylist = rows },
++        selectionBusy = mutationBusy,
++        onPlaySelection = onPlay,
++        onSelection = { selection = it.toList() },
++        onQueueSelection = onQueueSelection,
++        onRemoveSelection = opened?.playlistId?.let { id -> { rows: List<Song> ->
++            change { store.removeSongs(id, rows.mapNotNullTo(HashSet()) { it.localUri }) }
++        } },
++        onMoveSelection = opened?.playlistId?.let { id -> { rows: List<Song>, start: Boolean ->
++            change { store.moveSongs(id, rows.mapNotNullTo(HashSet()) { it.localUri }, start) }
++        } },
+         onCreatePlaylist = { playlistName = "" },
+         onRenamePlaylist = { collection -> renaming = collection; playlistName = collection.title },
+         onDeletePlaylist = { collection -> deleting = collection },
+@@ -241,7 +283,7 @@ fun RebirthLocalExperience(
+         onMoveInPlaylist = { from, to ->
+             val id = opened?.playlistId
+             if (id != null && canReorder && to in visible.indices && from in visible.indices) {
+-                store.move(id, from, to)
++                change { store.move(id, from, to) }
+             }
+         },
+         onRemoveFromPlaylist = { index ->
+@@ -249,7 +291,7 @@ fun RebirthLocalExperience(
+             // sorted or filtered, so an index is not a storage position.
+             val id = opened?.playlistId
+             val uri = visible.getOrNull(index)?.localUri
+-            if (id != null && uri != null) store.removeSong(id, uri)
++            if (id != null && uri != null) change { store.removeSong(id, uri) }
+         },
+         onOpenGlobalSearch = { onOpenGlobalSearch?.invoke() },
+     )
+@@ -277,6 +319,13 @@ fun RebirthLocalExperience(
+                 }
+             }
+         }
++        mutationError?.let { message ->
++            RebirthDialog(style = style, title = stringResource(R.string.star_save_error),
++                confirmLabel = stringResource(R.string.back),
++                onConfirm = { mutationError = null }, onDismiss = { mutationError = null }) {
++                androidx.compose.material3.Text(message)
++            }
++        }
+         addToPlaylist?.let { songs ->
+             DevicePlaylistPickerDialog(songs) {
+                 addToPlaylist = null
+@@ -295,9 +344,9 @@ fun RebirthLocalExperience(
+                 onConfirm = {
+                     val target = renaming
+                     if (target == null) {
+-                        store.create(draft.trim())
++                        change { store.create(draft.trim()) }
+                     } else {
+-                        store.rename(target.playlistId.orEmpty(), draft.trim())
++                        change { store.rename(target.playlistId.orEmpty(), draft.trim()) }
+                     }
+                     playlistName = null
+                     renaming = null
+@@ -317,7 +366,7 @@ fun RebirthLocalExperience(
+                 onDismiss = { deleting = null },
+                 confirmLabel = stringResource(R.string.delete),
+                 onConfirm = {
+-                    collection.playlistId?.let(store::delete)
++                    collection.playlistId?.let { id -> change { store.delete(id) } }
+                     deleting = null
+                     if (collectionId == collection.id) collectionId = null
+                 },
+diff --git a/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibraryExpressive.kt b/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibraryExpressive.kt
+index c734501..941c93f 100644
+--- a/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibraryExpressive.kt
++++ b/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibraryExpressive.kt
+@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.LibraryMusic
+ import androidx.compose.material.icons.rounded.MoreVert
+ import androidx.compose.material.icons.rounded.MusicNote
+ import androidx.compose.material.icons.rounded.PlayArrow
++import androidx.compose.material.icons.rounded.Delete
+ import androidx.compose.material.icons.rounded.PlaylistAdd
+ import androidx.compose.material.icons.rounded.Search
+ import androidx.compose.material.icons.rounded.Settings
+@@ -145,27 +146,15 @@ internal fun RebirthExpressiveLibrary(data: RebirthLibraryData, actions: Rebirth
+                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+             )
+         }
+-        if (selectionActive) {
+-            Row(
+-                Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+-                verticalAlignment = Alignment.CenterVertically,
+-            ) {
+-                Text(
+-                    text = stringResource(R.string.rebirth_selected_count, data.selection.size),
+-                    modifier = Modifier.weight(1f),
+-                    style = MaterialTheme.typography.titleMedium,
+-                    fontWeight = FontWeight.SemiBold,
+-                )
+-                TextButton(onClick = { actions.onSelectAll(data.visible) }) {
+-                    Text(stringResource(R.string.select_all))
+-                }
+-                IconButton(onClick = { actions.onAddSelectionToPlaylist(data.visible.filter { it.videoId in data.selection }) }) {
+-                    Icon(Icons.Rounded.PlaylistAdd, contentDescription = stringResource(R.string.add_to_playlist))
+-                }
+-                IconButton(onClick = actions.onClearSelection) {
+-                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cancel))
+-                }
+-            }
++        if (data.selection.isNotEmpty()) {
++            com.music.bitchord.ui.components.PlaylistSelectionBar(
++                visible = data.visible, selectedIds = data.selection,
++                onSelection = actions.onSelection, onPlay = actions.onPlaySelection,
++                onAddToPlaylist = actions.onAddSelectionToPlaylist,
++                onQueue = actions.onQueueSelection,
++                onRemove = actions.onRemoveSelection, onMove = actions.onMoveSelection,
++                enabled = !actions.selectionBusy,
++            )
+         }
+         Box(Modifier.weight(1f).fillMaxWidth()) {
+             when {
+@@ -648,6 +637,9 @@ private fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibra
+                     )
+                 }
+                 if (collection.isPlaylist) {
++                    IconButton(onClick = { actions.onDeletePlaylist(collection) }) {
++                        Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.delete_playlist))
++                    }
+                     IconButton(onClick = { actions.onRenamePlaylist(collection) }) {
+                         Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.rename_playlist))
+                     }
+diff --git a/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibraryGlass.kt b/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibraryGlass.kt
+index 8462bfd..8bc9c67 100644
+--- a/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibraryGlass.kt
++++ b/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibraryGlass.kt
+@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.LibraryMusic
+ import androidx.compose.material.icons.rounded.MoreVert
+ import androidx.compose.material.icons.rounded.MusicNote
+ import androidx.compose.material.icons.rounded.PlayArrow
++import androidx.compose.material.icons.rounded.Delete
+ import androidx.compose.material.icons.rounded.PlaylistAdd
+ import androidx.compose.material.icons.rounded.Search
+ import androidx.compose.material.icons.rounded.Settings
+@@ -198,27 +199,16 @@ internal fun RebirthGlassLibrary(data: RebirthLibraryData, actions: RebirthLibra
+                             Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.settings))
+                         }
+                     }
+-                    if (data.selection.isNotEmpty()) {
+-                        Row(
+-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+-                            verticalAlignment = Alignment.CenterVertically,
+-                        ) {
+-                            Text(
+-                                text = stringResource(R.string.rebirth_selected_count, data.selection.size),
+-                                modifier = Modifier.weight(1f),
+-                                style = MaterialTheme.typography.labelLarge,
+-                            )
+-                            TextButton(onClick = { actions.onSelectAll(data.visible) }) {
+-                                Text(stringResource(R.string.select_all))
+-                            }
+-                            IconButton(onClick = { actions.onAddSelectionToPlaylist(data.visible.filter { it.videoId in data.selection }) }) {
+-                                Icon(Icons.Rounded.PlaylistAdd, contentDescription = stringResource(R.string.add_to_playlist))
+-                            }
+-                            IconButton(onClick = actions.onClearSelection) {
+-                                Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cancel))
+-                            }
+-                        }
+-                    }
++        if (data.selection.isNotEmpty()) {
++            com.music.bitchord.ui.components.PlaylistSelectionBar(
++                visible = data.visible, selectedIds = data.selection,
++                onSelection = actions.onSelection, onPlay = actions.onPlaySelection,
++                onAddToPlaylist = actions.onAddSelectionToPlaylist,
++                onQueue = actions.onQueueSelection,
++                onRemove = actions.onRemoveSelection, onMove = actions.onMoveSelection,
++                enabled = !actions.selectionBusy,
++            )
++        }
+                     Box(Modifier.weight(1f).fillMaxWidth()) {
+                         when {
+                             data.opened != null -> GlassCollection(data, actions)
+@@ -709,6 +699,9 @@ private fun GlassCollection(data: RebirthLibraryData, actions: RebirthLibraryAct
+                 Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.play))
+             }
+             if (collection.isPlaylist) {
++                IconButton(onClick = { actions.onDeletePlaylist(collection) }) {
++                    Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.delete_playlist))
++                }
+                 PlaylistSortControl(sort = data.openedSort, onSort = actions.onPlaylistSort)
+             }
+         }
+diff --git a/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibraryModel.kt b/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibraryModel.kt
+index 559a215..c2ccfab 100644
+--- a/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibraryModel.kt
++++ b/app/src/main/java/com/music/bitchord/ui/rebirth/RebirthLibraryModel.kt
+@@ -117,6 +117,12 @@ internal class RebirthLibraryActions(
+     val onSelectAll: (List<Song>) -> Unit,
+     val onClearSelection: () -> Unit,
+     val onAddSelectionToPlaylist: (List<Song>) -> Unit,
++    val selectionBusy: Boolean = false,
++    val onPlaySelection: (List<Song>, Int) -> Unit = { _, _ -> },
++    val onSelection: (Set<String>) -> Unit = {},
++    val onQueueSelection: ((List<Song>, Boolean) -> Unit)? = null,
++    val onRemoveSelection: ((List<Song>) -> Unit)? = null,
++    val onMoveSelection: ((List<Song>, Boolean) -> Unit)? = null,
+     val onCreatePlaylist: () -> Unit,
+     val onRenamePlaylist: (RebirthCollection) -> Unit,
+     val onDeletePlaylist: (RebirthCollection) -> Unit,
+diff --git a/app/src/main/java/com/music/bitchord/ui/screens/DevicePlaylistsTab.kt b/app/src/main/java/com/music/bitchord/ui/screens/DevicePlaylistsTab.kt
+index d8c365d..ac6f767 100644
+--- a/app/src/main/java/com/music/bitchord/ui/screens/DevicePlaylistsTab.kt
++++ b/app/src/main/java/com/music/bitchord/ui/screens/DevicePlaylistsTab.kt
+@@ -1,6 +1,8 @@
+ package com.music.bitchord.ui.screens
+ 
+ import androidx.activity.compose.BackHandler
++import androidx.compose.foundation.combinedClickable
++import androidx.compose.foundation.ExperimentalFoundationApi
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.*
+ import androidx.compose.foundation.lazy.LazyColumn
+@@ -48,9 +50,11 @@ import kotlinx.coroutines.withContext
+  * has no chip row above it, and it would otherwise have no way to open
+  * favorites at all.
+  */
++@OptIn(ExperimentalFoundationApi::class)
+ @Composable
+ fun DevicePlaylistsTab(
+     songs: List<Song>,
++    onQueueSelection: ((List<Song>, Boolean) -> Unit)? = null,
+     onPlay: (List<Song>, Int) -> Unit,
+     padding: PaddingValues,
+     onOpenSettings: () -> Unit = {},
+@@ -64,7 +68,18 @@ fun DevicePlaylistsTab(
+         Text(stringResource(R.string.star_save_error), Modifier.padding(20.dp))
+         return
+     }
+-    val playlists by store.playlists.collectAsStateWithLifecycle()
++    LaunchedEffect(store, songs) {
++        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
++            runCatching { store.refreshMetadata(songs) }.onFailure {
++                com.music.bitchord.data.DebugLog.w("BitChord", "Could not refresh playlist metadata: ${it.message}")
++            }
++        }
++    }
++    val storedPlaylists by store.playlists.collectAsStateWithLifecycle()
++    val playlists = remember(storedPlaylists, songs) {
++        val current = songs.associateBy { it.localUri }
++        storedPlaylists.map { p -> p.copy(songs = p.songs.map { current[it.localUri] ?: it }) }
++    }
+     val favoriteSort by AppSettings.favoriteSort.collectAsStateWithLifecycle()
+     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+     var showingFavorites by rememberSaveable { mutableStateOf(false) }
+@@ -76,6 +91,10 @@ fun DevicePlaylistsTab(
+     val visibleSongs = remember(orderedSongs, query) {
+         orderedSongs.filter { query.isBlank() || it.title.contains(query, true) || it.artist.contains(query, true) }
+     }
++    var selection by rememberSaveable(selectedId, query) { mutableStateOf(emptyList<String>()) }
++    val selectedIds = selection.toSet()
++    var addSelection by remember { mutableStateOf<List<Song>?>(null) }
++    LaunchedEffect(visibleSongs) { selection = selection.filter { id -> visibleSongs.any { it.videoId == id } } }
+     var editing by remember { mutableStateOf(false) }
+     var name by remember { mutableStateOf("") }
+     var actionsExpanded by remember { mutableStateOf(false) }
+@@ -94,8 +113,9 @@ fun DevicePlaylistsTab(
+             finally { busy = false }
+         }
+     }
+-    BackHandler(showingFavorites || selected != null || searchOpen) {
++    BackHandler(selection.isNotEmpty() || showingFavorites || selected != null || searchOpen) {
+         when {
++            selection.isNotEmpty() -> selection = emptyList()
+             searchOpen -> { searchOpen = false; query = "" }
+             showingFavorites -> showingFavorites = false
+             else -> selectedId = null
+@@ -186,6 +206,16 @@ fun DevicePlaylistsTab(
+                 }
+             }
+         }
++        if (selected != null && selection.isNotEmpty()) {
++            com.music.bitchord.ui.components.PlaylistSelectionBar(
++                visible = visibleSongs, selectedIds = selectedIds,
++                onSelection = { selection = it.toList() }, onPlay = onPlay,
++                onAddToPlaylist = { addSelection = it }, onQueue = onQueueSelection,
++                onRemove = { rows -> change { store.removeSongs(selected.id, rows.mapNotNullTo(HashSet()) { it.localUri }) } },
++                onMove = { rows, start -> change { store.moveSongs(selected.id, rows.mapNotNullTo(HashSet()) { it.localUri }, start) } },
++                enabled = !busy,
++            )
++        }
+         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+         if (selected == null) {
+             if (playlists.isEmpty()) Text(stringResource(R.string.star_playlist_hint), Modifier.padding(20.dp))
+@@ -226,7 +256,7 @@ fun DevicePlaylistsTab(
+             val drag = remember(listState, selected.id, edgeZone, edgeSpeed) {
+                 PlaylistDrag(listState, edgeZone, edgeSpeed)
+             }
+-            val canDrag = query.isBlank() && visibleSongs.size > 1
++            val canDrag = selection.isEmpty() && query.isBlank() && visibleSongs.size > 1
+             // One write per drop; the store turns the visible order into the
+             // manual one, so dragging while another order is active is also
+             // how that order is kept.
+@@ -266,9 +296,18 @@ fun DevicePlaylistsTab(
+                         ListItem(
+                             headlineContent = { Text(song.title, maxLines = 1) },
+                             supportingContent = { Text(song.artist, maxLines = 1) },
+-                            modifier = Modifier.weight(1f).clickable {
+-                                onPlay(visibleSongs.map { it.copy(videoId = it.localUri ?: it.videoId) }, index)
++                            leadingContent = {
++                                if (selection.isNotEmpty()) Checkbox(checked = song.videoId in selectedIds, onCheckedChange = { checked ->
++                                    selection = if (checked) selection + song.videoId else selection.filterNot { it == song.videoId }
++                                })
+                             },
++                            modifier = Modifier.weight(1f).combinedClickable(
++                                onLongClick = { selection = if (song.videoId in selectedIds) selection.filterNot { it == song.videoId } else selection + song.videoId },
++                                onClick = {
++                                    if (selection.isNotEmpty()) selection = if (song.videoId in selectedIds) selection.filterNot { it == song.videoId } else selection + song.videoId
++                                    else onPlay(visibleSongs, index)
++                                },
++                            ),
+                             trailingContent = {
+                                 var songMenu by remember { mutableStateOf(false) }
+                                 Box {
+@@ -288,6 +327,7 @@ fun DevicePlaylistsTab(
+             }
+         }
+     }
++    addSelection?.let { rows -> DevicePlaylistPickerDialog(rows) { addSelection = null; selection = emptyList() } }
+     if (editing) AlertDialog(onDismissRequest = { editing = false },
+         title = { Text(stringResource(if (selected == null) R.string.create_playlist else R.string.rename)) },
+         text = { OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text(stringResource(R.string.playlist_name)) }) },
+@@ -398,7 +438,18 @@ fun DevicePlaylistPickerDialog(songs: List<Song>, onDismiss: () -> Unit) {
+             confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+         return
+     }
+-    val playlists by store.playlists.collectAsStateWithLifecycle()
++    LaunchedEffect(store, songs) {
++        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
++            runCatching { store.refreshMetadata(songs) }.onFailure {
++                com.music.bitchord.data.DebugLog.w("BitChord", "Could not refresh playlist metadata: ${it.message}")
++            }
++        }
++    }
++    val storedPlaylists by store.playlists.collectAsStateWithLifecycle()
++    val playlists = remember(storedPlaylists, songs) {
++        val current = songs.associateBy { it.localUri }
++        storedPlaylists.map { p -> p.copy(songs = p.songs.map { current[it.localUri] ?: it }) }
++    }
+     var selectedId by remember { mutableStateOf<String?>(null) }
+     var name by remember { mutableStateOf("") }
+     var busy by remember { mutableStateOf(false) }
+@@ -423,7 +474,17 @@ fun DevicePlaylistPickerDialog(songs: List<Song>, onDismiss: () -> Unit) {
+                     onValueChange = { name = it; if (it.isNotBlank()) selectedId = null },
+                     label = { Text(stringResource(R.string.new_playlist)) })
+                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+-                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
++                if (selected != null && selection.isNotEmpty()) {
++            com.music.bitchord.ui.components.PlaylistSelectionBar(
++                visible = visibleSongs, selectedIds = selectedIds,
++                onSelection = { selection = it.toList() }, onPlay = onPlay,
++                onAddToPlaylist = { addSelection = it }, onQueue = onQueueSelection,
++                onRemove = { rows -> change { store.removeSongs(selected.id, rows.mapNotNullTo(HashSet()) { it.localUri }) } },
++                onMove = { rows, start -> change { store.moveSongs(selected.id, rows.mapNotNullTo(HashSet()) { it.localUri }, start) } },
++                enabled = !busy,
++            )
++        }
++        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+             }
+         },
+         confirmButton = {
+diff --git a/app/src/main/java/com/music/bitchord/ui/screens/LocalMusicScreen.kt b/app/src/main/java/com/music/bitchord/ui/screens/LocalMusicScreen.kt
+index f2a1699..77ba992 100644
+--- a/app/src/main/java/com/music/bitchord/ui/screens/LocalMusicScreen.kt
++++ b/app/src/main/java/com/music/bitchord/ui/screens/LocalMusicScreen.kt
+@@ -144,6 +144,7 @@ private const val LOCAL_TAB_PLAYLISTS = 3
+ @Composable
+ fun LocalMusicScreen(
+     songs: List<Song>,
++    onQueueSelection: ((List<Song>, Boolean) -> Unit)? = null,
+     favoriteSongs: List<Song> = emptyList(),
+     onSongClick: (List<Song>, Int) -> Unit,
+     onSongLongPress: (Song) -> Unit,
+@@ -331,6 +332,7 @@ fun LocalMusicScreen(
+     // Playlists own their search and sort; library controls must never change playlist order.
+     if (selectedTab == LOCAL_TAB_PLAYLISTS && !isDownloads && navigationTab != null) {
+         DevicePlaylistsTab(
++            onQueueSelection = onQueueSelection,
+             songs = songs,
+             onPlay = onSongClick,
+             padding = bodyContentPadding,
+@@ -493,6 +495,7 @@ fun LocalMusicScreen(
+             when {
+                 key == "tab:$LOCAL_TAB_PLAYLISTS" && !isDownloads -> {
+                     DevicePlaylistsTab(
++            onQueueSelection = onQueueSelection,
+                         songs = songs,
+                         onPlay = onSongClick,
+                         padding = bodyContentPadding,
+diff --git a/app/src/main/res/values-es/total_music_184.xml b/app/src/main/res/values-es/total_music_184.xml
+index 261d653..bfadf68 100644
+--- a/app/src/main/res/values-es/total_music_184.xml
++++ b/app/src/main/res/values-es/total_music_184.xml
+@@ -2,7 +2,7 @@
+ <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+     <string name="space_sort_artist_ascending">Artista, A–Z</string>
+     <string name="space_sort_artist_descending">Artista, Z–A</string>
+-    <string name="space_sort_album_ascending">Álbum, A–Z</string>
+-    <string name="space_sort_album_descending">Álbum, Z–A</string>
++    <string name="space_sort_album_ascending">Álbum: más antiguos primero</string>
++    <string name="space_sort_album_descending">Álbum: más recientes primero</string>
+     <string name="rebirth_favorites_empty">Toca el corazón de una canción y aparecerá aquí.</string>
+ </resources>
+diff --git a/app/src/main/res/values-es/total_music_186.xml b/app/src/main/res/values-es/total_music_186.xml
+new file mode 100644
+index 0000000..90aea38
+--- /dev/null
++++ b/app/src/main/res/values-es/total_music_186.xml
+@@ -0,0 +1,12 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="selection_actions">Acciones de selección</string>
++    <string name="selection_favorite">Añadir a favoritas</string>
++    <string name="selection_unfavorite">Quitar de favoritas</string>
++    <string name="selection_to_start">Mover al inicio</string>
++    <string name="selection_to_end">Mover al final</string>
++    <string name="selection_invert">Invertir selección</string>
++    <string name="selection_remove">Quitar de esta playlist</string>
++    <string name="selection_remove_confirm">¿Quitar %1$d canciones de esta playlist? Los archivos de audio se conservarán en el teléfono.</string>
++    <string name="selection_share">Compartir lista de canciones</string>
++</resources>
+diff --git a/app/src/main/res/values/total_music_184.xml b/app/src/main/res/values/total_music_184.xml
+index 46cf138..4818cef 100644
+--- a/app/src/main/res/values/total_music_184.xml
++++ b/app/src/main/res/values/total_music_184.xml
+@@ -3,7 +3,7 @@
+ <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+     <string name="space_sort_artist_ascending">Artist, A–Z</string>
+     <string name="space_sort_artist_descending">Artist, Z–A</string>
+-    <string name="space_sort_album_ascending">Album, A–Z</string>
+-    <string name="space_sort_album_descending">Album, Z–A</string>
++    <string name="space_sort_album_ascending">Album: oldest first</string>
++    <string name="space_sort_album_descending">Album: newest first</string>
+     <string name="rebirth_favorites_empty">Tap the heart on a song and it will appear here.</string>
+ </resources>
+diff --git a/app/src/main/res/values/total_music_186.xml b/app/src/main/res/values/total_music_186.xml
+new file mode 100644
+index 0000000..823b6a7
+--- /dev/null
++++ b/app/src/main/res/values/total_music_186.xml
+@@ -0,0 +1,12 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="selection_actions">Selection actions</string>
++    <string name="selection_favorite">Add to favorites</string>
++    <string name="selection_unfavorite">Remove from favorites</string>
++    <string name="selection_to_start">Move to beginning</string>
++    <string name="selection_to_end">Move to end</string>
++    <string name="selection_invert">Invert selection</string>
++    <string name="selection_remove">Remove from this playlist</string>
++    <string name="selection_remove_confirm">Remove %1$d songs from this playlist? Audio files will stay on your device.</string>
++    <string name="selection_share">Share song list</string>
++</resources>
+diff --git a/app/src/test/java/com/music/bitchord/PlaylistSortTest.kt b/app/src/test/java/com/music/bitchord/PlaylistSortTest.kt
+index c817846..e9eaecf 100644
+--- a/app/src/test/java/com/music/bitchord/PlaylistSortTest.kt
++++ b/app/src/test/java/com/music/bitchord/PlaylistSortTest.kt
+@@ -36,6 +36,23 @@ class PlaylistSortTest {
+         "id", "Test", listOf(z, a, b, m), sort = sort,
+     ).sortedSongs().map { it.videoId }
+ 
++    @Test fun albumOrderUsesYearAndKeepsWholeAlbumTogether() {
++        val old2 = song("old2", "Two", "Artist", "Z last alphabetically", 2).copy(localYear = 2000)
++        val old1 = song("old1", "One", "Artist", "Z last alphabetically", 1)
++        val middle = song("middle", "Middle", "Artist", "M", 1).copy(localYear = 2002)
++        val recent = song("recent", "Recent", "Artist", "A first alphabetically", 1).copy(localYear = 2005)
++        val unknown = song("unknown", "Unknown", "Artist", "No year", 1)
++        val p = DevicePlaylist("id", "Test", listOf(recent, unknown, old2, middle, old1), PlaylistSort.ALBUM_ASC)
++        assertEquals(listOf("old1", "old2", "middle", "recent", "unknown"), p.sortedSongs().map { it.videoId })
++        assertEquals(listOf("recent", "middle", "old1", "old2", "unknown"), p.copy(sort = PlaylistSort.ALBUM_DESC).sortedSongs().map { it.videoId })
++    }
++
++    @Test fun sameYearAlbumsKeepTheirInsertionOrderRatherThanAlphabeticalOrder() {
++        val z = song("z", "Z", "Artist", "Z", 1).copy(localYear = 2000)
++        val a = song("a", "A", "Artist", "A", 1).copy(localYear = 2000)
++        assertEquals(listOf(z, a), DevicePlaylist("id", "Test", listOf(z, a), PlaylistSort.ALBUM_ASC).sortedSongs())
++    }
++
+     @Test fun titleArtistRecentAndManualOrdersAreIndependent() {
+         val original = Locale.getDefault()
+         try {
+@@ -62,9 +79,9 @@ class PlaylistSortTest {
+         val original = Locale.getDefault()
+         try {
+             Locale.setDefault(Locale.forLanguageTag("es"))
+-            assertEquals(listOf("a", "m", "b", "z"), ids(PlaylistSort.ALBUM_ASC))
+-            // "Uno" first, but still its track 1 (b) before track 2 (z).
+-            assertEquals(listOf("b", "z", "m", "a"), ids(PlaylistSort.ALBUM_DESC))
++            assertEquals(listOf("b", "z", "a", "m"), ids(PlaylistSort.ALBUM_ASC))
++            // Missing years retain the first-seen album order in both directions.
++            assertEquals(listOf("b", "z", "a", "m"), ids(PlaylistSort.ALBUM_DESC))
+         } finally { Locale.setDefault(original) }
+     }
+ 
+@@ -130,7 +147,7 @@ class PlaylistSortTest {
+                 sort = PlaylistSort.ALBUM_ASC,
+             )
+             assertEquals(
+-                listOf("a1", "a2", "z1", "z2"),
++                listOf("z1", "z2", "a1", "a2"),
+                 playlist.sortedSongs().map { it.videoId },
+             )
+         } finally { Locale.setDefault(original) }
+diff --git a/docs/TOTAL_MUSIC_186.md b/docs/TOTAL_MUSIC_186.md
+new file mode 100644
+index 0000000..74e412a
+--- /dev/null
++++ b/docs/TOTAL_MUSIC_186.md
+@@ -0,0 +1,28 @@
++# Total Music 1.8.6 — playlists
++
++Base: PR #12, commit 14312beac004e799bd5f8f9967201e299677508d.
++Rama local: work/playlist-chronology-selection-186. No se ha modificado main.
++
++## Cambios preparados
++
++- Orden por álbum basado en el año de publicación de las etiquetas de audio. Álbumes sin año al final; empates conservan el orden de incorporación de los grupos. Discos y pistas siempre en orden ascendente dentro de cada álbum. Se conserva también la dirección de años más recientes primero.
++- Lectura del año desde MediaStore y etiquetas; persistencia y actualización de las playlists existentes desde la biblioteca, sin confundir año con fecha de archivo.
++- Barra de selección común para los cuatro temas: reproducir selección, reproducir después, añadir a la cola, copiar a otra playlist o crear una con el selector existente, añadir/quitar favoritas, mover al inicio/final, invertir y compartir nombres de canciones como texto.
++- Quitar toda la selección en una operación atómica, con confirmación. No elimina los archivos de música. Las operaciones usan las identidades de las canciones, incluso con búsqueda y orden activo.
++- Pulsación larga inicia la selección; durante la selección, tocar otra fila cambia su selección sin reproducirla.
++- Eliminar playlist accesible en la cabecera de los temas Plus. Los temas originales conservan la acción en el menú superior.
++- VersionName 1.8.6, versionCode 24; identidad y huella del certificado previstas intactas.
++
++## Validación realizada
++
++- scripts/release/check_release.py: identidad pública, huella de certificado, aislamiento de firma y notas de versión correctos.
++- git diff --check: sin errores.
++- Recursos XML de las versiones 1.8.x: 29 archivos analizados correctamente; todas las cadenas del nuevo menú resueltas.
++
++## Pendiente antes de entregar un APK
++
++No se ha compilado ni probado en emulador. El wrapper no puede descargar Gradle en este entorno (Network is unreachable).
++
++Se añadieron pruebas JVM para cronología, años desconocidos y empates; pruebas Android de persistencia de operaciones en bloque, conservación de archivos y otras playlists; pruebas de interfaz para selección sin reproducción accidental, confirmación y vaciado en los temas originales y los dos Plus. Estas pruebas todavía no se han ejecutado.
++
++La rama incluye el disparador de verificación estándar de GitHub Actions, con pruebas JVM, lint y compilación. La subida fue rechazada por la revisión automática, que requiere autorización explícita para publicar los cambios en GitHub. No se ha utilizado otra vía para eludir el bloqueo. Falta subir la rama, ejecutar las pruebas y, si se solicita APK, compilar y firmar con la clave original.
+diff --git a/shared/src/commonMain/kotlin/com/music/bitchord/data/model/Models.kt b/shared/src/commonMain/kotlin/com/music/bitchord/data/model/Models.kt
+index be6895d..5121ad3 100644
+--- a/shared/src/commonMain/kotlin/com/music/bitchord/data/model/Models.kt
++++ b/shared/src/commonMain/kotlin/com/music/bitchord/data/model/Models.kt
+@@ -93,6 +93,8 @@ data class Song(
+     val localDateModifiedSeconds: Long? = null,
+     val localTrackNumber: Int? = null,
+     val localDiscNumber: Int? = null,
++    /** Release year from audio tags; never the file creation date. */
++    val localYear: Int? = null,
+     /**
+      * What a non-YouTube source says it can serve this recording at, as one of
+      * `LOSSLESS`, `HIGH` or `LOW` — null for every row that didn't come from
+diff --git a/total-music-release.properties b/total-music-release.properties
+index a219285..6943624 100644
+--- a/total-music-release.properties
++++ b/total-music-release.properties
+@@ -1,5 +1,5 @@
+ applicationId=org.nexlibre.totalmusic
+-versionName=1.8.5
+-versionCode=23
++versionName=1.8.6
++versionCode=24
+ certificateSha256=9ae145a703a85902fe6d6ab3d886f6801873d717929deaa3e3d0b0a81de829fa
+ keyAlias=totalmusic-release

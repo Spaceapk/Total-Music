@@ -15,7 +15,8 @@ import com.music.bitchord.ui.components.rememberRemoteArtworkUrl
 @Composable
 fun ArtworkPlayerTheme(song: Song, content: @Composable () -> Unit) {
     val enabled by TotalMusicSettings.artworkColors.collectAsStateWithLifecycle()
-    if (!enabled || !LocalGoogleExpressive.current) {
+    val style by com.music.bitchord.data.settings.AppSettings.playerVisualStyle.collectAsStateWithLifecycle()
+    if (!enabled || (!LocalGoogleExpressive.current && style != com.music.bitchord.ui.player.PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS)) {
         content()
         return
     }

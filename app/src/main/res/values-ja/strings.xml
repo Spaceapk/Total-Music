@@ -1286,4 +1286,16 @@
     <string name="space_open_source_notice">Total MusicはStar MusicとBitChordを基にした改変版で、GPL-3.0で配布されています。改変: nexlibre、2026年10月。原作者の著作権は保持されます。ライセンスに従って複製、改変、再配布できますが、保証はありません。ソースコードと元の告知はリンク先のリポジトリにあります。GPLライセンスはオフラインで閲覧できます。</string>
     <string name="total_eq_10_bands">10個の独立したバンド</string>
     <string name="total_accent">アクセントカラー</string>
+    <string name="widget_immersive_label">没入型 4×4</string>
+    <string name="widget_immersive_description">大きなアルバムアートと再生コントロール、曲の詳細。</string>
+    <string name="widget_dynamic_art_label">ダイナミックアート</string>
+    <string name="widget_dynamic_art_description">再生コントロールの背景をアルバムに合わせて彩ります。</string>
+    <string name="widget_glass_panel_label">ガラスパネル</string>
+    <string name="widget_glass_panel_description">半透明の再生パネル付きアルバムアート。</string>
+    <string name="widget_config_title">ウィジェットをカスタマイズ</string>
+    <string name="widget_config_theme">このウィジェットの外観</string>
+    <string name="widget_theme_system">システムに合わせる</string>
+    <string name="widget_theme_light">ライト</string>
+    <string name="widget_theme_dark">ダーク</string>
+    <string name="widget_config_add">ウィジェットを追加</string>
 </resources>

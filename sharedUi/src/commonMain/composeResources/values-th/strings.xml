@@ -200,4 +200,22 @@
     <string name="search_library_empty">ค้นหาเพลงในโฟลเดอร์เพลงในเครื่องของคุณ</string>
     <string name="search_library_hint">เพลง ศิลปิน และอัลบั้ม</string>
     <string name="search_library_no_results">ไม่มีอะไรในเพลงในเครื่องตรงกับ “%1$s”</string>
+    <string name="rebirth_playback_tools">เครื่องมือการเล่น</string>
+    <string name="rebirth_lyrics_page">เนื้อเพลง</string>
+    <string name="rebirth_output">เอาต์พุต</string>
+    <string name="rebirth_tools_short">เครื่องมือ</string>
+    <string name="rebirth_translate">แปล</string>
+    <string name="rebirth_romanize">ถอดเป็นอักษรโรมัน</string>
+    <string name="rebirth_queue_tracks">%1$d ในคิว</string>
+    <string name="rebirth_clear_added">ล้างรายการที่เพิ่ม</string>
+    <string name="rebirth_next_up_empty">ไม่มีเพลงถัดไปหลังเพลงนี้</string>
+    <string name="rebirth_equalizer">อีควอไลเซอร์</string>
+    <string name="rebirth_classic_player">เครื่องเล่นแบบคลาสสิก</string>
+    <string name="rebirth_classic_player_caption">แชร์การ์ดเนื้อเพลงและตัวควบคุมเนื้อเพลงขั้นสูง</string>
+    <string name="rebirth_queue_locked">ในเซสชันนี้คิวจะตามโฮสต์</string>
+    <string name="rebirth_queue_move_up">เลื่อนขึ้น</string>
+    <string name="rebirth_queue_move_down">เลื่อนลง</string>
+    <string name="rebirth_lyrics_sync_off">เนื้อเพลงซิงก์ปิดอยู่ในการตั้งค่า</string>
+    <string name="rebirth_lyrics_offset">การเลื่อนเนื้อเพลง</string>
+    <string name="rebirth_lyrics_offset_value">เลื่อน %1$s</string>
 </resources>

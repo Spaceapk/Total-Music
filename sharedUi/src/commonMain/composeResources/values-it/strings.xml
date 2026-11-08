@@ -200,4 +200,22 @@
     <string name="search_library_empty">Cerca i brani nella cartella Musica locale.</string>
     <string name="search_library_hint">Brani, artisti e album</string>
     <string name="search_library_no_results">Nulla in Musica locale corrisponde a «%1$s».</string>
+    <string name="rebirth_playback_tools">Strumenti di riproduzione</string>
+    <string name="rebirth_lyrics_page">Testo</string>
+    <string name="rebirth_output">Uscita</string>
+    <string name="rebirth_tools_short">Strumenti</string>
+    <string name="rebirth_translate">Traduci</string>
+    <string name="rebirth_romanize">Romanizza</string>
+    <string name="rebirth_queue_tracks">%1$d in coda</string>
+    <string name="rebirth_clear_added">Svuota aggiunte</string>
+    <string name="rebirth_next_up_empty">Niente dopo questo brano</string>
+    <string name="rebirth_equalizer">Equalizzatore</string>
+    <string name="rebirth_classic_player">Lettore classico</string>
+    <string name="rebirth_classic_player_caption">Condivisione della scheda testo e controlli avanzati del testo</string>
+    <string name="rebirth_queue_locked">In questa sessione la coda segue l'host</string>
+    <string name="rebirth_queue_move_up">Sposta su</string>
+    <string name="rebirth_queue_move_down">Sposta giù</string>
+    <string name="rebirth_lyrics_sync_off">I testi sincronizzati sono disattivati nelle impostazioni</string>
+    <string name="rebirth_lyrics_offset">Offset del testo</string>
+    <string name="rebirth_lyrics_offset_value">Offset %1$s</string>
 </resources>
