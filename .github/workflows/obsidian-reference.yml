@@ -1,0 +1,56 @@
+name: Extract targeted Obsidian functional reference
+on:
+  push:
+    branches: [arena/1ae8428b-total-music]
+    paths: ['.github/workflows/obsidian-reference.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  checks: write
+jobs:
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - name: Extract only the missing functional components from the supplied APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p reference/tools reference/out
+          gh release download v1.10.0 -R Spaceapk/Total-Music -p Total-Music-1.10.0-universal.apk -D reference
+          echo '283154348d8c289d5d8305279c35a3cca23f9600b61019c0cbdbbad3ad33dff7  reference/Total-Music-1.10.0-universal.apk' | sha256sum -c -
+          gh release download v1.5.6 -R skylot/jadx -p jadx-1.5.6.zip -D reference/tools
+          unzip -q reference/tools/jadx-1.5.6.zip -d reference/tools/jadx
+          chmod +x reference/tools/jadx/bin/jadx
+          for cls in \
+            com.music.bitchord.ui.rebirth.ObsidianLibraryKt \
+            com.music.bitchord.ui.player.ObsidianPlayerKt \
+            com.music.bitchord.ui.player.RebirthDockKt \
+            com.music.bitchord.ui.motion.MotionExperienceKt \
+            com.music.bitchord.ui.motion.MotionContentKt \
+            com.music.bitchord.ui.theme.MotionSettingsKt \
+            com.music.bitchord.data.lyrics.OfflineLyricsEngine \
+            com.music.bitchord.data.settings.AppSettings \
+            com.music.bitchord.ui.rebirth.AppearanceThemePickerKt; do
+            reference/tools/jadx/bin/jadx --no-res --no-debug-info --single-class "$cls" -d reference/out reference/Total-Music-1.10.0-universal.apk > "reference/out/$cls.log" 2>&1 || true
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,os,subprocess
+          files=sorted(Path('reference/out/sources').rglob('*.java'))
+          manifest=[]
+          for f in files:
+           data=f.read_text(errors='replace'); chunks=[data[i:i+48000] for i in range(0,len(data),48000)]
+           manifest.append({'name':f.name,'parts':len(chunks),'characters':len(data)})
+           for i,chunk in enumerate(chunks):
+            payload={'name':f'Reference {f.stem} {i+1}/{len(chunks)}','head_sha':os.environ['GITHUB_SHA'],'status':'completed','conclusion':'neutral','output':{'title':str(f),'summary':'Targeted functional reference from the exact user-supplied 1.10.0 APK; not recovered original source.','text':chunk}}
+            Path('reference/payload.json').write_text(json.dumps(payload))
+            subprocess.run(['gh','api','repos/'+os.environ['GITHUB_REPOSITORY']+'/check-runs','--input','reference/payload.json','--jq','.id'],check=True)
+          payload={'name':'Obsidian targeted reference manifest','head_sha':os.environ['GITHUB_SHA'],'status':'completed','conclusion':'neutral','output':{'title':'Extracted components','summary':'Read these check texts to reconstruct the missing behavior.','text':json.dumps(manifest,indent=2)}}
+          Path('reference/payload.json').write_text(json.dumps(payload))
+          subprocess.run(['gh','api','repos/'+os.environ['GITHUB_REPOSITORY']+'/check-runs','--input','reference/payload.json'],check=True)
+          print(json.dumps(manifest,indent=2))
+          PY
