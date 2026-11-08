@@ -1,0 +1,69 @@
+name: Total Music Obsidian Fidelity — build and verify
+on:
+  push:
+    branches: [arena/1ae8428b-total-music]
+    paths:
+      - 'app/**'
+      - 'shared/**'
+      - 'sharedUi/**'
+      - 'gradle/**'
+      - '*gradle*'
+      - 'total-music-release.properties'
+      - 'scripts/obsidian/**'
+      - '.github/workflows/obsidian-fidelity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: obsidian-fidelity-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  ORG_GRADLE_PROJECT_spaceNdkVersion: '27.0.12077973'
+  GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8'
+jobs:
+  compile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install pinned Android toolchain
+        run: |
+          set -euo pipefail
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+      - name: Compile the integrated source before feature work
+        run: |
+          set -o pipefail
+          mkdir -p ci-results
+          ./gradlew :app:compileProdDebugKotlin --max-workers=2 --build-cache --stacktrace -PspaceSpatialEdition=true 2>&1 | tee ci-results/compile.log
+      - name: Publish actual compiler diagnostics
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('ci-results/compile.log')
+          text=p.read_text(errors='replace') if p.exists() else 'Compiler did not start.'
+          lines=text.splitlines()
+          errors=[x for x in lines if x.startswith('e: ') or 'FAILURE:' in x or 'What went wrong:' in x or 'Caused by:' in x]
+          report='\n'.join(errors[:70])+'\n\nLAST LINES\n'+'\n'.join(lines[-90:])
+          Path('ci-results/compiler-report.md').write_text('Compiler result for '+__import__('os').environ['GITHUB_SHA']+'\n```text\n'+report[-23000:]+'\n```\n')
+          PY
+          gh issue comment 14 --repo "$GITHUB_REPOSITORY" --body-file ci-results/compiler-report.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: obsidian-compiler-${{ github.sha }}
+          path: ci-results/
+          if-no-files-found: warn
+          retention-days: 14
