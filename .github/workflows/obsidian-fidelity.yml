@@ -291,7 +291,7 @@ jobs:
            if p.exists(): parts+=['## '+name,'```text',p.read_text(errors='replace')[:4000],'```']
           p=r/'instrumentation.log'
           if p.exists():
-           text=p.read_text(errors='replace'); parts+=['## instrumentation tail','```text','\n'.join(text.splitlines()[-180:])[-18000:],'```']
+           text=p.read_text(errors='replace'); parts+=['## instrumentation tail','```text','\n'.join(text.splitlines()[-320:])[-28000:],'```']
           for name in ['crash.txt','ui-dump.txt']:
            p=r/name
            if p.exists(): parts+=['## '+name,'```text',p.read_text(errors='replace')[-6000:],'```']
