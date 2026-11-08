@@ -4,7 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.CubicBezier
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -38,10 +38,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
  */
 
 /** The decelerate half of Material 3's emphasized curve — for things arriving. */
-internal val RebirthEmphasizedDecelerate = CubicBezier(0.05f, 0.7f, 0.1f, 1f)
+internal val RebirthEmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 
 /** The accelerate half — for things leaving. */
-internal val RebirthEmphasizedAccelerate = CubicBezier(0.3f, 0f, 0.8f, 0.15f)
+internal val RebirthEmphasizedAccelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 
 /** The M3 way: settles without overshoot. */
 internal fun rebirthSettleSpring(): AnimationSpec<Float> =
@@ -120,11 +120,11 @@ internal fun Modifier.rebirthPress(
     } else {
         rebirthSettleSpring()
     }
-    val scaleX by animateFloatAsState(
+    val animatedScaleX by animateFloatAsState(
         targetValue = if (pressed) pressedScale else 1f,
         animationSpec = spec,
     )
-    val scaleY by animateFloatAsState(
+    val animatedScaleY by animateFloatAsState(
         targetValue = if (pressed) pressedScale * 0.97f else 1f,
         animationSpec = spec,
     )
@@ -145,8 +145,8 @@ internal fun Modifier.rebirthPress(
             }
         }
         .graphicsLayer {
-            scaleX = scaleX
-            scaleY = scaleY
+            scaleX = animatedScaleX
+            scaleY = animatedScaleY
         }
 }
 
