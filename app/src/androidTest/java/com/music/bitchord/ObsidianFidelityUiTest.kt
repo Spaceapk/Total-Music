@@ -2,6 +2,7 @@ package com.music.bitchord
 
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -15,6 +16,7 @@ import com.music.bitchord.data.settings.TotalMusicSettings
 import com.music.bitchord.playback.PlaybackPosition
 import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.ui.player.NowPlayingScreen
+import com.music.bitchord.ui.player.LocalMotionReduced
 import com.music.bitchord.ui.player.PlayerVisualStyle
 import com.music.bitchord.ui.rebirth.AppearanceThemePicker
 import com.music.bitchord.ui.rebirth.RebirthLocalExperience
@@ -32,8 +34,13 @@ class ObsidianFidelityUiTest {
     @Test fun fifthThemePersistsWithoutChangingLegacyThemes() {
         val old = AppSettings.playerVisualStyle.value
         try {
+            AppSettings.setPlayerVisualStyle(PlayerVisualStyle.ORIGINAL)
             compose.setContent { MaterialTheme { AppearanceThemePicker() } }
             compose.onNodeWithText("Obsidian").performClick()
+            compose.waitUntil(5_000) {
+                compose.activity.getSharedPreferences("bitchord_settings", 0)
+                    .getString("player_visual_style", null) == "OBSIDIAN"
+            }
             compose.runOnIdle {
                 assertEquals(PlayerVisualStyle.OBSIDIAN, AppSettings.playerVisualStyle.value)
                 assertEquals("OBSIDIAN", compose.activity.getSharedPreferences("bitchord_settings", 0).getString("player_visual_style", null))
@@ -43,13 +50,15 @@ class ObsidianFidelityUiTest {
 
     @Test fun integratedDockSearchesAndTransforms() {
         compose.setContent {
-            MaterialTheme {
-                RebirthLocalExperience(
-                    style = PlayerVisualStyle.OBSIDIAN, songs = songs, currentSong = songs[0],
-                    isPlaying = true, loading = false, favoriteIds = emptySet(), initialQuery = "",
-                    onPlay = { _, _ -> }, onSongMenu = {}, onSettings = {}, onPlayPause = {},
-                    onNext = {}, onPrevious = {}, onExpandPlayer = {},
-                )
+            CompositionLocalProvider(LocalMotionReduced provides true) {
+                MaterialTheme {
+                    RebirthLocalExperience(
+                        style = PlayerVisualStyle.OBSIDIAN, songs = songs, currentSong = songs[0],
+                        isPlaying = true, loading = false, favoriteIds = emptySet(), initialQuery = "",
+                        onPlay = { _, _ -> }, onSongMenu = {}, onSettings = {}, onPlayPause = {},
+                        onNext = {}, onPrevious = {}, onExpandPlayer = {},
+                    )
+                }
             }
         }
         compose.onNodeWithTag("obsidian-library").assertExists()
@@ -68,21 +77,23 @@ class ObsidianFidelityUiTest {
         try {
             AppSettings.setPlayerVisualStyle(PlayerVisualStyle.OBSIDIAN)
             compose.setContent {
-                MaterialTheme {
-                    NowPlayingScreen(
-                        song = songs[0], isPlaying = true, isLoading = false, position = position,
-                        durationMs = 60000, audioVersionSwitching = false, qualityUpgraded = false,
-                        queue = songs, queueIndex = 0, hasPrevious = false, hasNext = true,
-                        repeatMode = 0, shuffleEnabled = false, autoplayEnabled = false,
-                        signedIn = false, accountName = null, likeStatus = com.music.bitchord.data.model.LikeStatus.INDIFFERENT,
-                        onToggleLike = {}, onPlayPause = {}, onNext = {}, onPrevious = {}, onBlockedControl = {},
-                        onSeek = {}, onSeekFraction = {}, onToggleShuffle = {}, onCycleRepeat = {},
-                        onToggleAutoplay = {}, onJumpTo = {}, onRemoveFromQueue = {}, onMoveInQueue = { _, _ -> },
-                        onClearQueue = {}, onOpenMenu = {}, onOpenAlbum = {}, onOpenArtist = { _, _ -> },
-                        onOpenPlaybackSource = {}, onListenTogether = {}, lyrics = lyrics, lyricsSource = null,
-                        lyricsProviderStates = emptyMap(), onSelectLyricsProvider = {}, lyricsUnavailable = false,
-                        lyricsOffsetOpen = false, onDismissLyricsOffset = {}, windowWidth = 360.dp, windowHeight = 800.dp,
-                    )
+                CompositionLocalProvider(LocalMotionReduced provides true) {
+                    MaterialTheme {
+                        NowPlayingScreen(
+                            song = songs[0], isPlaying = true, isLoading = false, position = position,
+                            durationMs = 60000, audioVersionSwitching = false, qualityUpgraded = false,
+                            queue = songs, queueIndex = 0, hasPrevious = false, hasNext = true,
+                            repeatMode = 0, shuffleEnabled = false, autoplayEnabled = false,
+                            signedIn = false, accountName = null, likeStatus = com.music.bitchord.data.model.LikeStatus.INDIFFERENT,
+                            onToggleLike = {}, onPlayPause = {}, onNext = {}, onPrevious = {}, onBlockedControl = {},
+                            onSeek = {}, onSeekFraction = {}, onToggleShuffle = {}, onCycleRepeat = {},
+                            onToggleAutoplay = {}, onJumpTo = {}, onRemoveFromQueue = {}, onMoveInQueue = { _, _ -> },
+                            onClearQueue = {}, onOpenMenu = {}, onOpenAlbum = {}, onOpenArtist = { _, _ -> },
+                            onOpenPlaybackSource = {}, onListenTogether = {}, lyrics = lyrics, lyricsSource = null,
+                            lyricsProviderStates = emptyMap(), onSelectLyricsProvider = {}, lyricsUnavailable = false,
+                            lyricsOffsetOpen = false, onDismissLyricsOffset = {}, windowWidth = 360.dp, windowHeight = 800.dp,
+                        )
+                    }
                 }
             }
             compose.onNodeWithTag("obsidian-player").assertExists()
