@@ -1,0 +1,123 @@
+
+
+===== TAIL =====
+> Task :sharedUi:prepareComposeResourcesTaskForAndroidMain NO-SOURCE
+> Task :sharedUi:convertXmlValueResourcesForAndroidRelease NO-SOURCE
+> Task :sharedUi:copyNonXmlValueResourcesForAndroidRelease NO-SOURCE
+> Task :sharedUi:prepareComposeResourcesTaskForAndroidRelease NO-SOURCE
+> Task :sharedUi:copyReleaseComposeResourcesToAndroidAssets UP-TO-DATE
+> Task :sharedUi:generateReleaseResValues UP-TO-DATE
+> Task :sharedUi:generateReleaseResources UP-TO-DATE
+> Task :sharedUi:packageReleaseResources UP-TO-DATE
+> Task :app:mapProdPlusTestSourceSetPaths UP-TO-DATE
+> Task :app:generateProdPlusTestResources UP-TO-DATE
+> Task :app:mergeProdPlusTestResources UP-TO-DATE
+> Task :app:packageProdPlusTestResources UP-TO-DATE
+> Task :app:parseProdPlusTestLocalResources UP-TO-DATE
+> Task :app:createProdPlusTestCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksProdPlusTest UP-TO-DATE
+> Task :shared:extractDeepLinksRelease UP-TO-DATE
+> Task :shared:processReleaseManifest UP-TO-DATE
+> Task :sharedUi:extractDeepLinksRelease UP-TO-DATE
+> Task :sharedUi:processReleaseManifest UP-TO-DATE
+> Task :app:processProdPlusTestMainManifest UP-TO-DATE
+> Task :app:processProdPlusTestManifest UP-TO-DATE
+> Task :app:processProdPlusTestManifestForPackage UP-TO-DATE
+> Task :shared:compileReleaseLibraryResources UP-TO-DATE
+> Task :shared:parseReleaseLocalResources UP-TO-DATE
+> Task :shared:generateReleaseRFile UP-TO-DATE
+> Task :sharedUi:compileReleaseLibraryResources UP-TO-DATE
+> Task :sharedUi:parseReleaseLocalResources UP-TO-DATE
+> Task :sharedUi:generateReleaseRFile UP-TO-DATE
+> Task :app:processProdPlusTestResources UP-TO-DATE
+> Task :shared:compileReleaseKotlinAndroid UP-TO-DATE
+> Task :shared:javaPreCompileRelease UP-TO-DATE
+> Task :shared:compileReleaseJavaWithJavac NO-SOURCE
+> Task :shared:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :sharedUi:generateResourceAccessorsForAndroidMain NO-SOURCE
+> Task :sharedUi:generateActualResourceCollectorsForAndroidMain UP-TO-DATE
+> Task :sharedUi:generateResourceAccessorsForAndroidRelease NO-SOURCE
+> Task :sharedUi:compileReleaseKotlinAndroid UP-TO-DATE
+> Task :sharedUi:javaPreCompileRelease UP-TO-DATE
+> Task :sharedUi:compileReleaseJavaWithJavac NO-SOURCE
+> Task :sharedUi:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :app:compileProdPlusTestKotlin UP-TO-DATE
+> Task :app:javaPreCompileProdPlusTest UP-TO-DATE
+> Task :app:compileProdPlusTestJavaWithJavac UP-TO-DATE
+> Task :app:bundleProdPlusTestClassesToRuntimeJar
+> Task :app:bundleProdPlusTestClassesToCompileJar UP-TO-DATE
+
+> Task :app:compileProdPlusTestUnitTestKotlin
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/EqualizerProcessorTest.kt:173:19 'fun flush(): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/EqualizerProcessorTest.kt:271:19 'fun flush(): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/QueueCoordinatorTest.kt:500:44 Unchecked cast of 'Any!' to 'List<MediaItem>'.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/QueueShuffleTierTest.kt:98:44 Unchecked cast of 'Any!' to 'List<MediaItem>'.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/playback/audio/AudioPipelineTelemetryTest.kt:270:43 Condition is always 'true'.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/playback/audio/AudioPipelineTelemetryTest.kt:272:13 Condition is always 'true'.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/playback/audio/FloatDspChainTest.kt:40:12 'fun flush(): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/playback/audio/FloatDspChainTest.kt:69:12 'fun flush(): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/playback/audio/FloatDspChainTest.kt:107:12 'fun flush(): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/playback/audio/FloatDspChainTest.kt:135:12 'fun flush(): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/playback/audio/FloatDspChainTest.kt:159:12 'fun flush(): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/playback/audio/FloatDspChainTest.kt:188:12 'fun flush(): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/playback/audio/FloatDspChainTest.kt:263:20 'fun flush(): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/playback/audio/FloatDspChainTest.kt:292:20 'fun flush(): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/Total-Music/Total-Music/app/src/test/java/com/music/bitchord/playback/audio/FloatDspChainTest.kt:320:20 'fun flush(): Unit' is deprecated. Deprecated in Java.
+
+> Task :app:preProdPlusTestUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileProdPlusTestUnitTest FROM-CACHE
+> Task :app:compileProdPlusTestUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processProdPlusTestJavaRes UP-TO-DATE
+> Task :app:processProdPlusTestUnitTestJavaRes
+> Task :shared:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :shared:processReleaseJavaRes UP-TO-DATE
+> Task :sharedUi:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :sharedUi:processReleaseJavaRes UP-TO-DATE
+
+> Task :shared:compileKotlinJvm
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/Http.kt:112:13 Condition is always 'false'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/innertube/StreamResolver.kt:172:30 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/innertube/StreamResolver.kt:790:34 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/lyrics/Genius.kt:335:53 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/lyrics/LrcLib.kt:80:33 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/lyrics/LyricsHttp.kt:50:49 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/lyrics/LyricsHttp.kt:63:49 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/lyrics/LyricsHttp.kt:81:49 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/lyrics/LyricsTranslation.kt:494:48 The corresponding parameter in the supertype 'Callback' is named 'e'. This may cause problems when calling this function with named arguments.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/lyrics/LyricsTranslation.kt:500:60 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/lyrics/Musixmatch.kt:291:53 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/presence/Presence.kt:106:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/spotify/SpotifyImporter.kt:89:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/spotify/SpotifyImporter.kt:211:30 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/spotify/SpotifyLibrary.kt:207:40 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/Total-Music/Total-Music/shared/src/jvmSharedMain/kotlin/com/my/kizzy/rpc/KizzyRPC.kt:178:24 Redundant creation of Json format. Creating instances for each usage can be slow.
+
+> Task :app:testProdPlusTestUnitTest
+> Task :shared:compileJvmMainJava NO-SOURCE
+> Task :shared:jvmMainClasses
+> Task :shared:jvmJar
+> Task :shared:compileTestKotlinJvm
+> Task :shared:compileJvmTestJava NO-SOURCE
+> Task :shared:jvmTestClasses
+> Task :shared:jvmTest
+
+> Task :sharedUi:compileKotlinJvm
+w: file:///home/runner/work/Total-Music/Total-Music/sharedUi/src/jvmMain/kotlin/com/music/bitchord/ui/player/PlayerPlatformUi.jvm.kt:112:37 'val Canvas.nativeCanvas: Canvas' is deprecated. Naming alignment to avoid ambiguity: use [Canvas.skiaCanvas] extension instead.
+w: file:///home/runner/work/Total-Music/Total-Music/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/components/Common.kt:444:41 'val Icons.Rounded.PlaylistPlay: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.PlaylistPlay.
+w: file:///home/runner/work/Total-Music/Total-Music/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/components/Common.kt:444:73 'val Icons.Rounded.PlaylistAdd: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.PlaylistAdd.
+w: file:///home/runner/work/Total-Music/Total-Music/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/RebirthExpressivePlayer.kt:314:32 'val Icons.Rounded.QueueMusic: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.QueueMusic.
+w: file:///home/runner/work/Total-Music/Total-Music/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/RebirthGlassPlayer.kt:475:34 'val Icons.Rounded.QueueMusic: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.QueueMusic.
+w: file:///home/runner/work/Total-Music/Total-Music/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/ThinSlider.kt:330:42 Condition is always 'true'.
+w: file:///home/runner/work/Total-Music/Total-Music/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/screens/SearchScreen.kt:294:29 'when' is exhaustive so 'else' is redundant here.
+
+> Task :sharedUi:compileJvmMainJava NO-SOURCE
+> Task :sharedUi:jvmMainClasses
+> Task :sharedUi:jvmJar
+> Task :sharedUi:compileTestKotlinJvm
+> Task :sharedUi:compileJvmTestJava NO-SOURCE
+> Task :sharedUi:jvmTestClasses
+> Task :sharedUi:jvmTest
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/tests-1794669220696.json
+
+BUILD SUCCESSFUL in 44s
+77 actionable tasks: 19 executed, 1 from cache, 57 up-to-date
