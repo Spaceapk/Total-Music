@@ -1,0 +1,1 @@
+instrumentation:org.nexlibre.totalmusic.plus.test.test/androidx.test.runner.AndroidJUnitRunner (target=org.nexlibre.totalmusic.plus.test)

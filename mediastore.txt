@@ -1,0 +1,8 @@
+Row: 0 title=Jardín Eléctrico, artist=Los Faroles, album=Neón Verde
+Row: 1 title=Último Tren, artist=Sol Naciente, album=Dorado
+Row: 2 title=Cielo Índigo, artist=Aria Montes, album=Azul Profundo
+Row: 3 title=Amanecer Coral, artist=Luna Vega, album=Mareas
+Row: 4 title=Polvo de Oro, artist=Sol Naciente, album=Dorado
+Row: 5 title=Marea Baja, artist=Luna Vega, album=Mareas
+Row: 6 title=Ruta 27, artist=Los Faroles, album=Neón Verde
+Row: 7 title=Lluvia Lenta, artist=Aria Montes, album=Azul Profundo
