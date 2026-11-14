@@ -70,6 +70,8 @@ fun RebirthLocalExperience(
     onQueueSelection: ((List<Song>, Boolean) -> Unit)? = null,
     destination: RebirthDestination? = null,
     onDestinationChange: (RebirthDestination) -> Unit = {},
+    /** Genre tags by content URI. Null reads them from MediaStore; a test supplies its own. */
+    genreTags: Map<String, String>? = null,
 ) {
     val context = LocalContext.current
     val store = remember(context) { DevicePlaylistStore.forDevice(context) }
@@ -152,8 +154,28 @@ fun RebirthLocalExperience(
     val (albums, artists, saved) = remember(songs, playlists, favoritesCollection) {
         rebirthCollections(songs, playlists, favorites = favoritesCollection)
     }
-    val opened = remember(collectionId, albums, artists, saved) {
-        (albums + artists + saved).firstOrNull { it.id == collectionId }
+    // Google Plus 2: genres, folders and the home sections. Read-only views of
+    // MediaStore tags, file paths and the listening history Replay records;
+    // the other appearances never compute or see them.
+    val plus = style == PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS
+    var scannedGenres by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    LaunchedEffect(plus, songs, genreTags) {
+        if (plus && genreTags == null && songs.isNotEmpty()) scannedGenres = LocalGenreIndex.load(context)
+    }
+    val genreByUri = genreTags ?: scannedGenres
+    val genres = remember(plus, songs, genreByUri) { if (plus) plusGenreCollections(songs, genreByUri) else emptyList() }
+    val folders = remember(plus, songs) { if (plus) plusFolderCollections(songs) else emptyList() }
+    var listeningBuckets by remember { mutableStateOf<List<com.music.bitchord.data.stats.StoredBucket>>(emptyList()) }
+    LaunchedEffect(plus, currentDestination, currentSong?.videoId, isPlaying) {
+        if (plus && currentDestination == RebirthDestination.HOME) {
+            listeningBuckets = runCatching { com.music.bitchord.data.stats.ListeningStats.exportAll() }.getOrDefault(emptyList())
+        }
+    }
+    val plusHome = remember(plus, songs, listeningBuckets) {
+        if (plus) plusHome(songs, listeningBuckets, java.time.LocalDate.now()) else null
+    }
+    val opened = remember(collectionId, albums, artists, saved, genres, folders) {
+        (albums + artists + saved + genres + folders).firstOrNull { it.id == collectionId }
     }
     val favoriteVisible = remember(favoriteOrdered, query) {
         favoriteOrdered.filter { rebirthMatches(it, query) }
@@ -238,6 +260,9 @@ fun RebirthLocalExperience(
         glassEffects = glassEffects,
         adaptiveGlass = adaptiveGlass,
         backdropRecording = recordBackdrop,
+        genres = genres,
+        folders = folders,
+        plusHome = plusHome,
     )
 
     val actions = RebirthLibraryActions(

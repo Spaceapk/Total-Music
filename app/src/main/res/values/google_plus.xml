@@ -1,3 +1,24 @@
 <resources>
     <string name="google_plus_mix">Your\nMix</string>
+    <string name="google_plus_daily_mix">Daily mix</string>
+    <string name="google_plus_daily_mix_caption">%1$d songs · %2$s</string>
+    <string name="google_plus_daily_mix_hint">A new selection from your library every day</string>
+    <string name="google_plus_recent_played">Recently played</string>
+    <string name="google_plus_recent_added">Recently added</string>
+    <string name="google_plus_stats">Your stats</string>
+    <string name="google_plus_stats_month">This month</string>
+    <string name="google_plus_minutes">minutes listened</string>
+    <string name="google_plus_plays">plays</string>
+    <string name="google_plus_top_artist">Top artist</string>
+    <string name="google_plus_no_history">Play something to see this month here.</string>
+    <string name="google_plus_browse">Browse</string>
+    <string name="google_plus_genres">Genres</string>
+    <string name="google_plus_no_genres">Your music files have no genre tags.</string>
+    <string name="google_plus_folders">Folders</string>
+    <string name="google_plus_no_folders">No music folders found.</string>
+    <string name="google_plus_reorder_tabs">Reorder tabs</string>
+    <string name="google_plus_move_earlier">Move %1$s earlier</string>
+    <string name="google_plus_move_later">Move %1$s later</string>
+    <string name="google_plus_online_search">Search online</string>
+    <string name="google_plus_play_daily_mix">Play daily mix</string>
 </resources>

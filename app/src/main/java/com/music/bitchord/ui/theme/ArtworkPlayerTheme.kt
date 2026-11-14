@@ -31,7 +31,10 @@ fun ArtworkPlayerTheme(song: Song, content: @Composable () -> Unit) {
     val palette = rememberArtworkPalette(artwork, dark = dark, animateCached = true)
     val primary = palette.accent
     val onPrimary = if (primary.luminance() > 0.179f) Color.Black else Color.White
-    val background = if (dark) Color.Black else palette.background
+    // Google Plus is tonal in both modes: its dark player keeps the artwork's
+    // dark tone instead of pure black. Every other appearance is unchanged.
+    val plus = style == com.music.bitchord.ui.player.PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS
+    val background = if (dark && !plus) Color.Black else palette.background
     val container = palette.elevated
     val colors = base.copy(
         background = background, onBackground = palette.onBackground,

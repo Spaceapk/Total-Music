@@ -97,7 +97,18 @@ import com.music.bitchord.data.settings.LocalMusicSort
 @Composable
 internal fun RebirthExpressiveLibrary(data: RebirthLibraryData, actions: RebirthLibraryActions) {
     var sortOpen by remember { mutableStateOf(false) }
-    val selectionActive = data.selection.isNotEmpty()
+    // Google Plus tabs: the five shared categories plus Folders, in the order
+    // the reader stored. Folders is a view of this shell only, so it is local
+    // state rather than a sixth shared category the other themes would inherit.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var foldersTab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var tabOrder by remember { mutableStateOf(GooglePlusPrefs.tabOrder(context)) }
+    var reorderTabs by remember { mutableStateOf(false) }
+    val openTab: (PlusLibraryTab) -> Unit = { tab ->
+        actions.onDestination(RebirthDestination.LIBRARY)
+        foldersTab = tab == PlusLibraryTab.FOLDERS
+        tab.category()?.let(actions.onCategory)
+    }
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 8.dp),
@@ -153,20 +164,37 @@ internal fun RebirthExpressiveLibrary(data: RebirthLibraryData, actions: Rebirth
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 data.opened != null -> ExpressiveCollection(data, actions)
-                data.destination == RebirthDestination.HOME -> ExpressiveHome(data, actions)
-                data.destination == RebirthDestination.SEARCH -> ExpressiveRows(data, actions)
+                data.destination == RebirthDestination.HOME -> GooglePlusHome(data, actions)
+                data.destination == RebirthDestination.SEARCH && data.query.isBlank() ->
+                    GooglePlusSearchLanding(data, actions, openTab)
+                data.destination != RebirthDestination.LIBRARY -> ExpressiveRows(data, actions)
                 else -> Column(Modifier.fillMaxSize()) {
-                    CategoryPills(data, actions, glass = false)
-                    if (data.category == RebirthCategory.ALBUMS ||
-                        data.category == RebirthCategory.ARTISTS ||
-                        data.category == RebirthCategory.PLAYLISTS
-                    ) {
-                        ExpressiveGallery(data, actions)
-                    } else {
-                        ExpressiveRows(data, actions)
+                    GooglePlusLibraryTabs(
+                        order = tabOrder,
+                        selected = plusSelectedTab(data.category, foldersTab),
+                        onTab = openTab,
+                        onReorder = { reorderTabs = true },
+                    )
+                    when {
+                        foldersTab -> GooglePlusFolders(data, actions)
+                        data.category == RebirthCategory.ALBUMS ||
+                            data.category == RebirthCategory.ARTISTS ||
+                            data.category == RebirthCategory.PLAYLISTS -> ExpressiveGallery(data, actions)
+                        else -> ExpressiveRows(data, actions)
                     }
                 }
             }
+        }
+        if (reorderTabs) {
+            GooglePlusTabOrderDialog(
+                data = data, initial = tabOrder,
+                onSave = { order ->
+                    tabOrder = order
+                    GooglePlusPrefs.setTabOrder(context, order)
+                    reorderTabs = false
+                },
+                onDismiss = { reorderTabs = false },
+            )
         }
         Box(Modifier.fillMaxWidth().windowInsetsPadding(com.music.bitchord.ui.components.floatingBarInsets)) {
             Column(Modifier.fillMaxWidth()) {
@@ -184,150 +212,6 @@ internal fun RebirthExpressiveLibrary(data: RebirthLibraryData, actions: Rebirth
                     onDestination = actions.onDestination,
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun CategoryPills(data: RebirthLibraryData, actions: RebirthLibraryActions, glass: Boolean) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        RebirthCategory.entries.forEach { category ->
-            RebirthFilterPill(
-                label = category.label(),
-                selected = data.category == category,
-                onClick = { actions.onCategory(category) },
-                glass = glass,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ExpressiveHome(data: RebirthLibraryData, actions: RebirthLibraryActions) {
-    if (data.songs.isEmpty()) {
-        RebirthEmptyState(
-            icon = Icons.Rounded.MusicNote,
-            title = stringResource(R.string.library_empty),
-            message = data.emptyMessage ?: stringResource(R.string.rebirth_home_empty),
-        )
-        return
-    }
-    val hero = data.currentSong ?: data.songs.firstOrNull()
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.google_plus_mix), Modifier.weight(1f),
-                        style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.Black)
-                    FilledTonalIconButton(onClick = { actions.onShuffle(data.songs) },
-                        modifier = Modifier.size(64.dp), shape = RoundedCornerShape(24.dp)) {
-                        Icon(Icons.Rounded.Shuffle, stringResource(R.string.shuffle))
-                    }
-                }
-                Text(stringResource(R.string.rebirth_home_subtitle), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                GooglePlusCollage(data.songs, hero) { song ->
-                    actions.onPlay(data.songs, data.songs.indexOfFirst { it.videoId == song.videoId }.coerceAtLeast(0))
-                }
-            }
-        }
-        item {
-            RebirthSectionHeader(
-                title = stringResource(R.string.rebirth_home_explore),
-                modifier = Modifier.padding(horizontal = 20.dp),
-                action = {
-                    TextButton(onClick = { actions.onCategory(RebirthCategory.ALBUMS); actions.onDestination(RebirthDestination.LIBRARY) }) {
-                        Text(stringResource(R.string.show_all))
-                    }
-                },
-            )
-        }
-        item {
-            LazyRow(
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(data.albums, key = { it.id }) { album ->
-                    Column(
-                        Modifier.width(150.dp).clickable { actions.onOpenCollection(album) },
-                    ) {
-                        Cover(
-                            song = album.songs.firstOrNull(),
-                            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                            corner = 24,
-                            placeholder = Icons.Rounded.Album,
-                        )
-                        Text(
-                            text = album.title,
-                            modifier = Modifier.padding(top = 6.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = collectionCaption(album.songs.size),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-        }
-        item {
-            RebirthSectionHeader(
-                title = stringResource(R.string.songs),
-                modifier = Modifier.padding(horizontal = 20.dp),
-            )
-        }
-        itemsIndexed(data.songs.take(8), key = { _, song -> song.videoId }) { index, song ->
-            ExpressiveTrackRow(
-                song = song,
-                position = index,
-                selected = song.videoId in data.selection,
-                playing = data.currentSong?.videoId == song.videoId && data.isPlaying,
-                onPlay = { actions.onPlay(data.songs, index) },
-                onSelect = { actions.onToggleSelection(song.videoId) },
-                onMenu = { actions.onSongMenu(song) },
-                favoriteAction = data.category == RebirthCategory.FAVORITES,
-                onRemoveFavorite = { actions.onRemoveFavorite(song) },
-            )
-        }
-        item {
-            TextButton(
-                onClick = { actions.onDestination(RebirthDestination.LIBRARY) },
-                modifier = Modifier.padding(horizontal = 12.dp),
-            ) {
-                Icon(Icons.Rounded.LibraryMusic, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.library))
-            }
-        }
-    }
-}
-
-@Composable
-private fun MetricTile(value: String, label: String, container: androidx.compose.ui.graphics.Color, modifier: Modifier) {
-    Surface(
-        shape = RoundedCornerShape(28.dp),
-        color = container,
-        modifier = modifier,
-    ) {
-        Column(Modifier.padding(18.dp)) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Black,
-            )
-            Text(text = label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -713,32 +597,6 @@ internal fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibr
                     }
                 }
             }
-        }
-    }
-}
-
-/** A collage of real library artwork; tapping any sleeve plays that song. */
-@Composable
-private fun GooglePlusCollage(songs: List<Song>, hero: Song?, onPlay: (Song) -> Unit) {
-    val covers = remember(songs, hero) {
-        (listOfNotNull(hero) + songs).distinctBy { it.videoId }.take(5)
-    }
-    BoxWithConstraints(Modifier.fillMaxWidth().height(300.dp).testTag("google-plus-mix-collage")) {
-        val unit = maxWidth
-        covers.forEachIndexed { index, song ->
-            val alignment = when (index) {
-                0 -> Alignment.Center
-                1 -> Alignment.TopStart
-                2 -> Alignment.CenterEnd
-                3 -> Alignment.BottomStart
-                else -> Alignment.BottomEnd
-            }
-            val side = unit * if (index == 0) .49f else if (index == 3) .23f else .20f
-            Cover(song, Modifier.align(alignment)
-                .padding(if (index == 0) 0.dp else 8.dp)
-                .rotate(when (index) { 0 -> 28f; 3 -> -16f; else -> 0f })
-                .size(side).clickable { onPlay(song) },
-                corner = if (index == 3) 18 else 1000, placeholder = Icons.Rounded.MusicNote)
         }
     }
 }

@@ -6,4 +6,6 @@
     <string name="plus_return">Return to current line</string>
     <string name="plus_original">Original</string>
     <string name="plus_both">Both</string>
+    <string name="plus_translated">Translated</string>
+    <string name="plus_close_queue">Close queue</string>
 </resources>

@@ -6,4 +6,6 @@
     <string name="plus_return">Volver a la línea actual</string>
     <string name="plus_original">Original</string>
     <string name="plus_both">Ambas</string>
+    <string name="plus_translated">Traducida</string>
+    <string name="plus_close_queue">Cerrar cola</string>
 </resources>

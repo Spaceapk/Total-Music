@@ -94,6 +94,10 @@ internal data class RebirthLibraryData(
     val glassEffects: Boolean,
     val adaptiveGlass: Boolean,
     val backdropRecording: Boolean,
+    /** Google Plus only: genre tags and music folders as collections, and its home sections. */
+    val genres: List<RebirthCollection> = emptyList(),
+    val folders: List<RebirthCollection> = emptyList(),
+    val plusHome: PlusHome? = null,
 )
 
 /** Everything both compositions can do. A missing action is a compile error, not a dead row. */

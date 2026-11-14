@@ -162,17 +162,13 @@ internal fun RebirthExpressiveScene(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             ) { target ->
                 when (target) {
-                    RebirthPage.QUEUE -> RebirthQueuePage(
-                        queue = queue,
-                        queueIndex = queueIndex,
-                        locked = locked,
-                        spec = spec,
-                        onJump = onJump,
-                        onMove = onMove,
-                        onRemove = onRemove,
-                        onClear = onClear,
+                    RebirthPage.QUEUE -> GooglePlusQueuePanel(
+                        song = song, queue = queue, queueIndex = queueIndex, locked = locked,
+                        shuffled = shuffled, repeatMode = repeatMode, spec = spec, transport = transport,
+                        onJump = onJump, onMove = onMove, onRemove = onRemove, onClear = onClear,
                         onDragActiveChange = onDragActiveChange,
-                        modifier = Modifier.fillMaxSize().testTag("google-plus-queue"),
+                        onClose = { onPage(RebirthPage.PLAYER) },
+                        modifier = Modifier.fillMaxSize(),
                     )
                     RebirthPage.LYRICS -> GooglePlusLyricsPage(
                         song = song,
@@ -203,18 +199,12 @@ internal fun RebirthExpressiveScene(
                             val side = minOf((maxWidth - spec.gutter * 2).coerceAtLeast(0.dp), (availableHeight * 0.57f).coerceIn(140.dp, 480.dp))
                             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                 RebirthEnter(delayMillis = 0, motion = motion) {
-                                    RebirthSleeve(
-                                        song = song,
-                                        playing = playing,
-                                        spec = spec,
-                                        modifier = Modifier
-                                            .size(side)
-                                            .testTag("rebirth-artwork"),
-                                        corner = spec.artworkCorner,
+                                    GooglePlusSleeve(
+                                        song = song, queueIndex = queueIndex, playing = playing, spec = spec,
                                         onNext = { if (nextEnabled && !locked) transport.next() },
                                         onPrevious = { if (previousEnabled && !locked) transport.previous() },
-                                        elastic = false,
                                         dockFrame = dockFrame,
+                                        modifier = Modifier.size(side).testTag("rebirth-artwork"),
                                     )
                                 }
                             }
@@ -263,7 +253,11 @@ internal fun RebirthExpressiveScene(
                                         onSeek = transport.seek,
                                         trackId = song.videoId,
                                     )
-                                    PlaybackQualityLabel(song, loading, Modifier.align(Alignment.CenterHorizontally))
+                                    Row(Modifier.align(Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        PlaybackQualityLabel(song, loading)
+                                        GooglePlusQuality()
+                                    }
                                     GooglePlusTransport(
                                         playing = playing, loading = loading,
                                         previousEnabled = previousEnabled, nextEnabled = nextEnabled,

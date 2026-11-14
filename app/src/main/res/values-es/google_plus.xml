@@ -1,3 +1,24 @@
 <resources>
     <string name="google_plus_mix">Tu\nMix</string>
+    <string name="google_plus_daily_mix">Mix diario</string>
+    <string name="google_plus_daily_mix_caption">%1$d canciones · %2$s</string>
+    <string name="google_plus_daily_mix_hint">Una selección nueva de tu biblioteca cada día</string>
+    <string name="google_plus_recent_played">Reproducidas recientemente</string>
+    <string name="google_plus_recent_added">Añadidas recientemente</string>
+    <string name="google_plus_stats">Tus estadísticas</string>
+    <string name="google_plus_stats_month">Este mes</string>
+    <string name="google_plus_minutes">minutos escuchados</string>
+    <string name="google_plus_plays">reproducciones</string>
+    <string name="google_plus_top_artist">Artista más escuchado</string>
+    <string name="google_plus_no_history">Reproduce algo para ver aquí tu mes.</string>
+    <string name="google_plus_browse">Explorar</string>
+    <string name="google_plus_genres">Géneros</string>
+    <string name="google_plus_no_genres">Tus archivos de música no tienen etiquetas de género.</string>
+    <string name="google_plus_folders">Carpetas</string>
+    <string name="google_plus_no_folders">No se encontraron carpetas con música.</string>
+    <string name="google_plus_reorder_tabs">Reordenar pestañas</string>
+    <string name="google_plus_move_earlier">Mover %1$s antes</string>
+    <string name="google_plus_move_later">Mover %1$s después</string>
+    <string name="google_plus_online_search">Buscar en línea</string>
+    <string name="google_plus_play_daily_mix">Reproducir mix diario</string>
 </resources>
