@@ -17,8 +17,8 @@ class RebirthVisualTokensTest {
     @Test
     fun expressivePlusKeepsTheBasePaletteOnDark() {
         val colors = rebirthColors(PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS, dark)
-        assertEquals(Color.Black, colors.background)
-        assertEquals(Color.Black, colors.surface)
+        assertEquals(dark.background, colors.background)
+        assertEquals(dark.surface, colors.surface)
     }
 
     @Test

@@ -1,0 +1,85 @@
+name: Google Plus 2 draft verification
+on:
+  push:
+    branches: [work/google-plus-2]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: google-plus-2-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      ORG_GRADLE_PROJECT_spaceNdkVersion: '27.0.12077973'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+      - name: Prepare Android toolchain
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
+      - name: Tests and lint
+        run: |
+          ./gradlew --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8' \
+            :shared:jvmTest :sharedUi:jvmTest :app:testProdDebugUnitTest :app:lintProdDebug -PspaceSpatialEdition=true
+      - name: Build internal installation candidate
+        run: |
+          ./gradlew --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8' \
+            :app:assembleProdDebug :app:assembleProdDebugAndroidTest -PspaceSpatialEdition=true
+      - name: Enable emulator acceleration
+        run: |
+          sudo chmod a+rw /dev/kvm
+      - name: Install and run Android 13 regressions
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            mkdir -p plus-device-results
+            APK=$(find app/build/outputs/apk/prod/debug -name '*universal*.apk' | head -1)
+            test -n "$APK"
+            adb install -r "$APK" | tee plus-device-results/install.txt
+            grep -q 'Success' plus-device-results/install.txt
+            ./gradlew --max-workers=2 :app:connectedProdDebugAndroidTest -PspaceSpatialEdition=true '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.GooglePlusUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.ObsidianFidelityUiTest,com.music.bitchord.DevicePlaylistStoreTest,com.music.bitchord.DeviceFavoriteStoreTest'
+      - name: Stage test APK only after successful installation and regressions
+        run: |
+          mkdir -p plus-test-delivery
+          APK=$(find app/build/outputs/apk/prod/debug -name '*universal*.apk' | head -1)
+          cp "$APK" plus-test-delivery/Total-Music-Google-Plus-2-DRAFT-DEBUG-NOT-AN-UPDATE.apk
+          git rev-parse HEAD > plus-test-delivery/source-commit.txt
+          printf '%s\n' 'DEBUG TEST ONLY. Do not install over permanent-key Total Music. Visual fidelity, real playback and in-place update are not certified.' > plus-test-delivery/README.txt
+          cd plus-test-delivery
+          sha256sum *.apk > SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: google-plus-2-installed-test-${{ github.sha }}
+          path: plus-test-delivery/
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: google-plus-2-test-reports-${{ github.sha }}
+          path: |
+            app/build/reports/
+            app/build/test-results/
+            app/build/outputs/androidTest-results/
+            shared/build/test-results/
+            sharedUi/build/test-results/
+            plus-device-results/
+          if-no-files-found: warn
+          retention-days: 14

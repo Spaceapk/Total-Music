@@ -1,6 +1,14 @@
 package com.music.bitchord.ui.player
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -69,17 +77,11 @@ import com.music.bitchord.sharedui.resources.rebirth_tools_short
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Google Expressive+ Reimagined: an editorial player.
+ * Google Plus 2: reference-led player presentation.
  *
- * The song is the page. Artwork runs edge to edge under the bar, the title is
- * set at display size beneath it, and everything the reader can do is a row of
- * labelled pills at the foot — queue, lyrics, output, tools. Nothing is hidden
- * behind a gesture except the queue and the lyrics, which get pages of their
- * own rather than a drawer over the sleeve.
- *
- * The glass scene next door shares [RebirthTransport], [RebirthQueuePage] and
- * the lyric page with this one and nothing else: no card, no radius and no type
- * size is common between them on purpose.
+ * Keeps the existing media session, artwork dock, queue callbacks, providers
+ * and playback tools. Layout and lyric presentation are scoped to this scene.
+ * Motion timings remain provisional until device/video comparison is complete.
  */
 @Composable
 internal fun RebirthExpressiveScene(
@@ -134,34 +136,6 @@ internal fun RebirthExpressiveScene(
             .background(colors.background)
             .rebirthDockHost(dock, dockFrame),
     ) {
-        // The optional dynamic backdrop: the same switch the glass scene reads,
-        // painted as two soft pools of colour rather than a frost.
-        if (dynamicBackground) {
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            colors.primary.copy(alpha = 0.22f),
-                            Color.Transparent,
-                        ),
-                        center = Offset(220f, 180f),
-                        radius = 900f,
-                    ),
-                ),
-            )
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            colors.tertiary.copy(alpha = 0.16f),
-                            Color.Transparent,
-                        ),
-                        center = Offset(860f, 980f),
-                        radius = 1100f,
-                    ),
-                ),
-            )
-        }
         Column(
             Modifier
                 .fillMaxSize()
@@ -169,18 +143,22 @@ internal fun RebirthExpressiveScene(
                 .navigationBarsPadding(),
         ) {
             ExpressiveTopBar(
-                spec = spec,
-                song = song,
-                liked = liked,
                 page = page,
-                onLike = onLike,
-                onMenu = onMenu,
                 onDismiss = onDismiss,
                 onPage = onPage,
+                onOutput = onOutput,
+                onTools = onTools,
             )
             AnimatedContent(
                 targetState = page,
-                transitionSpec = { rebirthPageTransition(motion) },
+                transitionSpec = {
+                    if (!motion) EnterTransition.None togetherWith ExitTransition.None
+                    else if (targetState == RebirthPage.QUEUE) {
+                        (fadeIn(tween(180)) + slideInVertically(tween(GooglePlusTokens.pageDurationMs, easing = RebirthEmphasizedDecelerate)) { it }) togetherWith fadeOut(tween(120))
+                    } else if (initialState == RebirthPage.QUEUE) {
+                        fadeIn(tween(180)) togetherWith (fadeOut(tween(180)) + slideOutVertically(tween(GooglePlusTokens.pageDurationMs)) { it })
+                    } else rebirthPageTransition(motion)
+                },
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             ) { target ->
                 when (target) {
@@ -194,10 +172,9 @@ internal fun RebirthExpressiveScene(
                         onRemove = onRemove,
                         onClear = onClear,
                         onDragActiveChange = onDragActiveChange,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().testTag("google-plus-queue"),
                     )
-                    RebirthPage.LYRICS -> RebirthLyricsPage(
-                        style = spec.style,
+                    RebirthPage.LYRICS -> GooglePlusLyricsPage(
                         song = song,
                         lyrics = lyrics,
                         lyricsSource = lyricsSource,
@@ -208,6 +185,8 @@ internal fun RebirthExpressiveScene(
                         onSeekLine = onSeekLine,
                         onOpenOffset = onOpenLyricsOffset,
                         onOpenProviders = onOpenLyricsProviders,
+                        playing = playing, loading = loading, durationMs = durationMs,
+                        transport = transport, onBack = { onPage(RebirthPage.PLAYER) },
                         modifier = Modifier.fillMaxSize(),
                     )
                     RebirthPage.PLAYER -> BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -221,7 +200,7 @@ internal fun RebirthExpressiveScene(
                         BoxWithConstraints(Modifier.fillMaxWidth()) {
                             // Balance against the usable viewport; short windows
                             // and large text can scroll the complete group.
-                            val side = minOf((maxWidth - spec.gutter * 2).coerceAtLeast(0.dp), (availableHeight * 0.50f).coerceIn(140.dp, 420.dp))
+                            val side = minOf((maxWidth - spec.gutter * 2).coerceAtLeast(0.dp), (availableHeight * 0.57f).coerceIn(140.dp, 480.dp))
                             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                 RebirthEnter(delayMillis = 0, motion = motion) {
                                     RebirthSleeve(
@@ -241,8 +220,9 @@ internal fun RebirthExpressiveScene(
                             }
                         }
                         Column(Modifier.padding(horizontal = spec.gutter, vertical = 16.dp)) {
-                            RebirthEnter(delayMillis = 80, motion = motion) {
-                                Column {
+                            RebirthEnter(delayMillis = 0, motion = false) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
                                     Text(
                                         text = song.title,
                                         style = spec.titleStyle,
@@ -264,6 +244,13 @@ internal fun RebirthExpressiveScene(
                                             .padding(vertical = 2.dp),
                                     )
                                 }
+                                IconButton(onClick = { onPage(RebirthPage.LYRICS) }, modifier = Modifier.testTag("google-plus-open-lyrics")) {
+                                    Icon(Icons.AutoMirrored.Rounded.Notes, stringResource(Res.string.rebirth_lyrics_page))
+                                }
+                                IconButton(onClick = onMenu) {
+                                    Icon(Icons.Rounded.MoreVert, stringResource(Res.string.rebirth_tools_short))
+                                }
+                                }
                             }
                             Spacer(Modifier.height(10.dp))
                             RebirthEnter(delayMillis = 150, motion = motion) {
@@ -276,19 +263,13 @@ internal fun RebirthExpressiveScene(
                                         onSeek = transport.seek,
                                         trackId = song.videoId,
                                     )
-                                    RebirthTransportRow(
-                                        playing = playing,
-                                        loading = loading,
-                                        previousEnabled = previousEnabled,
-                                        nextEnabled = nextEnabled,
-                                        locked = locked,
-                                        shuffled = shuffled,
-                                        repeatMode = repeatMode,
-                                        spec = spec,
-                                        transport = transport,
-                                        expanded = alternativeControls,
-                                        elastic = false,
-                                        modifier = Modifier.padding(top = 8.dp).testTag("expressive-transport"),
+                                    PlaybackQualityLabel(song, loading, Modifier.align(Alignment.CenterHorizontally))
+                                    GooglePlusTransport(
+                                        playing = playing, loading = loading,
+                                        previousEnabled = previousEnabled, nextEnabled = nextEnabled,
+                                        locked = locked, shuffled = shuffled, repeatMode = repeatMode,
+                                        liked = liked, transport = transport, onLike = onLike,
+                                        modifier = Modifier.padding(top = 20.dp),
                                     )
                                 }
                             }
@@ -303,18 +284,6 @@ internal fun RebirthExpressiveScene(
                     }
                 }
             }
-            if (page == RebirthPage.PLAYER) {
-                RebirthEnter(delayMillis = 240, motion = motion) {
-                    ExpressiveActionBar(
-                        queueSize = queue.size,
-                        onQueue = { onPage(RebirthPage.QUEUE) },
-                        onLyrics = { onPage(RebirthPage.LYRICS) },
-                        onOutput = onOutput,
-                        onTools = onTools,
-                        onListenTogether = onListenTogether,
-                    )
-                }
-            }
         }
     }
 }
@@ -322,129 +291,29 @@ internal fun RebirthExpressiveScene(
 
 @Composable
 private fun ExpressiveTopBar(
-    spec: RebirthSpec,
-    song: Song,
-    liked: Boolean,
     page: RebirthPage,
-    onLike: () -> Unit,
-    onMenu: () -> Unit,
     onDismiss: () -> Unit,
     onPage: (RebirthPage) -> Unit,
-) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(
-            onClick = { if (page == RebirthPage.PLAYER) onDismiss() else onPage(RebirthPage.PLAYER) },
-        ) {
-            Icon(
-                imageVector = if (page == RebirthPage.PLAYER) {
-                    Icons.Rounded.KeyboardArrowDown
-                } else {
-                    Icons.AutoMirrored.Rounded.ArrowBack
-                },
-                contentDescription = null,
-            )
-        }
-        Column(Modifier.weight(1f).padding(horizontal = 4.dp)) {
-            Text(
-                text = when (page) {
-                    RebirthPage.PLAYER -> stringResource(Res.string.now_playing)
-                    RebirthPage.QUEUE -> stringResource(Res.string.queue)
-                    RebirthPage.LYRICS -> stringResource(Res.string.rebirth_lyrics_page)
-                },
-                style = spec.captionStyle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = song.albumName ?: song.artist,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        IconButton(onClick = onLike) {
-            Icon(
-                imageVector = if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                contentDescription = stringResource(if (liked) Res.string.rebirth_remove_favorite else Res.string.rebirth_add_favorite),
-                tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        IconButton(onClick = onMenu) {
-            Icon(Icons.Rounded.MoreVert, contentDescription = null)
-        }
-    }
-}
-
-@Composable
-private fun ExpressiveActionBar(
-    queueSize: Int,
-    onQueue: () -> Unit,
-    onLyrics: () -> Unit,
     onOutput: () -> Unit,
     onTools: () -> Unit,
-    onListenTogether: () -> Unit,
 ) {
+    if (page == RebirthPage.LYRICS) return // The lyric page owns its song capsule and back control.
     Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        ExpressivePill(
-            icon = Icons.Rounded.QueueMusic,
-            label = stringResource(Res.string.rebirth_queue_tracks, queueSize),
-            onClick = onQueue,
-            modifier = Modifier.weight(1f),
-        )
-        ExpressivePill(
-            icon = Icons.AutoMirrored.Rounded.Notes,
-            label = stringResource(Res.string.rebirth_lyrics_page),
-            onClick = onLyrics,
-            modifier = Modifier.weight(1f),
-        )
-        ExpressivePill(
-            icon = Icons.Rounded.Tune,
-            label = stringResource(Res.string.rebirth_tools_short),
-            onClick = onTools,
-            modifier = Modifier.weight(1f),
-        )
-    }
-
-}
-
-@Composable
-private fun ExpressivePill(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = modifier,
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .rebirthPress(elastic = false, pressedScale = 0.95f)
-                .clickable(onClick = onClick)
-                .padding(vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
+        IconButton(onClick = { if (page == RebirthPage.PLAYER) onDismiss() else onPage(RebirthPage.PLAYER) }) {
+            Icon(if (page == RebirthPage.PLAYER) Icons.Rounded.KeyboardArrowDown else Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = stringResource(Res.string.now_playing))
         }
+        Text(stringResource(if (page == RebirthPage.QUEUE) Res.string.queue else Res.string.now_playing),
+            modifier = Modifier.weight(1f).padding(horizontal = 8.dp), style = MaterialTheme.typography.titleSmall,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        IconButton(onClick = onOutput) { Icon(Icons.Rounded.Cast, stringResource(Res.string.rebirth_output)) }
+        IconButton(onClick = { onPage(if (page == RebirthPage.QUEUE) RebirthPage.PLAYER else RebirthPage.QUEUE) }, modifier = Modifier.testTag("google-plus-open-queue")) {
+            Icon(Icons.Rounded.QueueMusic, stringResource(Res.string.queue))
+        }
+        IconButton(onClick = onTools) { Icon(Icons.Rounded.Tune, stringResource(Res.string.rebirth_playback_tools)) }
     }
 }
+

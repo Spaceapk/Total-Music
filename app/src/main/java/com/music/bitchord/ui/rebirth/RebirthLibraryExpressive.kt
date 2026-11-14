@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -86,8 +89,7 @@ import com.music.bitchord.data.settings.LocalMusicSort
 /**
  * Google Expressive+ Reimagined, app side.
  *
- * An editorial library: one hero, numbered rows, big type and thumb-sized
- * metrics. The glass gallery next door indexes the same data on a rail and
+ * Reference-led collage, compact rows and the existing local library actions. The glass gallery next door indexes the same data on a rail and
  * shows covers as the primary object; nothing about the arrangement is shared,
  * and everything about the data is — see [RebirthLibraryData].
  */
@@ -102,21 +104,12 @@ internal fun RebirthExpressiveLibrary(data: RebirthLibraryData, actions: Rebirth
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.rebirth_home_hero),
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Black,
+                if (data.destination != RebirthDestination.HOME) Text(
+                    text = stringResource(if (data.destination == RebirthDestination.LIBRARY) R.string.library else R.string.search),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = when (data.destination) {
-                        RebirthDestination.HOME -> stringResource(R.string.rebirth_home_collection)
-                        RebirthDestination.LIBRARY -> data.category.label()
-                        RebirthDestination.SEARCH -> stringResource(R.string.rebirth_search_local)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Box {
@@ -229,70 +222,20 @@ private fun ExpressiveHome(data: RebirthLibraryData, actions: RebirthLibraryActi
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = hero?.title ?: stringResource(R.string.library_empty),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = hero?.artist.orEmpty(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                    Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilledTonalIconButton(
-                            onClick = {
-                                val index = data.songs.indexOfFirst { it.videoId == hero?.videoId }.coerceAtLeast(0)
-                                actions.onPlay(data.songs, index)
-                            },
-                            modifier = Modifier.size(56.dp),
-                            shape = RoundedCornerShape(20.dp),
-                        ) {
-                            Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.play))
-                        }
-                        FilledTonalIconButton(
-                            onClick = { actions.onShuffle(data.songs) },
-                            modifier = Modifier.size(56.dp),
-                            shape = RoundedCornerShape(20.dp),
-                        ) {
-                            Icon(Icons.Rounded.Shuffle, contentDescription = stringResource(R.string.shuffle))
-                        }
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.google_plus_mix), Modifier.weight(1f),
+                        style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.Black)
+                    FilledTonalIconButton(onClick = { actions.onShuffle(data.songs) },
+                        modifier = Modifier.size(64.dp), shape = RoundedCornerShape(24.dp)) {
+                        Icon(Icons.Rounded.Shuffle, stringResource(R.string.shuffle))
                     }
                 }
-                Cover(
-                    song = hero,
-                    modifier = Modifier.width(140.dp).aspectRatio(1f),
-                    corner = 32,
-                    placeholder = Icons.Rounded.MusicNote,
-                )
-            }
-        }
-        item {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                MetricTile(
-                    value = data.songs.size.toString(),
-                    label = stringResource(R.string.songs),
-                    container = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.weight(1f),
-                )
-                MetricTile(
-                    value = data.albums.size.toString(),
-                    label = stringResource(R.string.albums),
-                    container = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.weight(1f),
-                )
+                Text(stringResource(R.string.rebirth_home_subtitle), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                GooglePlusCollage(data.songs, hero) { song ->
+                    actions.onPlay(data.songs, data.songs.indexOfFirst { it.videoId == song.videoId }.coerceAtLeast(0))
+                }
             }
         }
         item {
@@ -457,12 +400,6 @@ internal fun ExpressiveTrackRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            text = if (selected) "" else "${position + 1}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(18.dp),
-        )
         if (selected) {
             Icon(
                 Icons.Rounded.CheckCircle,
@@ -471,7 +408,7 @@ internal fun ExpressiveTrackRow(
                 modifier = Modifier.size(18.dp),
             )
         }
-        Cover(song = song, modifier = Modifier.size(48.dp), corner = 14, placeholder = Icons.Rounded.MusicNote)
+        Cover(song = song, modifier = Modifier.size(44.dp), corner = 10, placeholder = Icons.Rounded.MusicNote)
         Column(Modifier.weight(1f)) {
             Text(
                 text = song.title,
@@ -776,6 +713,32 @@ internal fun ExpressiveCollection(data: RebirthLibraryData, actions: RebirthLibr
                     }
                 }
             }
+        }
+    }
+}
+
+/** A collage of real library artwork; tapping any sleeve plays that song. */
+@Composable
+private fun GooglePlusCollage(songs: List<Song>, hero: Song?, onPlay: (Song) -> Unit) {
+    val covers = remember(songs, hero) {
+        (listOfNotNull(hero) + songs).distinctBy { it.videoId }.take(5)
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth().height(300.dp).testTag("google-plus-mix-collage")) {
+        val unit = maxWidth
+        covers.forEachIndexed { index, song ->
+            val alignment = when (index) {
+                0 -> Alignment.Center
+                1 -> Alignment.TopStart
+                2 -> Alignment.CenterEnd
+                3 -> Alignment.BottomStart
+                else -> Alignment.BottomEnd
+            }
+            val side = unit * if (index == 0) .49f else if (index == 3) .23f else .20f
+            Cover(song, Modifier.align(alignment)
+                .padding(if (index == 0) 0.dp else 8.dp)
+                .rotate(when (index) { 0 -> 28f; 3 -> -16f; else -> 0f })
+                .size(side).clickable { onPlay(song) },
+                corner = if (index == 3) 18 else 1000, placeholder = Icons.Rounded.MusicNote)
         }
     }
 }

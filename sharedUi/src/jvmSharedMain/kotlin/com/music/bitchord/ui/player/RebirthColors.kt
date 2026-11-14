@@ -36,10 +36,9 @@ fun rebirthColors(style: PlayerVisualStyle, base: ColorScheme): ColorScheme {
             surfaceContainer = Color(0xFF15171E), surfaceContainerHigh = Color(0xFF1D1F28),
             surfaceContainerHighest = Color(0xFF282A35), outline = Color(0xFF555361),
         )
-        PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS -> base.copy(
-            background = if (dark) Color.Black else Color(0xFFFFF9F0),
-            surface = if (dark) Color.Black else Color(0xFFFFF9F0),
-        )
+        // Preserve ArtworkPlayerTheme's tonal surface; replacing it with ivory
+        // here erased the artwork palette immediately after it was computed.
+        PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS -> base
         PlayerVisualStyle.LIQUID_GLASS_PLUS -> if (dark) {
             darkColorScheme(
                 background = Color.Black,
@@ -109,12 +108,13 @@ internal fun rebirthSpec(style: PlayerVisualStyle): RebirthSpec {
         PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS,
         -> RebirthSpec(
             style = style,
-            artworkCorner = 30.dp,
+            artworkCorner = if (style == PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS) 16.dp else 30.dp,
             panelCorner = 28.dp,
             controlCorner = 40.dp,
             gutter = 20.dp,
             gap = 18.dp,
-            titleStyle = type.displaySmall.copy(fontWeight = FontWeight.Black),
+            titleStyle = if (style == PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS) type.titleLarge.copy(fontWeight = FontWeight.Bold)
+                else type.displaySmall.copy(fontWeight = FontWeight.Black),
             labelStyle = type.labelLarge,
             captionStyle = type.labelSmall.copy(letterSpacing = 1.2.sp, fontWeight = FontWeight.Medium),
         )

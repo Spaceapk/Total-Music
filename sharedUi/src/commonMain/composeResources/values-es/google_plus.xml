@@ -1,0 +1,9 @@
+<resources>
+    <string name="plus_previous">Anterior</string>
+    <string name="plus_next">Siguiente</string>
+    <string name="plus_synced">Sincronizadas</string>
+    <string name="plus_static">Estáticas</string>
+    <string name="plus_return">Volver a la línea actual</string>
+    <string name="plus_original">Original</string>
+    <string name="plus_both">Ambas</string>
+</resources>

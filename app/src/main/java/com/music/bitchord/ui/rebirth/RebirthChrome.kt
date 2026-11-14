@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
@@ -82,60 +83,42 @@ internal fun RebirthExpressiveMiniPlayer(
     val resolvedDock = dock ?: LocalPlayerDock.current
     val resolvedPull = pull ?: LocalPlayerPull.current
     if (song == null) return
+    com.music.bitchord.ui.theme.ArtworkPlayerTheme(song) {
     Surface(
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomStart = 10.dp, bottomEnd = 10.dp),
+        shape = CircleShape,
         color = MaterialTheme.colorScheme.secondaryContainer,
         modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            // Ahead of the surface content, so a pull lifts the whole of it.
+            .padding(horizontal = 8.dp, vertical = 4.dp)
             .miniPlayerGestures(
-                pull = resolvedPull,
-                onNext = onNext,
-                onPrevious = onPrevious,
-                locked = locked,
-                onBlocked = onBlocked,
+                pull = resolvedPull, onNext = onNext, onPrevious = onPrevious,
+                locked = locked, onBlocked = onBlocked,
             ),
     ) {
         Row(
-            Modifier.clickable(onClick = onExpand).padding(10.dp),
+            Modifier.clickable(onClick = onExpand).padding(start = 6.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Cover(song = song, modifier = Modifier.size(52.dp), corner = 16, placeholder = Icons.Rounded.MusicNote, dock = resolvedDock)
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.now_playing),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
-                )
-                Text(
-                    text = song.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = song.artist,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            Cover(song = song, modifier = Modifier.size(36.dp), corner = 1000, placeholder = Icons.Rounded.MusicNote, dock = resolvedDock)
+            Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                Text(song.title, style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(song.artist, style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            IconButton(onClick = onPlayPause) {
-                if (loading) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(
-                        imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        contentDescription = stringResource(if (playing) R.string.pause else R.string.play),
-                    )
-                }
+            IconButton(onClick = onPrevious, enabled = !locked, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Rounded.SkipPrevious, stringResource(R.string.widget_previous), Modifier.size(18.dp))
             }
-            IconButton(onClick = onNext) {
-                Icon(Icons.Rounded.SkipNext, contentDescription = stringResource(R.string.widget_next))
+            FilledIconButton(onClick = onPlayPause, shape = CircleShape, modifier = Modifier.size(48.dp)) {
+                if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    stringResource(if (playing) R.string.pause else R.string.play), Modifier.size(20.dp))
+            }
+            IconButton(onClick = onNext, enabled = !locked, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Rounded.SkipNext, stringResource(R.string.widget_next), Modifier.size(18.dp))
             }
         }
+    }
     }
 }
 
@@ -224,8 +207,8 @@ internal fun RebirthExpressiveNav(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ExpressiveNavItem(RebirthDestination.HOME, Icons.Rounded.Home, current, onDestination, Modifier.weight(1f))
-        ExpressiveNavItem(RebirthDestination.LIBRARY, Icons.Rounded.LibraryMusic, current, onDestination, Modifier.weight(1f))
         ExpressiveNavItem(RebirthDestination.SEARCH, Icons.Rounded.Search, current, onDestination, Modifier.weight(1f))
+        ExpressiveNavItem(RebirthDestination.LIBRARY, Icons.Rounded.LibraryMusic, current, onDestination, Modifier.weight(1f))
     }
 }
 
