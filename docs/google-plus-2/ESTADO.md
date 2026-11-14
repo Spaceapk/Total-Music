@@ -63,3 +63,25 @@ es `98dfb39fe08621667479675e3d8a2dc93a3c3307`, en
 `arena/1ae8428b-total-music`. No aplicar a main sin resolver su desfase de versión.
 No aceptar una APK como final por el solo hecho de compilar o instalar.
 Conservar las instrucciones AGENTS.md y docs/TOTAL_MUSIC_RELEASES.md del repositorio.
+
+## Resultados reales — commit `c62210de` (run 43609408185, 2026-11-14)
+
+Evidencia en `refs/ci-evidence/gp2/c62210de4497-{build,assemble,device}`.
+
+- Compilación `assembleProdPlusTest`: correcta.
+- Pruebas JVM: 1170 ejecutadas, 0 fallos, 1 omitida (incluye `GooglePlusDataTest` y `GooglePlusLyricsTest`).
+- Emulador Android 13: APK de prueba aislado (`org.nexlibre.totalmusic.plus.test`, firma debug efímera, NO actualiza Total Music) instalado con `Success`; 0 `FATAL EXCEPTION`.
+- Instrumentación: 34 ejecutadas, 1 fallo. Las de Google Plus pasan todas. Falla
+  `ObsidianFidelityUiTest.integratedDockSearchesAndTransforms` (`obsidian-disc` solo existe en el árbol sin fusionar).
+  Este trabajo no toca Obsidian y el flujo `obsidian-fidelity` ya fallaba en la base `98dfb39f`, pero no se ha
+  comprobado que sea exactamente el mismo fallo.
+- Capturas Compose reales (12) en `compose-captures/` de la referencia `-device`.
+
+### Pendiente (no declarado como terminado)
+
+- Comparación con el vídeo de referencia: sin vídeo ni fotogramas en esta sesión; proporciones y animaciones sin validar.
+- `scripts/plus/device_tour.py` solo comprueba el arranque: reproducción real, arrastre de cola, persistencia tras
+  reinicio y cambio entre temas en la app completa NO están probados en dispositivo.
+- Carátulas reales y colores dinámicos no verificados visualmente (las pruebas usan canciones sin carátula).
+- Fila de modos de letra: se recorta a la derecha en 360dp (desplazable).
+- Publicación: requiere la clave original; no se ha generado ninguna.
