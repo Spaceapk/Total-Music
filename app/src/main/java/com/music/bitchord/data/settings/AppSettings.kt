@@ -859,6 +859,9 @@ object AppSettings {
         val storedVisualStyle = prefs.getString(KEY_PLAYER_VISUAL_STYLE, null)
         playerVisualStyle.value = if (storedVisualStyle == null && BuildConfig.OBSIDIAN_TEST_DEFAULT) {
             PlayerVisualStyle.OBSIDIAN
+        } else if (storedVisualStyle == null && BuildConfig.PLUS_TEST_DEFAULT) {
+            // Only the isolated .plus.test verification package starts on Google Plus.
+            PlayerVisualStyle.GOOGLE_EXPRESSIVE_PLUS
         } else {
             PlayerVisualStyle.fromStorage(storedVisualStyle)
         }

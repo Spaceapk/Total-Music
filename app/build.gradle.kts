@@ -108,6 +108,7 @@ android {
         resValue("string", "app_name", if (spaceSpatialEdition) "Total Music" else "Space Music")
         buildConfigField("Boolean", "SPATIAL_EDITION", spaceSpatialEdition.toString())
         buildConfigField("Boolean", "OBSIDIAN_TEST_DEFAULT", "false")
+        buildConfigField("Boolean", "PLUS_TEST_DEFAULT", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -262,6 +263,23 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             resValue("string", "app_name", "Total Music Obsidian TEST")
             buildConfigField("Boolean", "OBSIDIAN_TEST_DEFAULT", "true")
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+        /*
+         * Google Plus 2.0 verification build. Same isolation rules as
+         * obsidianTest: separate package, TEST label and version suffix, and
+         * the ephemeral Android debug key. It can never update
+         * org.nexlibre.totalmusic in place and is never a release.
+         */
+        create("plusTest") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            applicationIdSuffix = ".plus.test"
+            versionNameSuffix = "-plus-test"
+            signingConfig = signingConfigs.getByName("debug")
+            resValue("string", "app_name", "Total Music Plus TEST")
+            buildConfigField("Boolean", "PLUS_TEST_DEFAULT", "true")
             isMinifyEnabled = false
             isShrinkResources = false
         }
@@ -514,6 +532,7 @@ dependencies {
     // ComponentActivity used by createAndroidComposeRule must be present in
     // that target APK manifest (not only the instrumentation APK).
     "obsidianTestImplementation"("androidx.compose.ui:ui-test-manifest")
+    "plusTestImplementation"("androidx.compose.ui:ui-test-manifest")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")

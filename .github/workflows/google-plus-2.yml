@@ -1,85 +1,241 @@
-name: Google Plus 2 draft verification
+name: Google Plus 2 — build, device verification and captures
 on:
   push:
-    branches: [work/google-plus-2]
+    branches: [arena/0e27405b-total-music]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
+  checks: write
 concurrency:
   group: google-plus-2-${{ github.ref }}
   cancel-in-progress: true
+env:
+  ORG_GRADLE_PROJECT_spaceNdkVersion: '27.0.12077973'
+  GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8'
+  TEST_PACKAGE: org.nexlibre.totalmusic.plus.test
 jobs:
-  verify:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
-    env:
-      ORG_GRADLE_PROJECT_spaceNdkVersion: '27.0.12077973'
+    timeout-minutes: 90
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+      - uses: actions/setup-java@v4
         with:
-          java-version: '21'
           distribution: temurin
+          java-version: '21'
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
         with:
           packages: platform-tools
-      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
-      - name: Prepare Android toolchain
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install pinned Android toolchain
         run: |
+          set -euo pipefail
           sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'cmake;3.22.1' 'ndk;27.0.12077973'
           if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"; fi
-      - name: Tests and lint
+      - name: Release identity and signing isolation
+        id: identity
+        continue-on-error: true
         run: |
-          ./gradlew --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8' \
-            :shared:jvmTest :sharedUi:jvmTest :app:testProdDebugUnitTest :app:lintProdDebug -PspaceSpatialEdition=true
-      - name: Build internal installation candidate
+          mkdir -p ci-results
+          python3 scripts/release/check_release.py 2>&1 | tee ci-results/check_release.txt
+      - name: Assemble isolated Google Plus test APK and instrumentation APK
+        id: assemble
+        continue-on-error: true
         run: |
-          ./gradlew --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8' \
-            :app:assembleProdDebug :app:assembleProdDebugAndroidTest -PspaceSpatialEdition=true
-      - name: Enable emulator acceleration
+          set -o pipefail
+          mkdir -p ci-results
+          ./gradlew :app:assembleProdPlusTest :app:assembleProdPlusTestAndroidTest \
+            --max-workers=2 --build-cache -PspaceSpatialEdition=true -PstarTestBuildType=plusTest \
+            2>&1 | tee ci-results/assemble.log
+      - name: Publish assemble result early
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          sudo chmod a+rw /dev/kvm
-      - name: Install and run Android 13 regressions
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 33
-          arch: x86_64
-          target: google_apis
-          disable-animations: true
-          script: |
-            mkdir -p plus-device-results
-            APK=$(find app/build/outputs/apk/prod/debug -name '*universal*.apk' | head -1)
-            test -n "$APK"
-            adb install -r "$APK" | tee plus-device-results/install.txt
-            grep -q 'Success' plus-device-results/install.txt
-            ./gradlew --max-workers=2 :app:connectedProdDebugAndroidTest -PspaceSpatialEdition=true '-Pandroid.testInstrumentationRunnerArguments.class=com.music.bitchord.GooglePlusUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.ObsidianFidelityUiTest,com.music.bitchord.DevicePlaylistStoreTest,com.music.bitchord.DeviceFavoriteStoreTest'
-      - name: Stage test APK only after successful installation and regressions
+          mkdir -p early
+          python3 scripts/plus/summarize_log.py ci-results/assemble.log early/assemble-summary.txt
+          echo "assemble=${{ steps.assemble.outcome }}" > early/outcome.txt
+          scripts/plus/publish_evidence.sh assemble early
+      - name: JVM and Android-local unit tests
+        id: tests
+        continue-on-error: true
         run: |
-          mkdir -p plus-test-delivery
-          APK=$(find app/build/outputs/apk/prod/debug -name '*universal*.apk' | head -1)
-          cp "$APK" plus-test-delivery/Total-Music-Google-Plus-2-DRAFT-DEBUG-NOT-AN-UPDATE.apk
-          git rev-parse HEAD > plus-test-delivery/source-commit.txt
-          printf '%s\n' 'DEBUG TEST ONLY. Do not install over permanent-key Total Music. Visual fidelity, real playback and in-place update are not certified.' > plus-test-delivery/README.txt
-          cd plus-test-delivery
-          sha256sum *.apk > SHA256SUMS
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: google-plus-2-installed-test-${{ github.sha }}
-          path: plus-test-delivery/
-          retention-days: 14
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          set -o pipefail
+          ./gradlew :shared:jvmTest :sharedUi:jvmTest :app:testProdPlusTestUnitTest --continue \
+            --max-workers=2 --build-cache -PspaceSpatialEdition=true -PstarTestBuildType=plusTest \
+            2>&1 | tee ci-results/tests.log
+      - name: Stage and verify the test APK
+        if: steps.assemble.outcome == 'success'
+        run: |
+          set -euo pipefail
+          mkdir -p delivery
+          TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          TEST_APK=$(find app/build/outputs/apk/prod/plusTest -name '*universal*.apk' | head -1)
+          X86_APK=$(find app/build/outputs/apk/prod/plusTest -name '*x86_64*.apk' | head -1)
+          TEST_ANDROID=$(find app/build/outputs/apk/androidTest -name '*.apk' | head -1)
+          VERSION=$(grep '^versionName=' total-music-release.properties | cut -d= -f2)
+          CODE=$(grep '^versionCode=' total-music-release.properties | cut -d= -f2)
+          NAME="Total-Music-Google-Plus-2-${VERSION}-code${CODE}-TEST-NOT-AN-UPDATE.apk"
+          cp "$TEST_APK" "delivery/$NAME"
+          cp "$TEST_ANDROID" delivery/android-test.apk
+          if [ -n "$X86_APK" ]; then cp "$X86_APK" delivery/emulator-x86_64.apk; fi
+          "$TOOLS/aapt" dump badging "$TEST_APK" > ci-results/test-apk-badging.txt
+          "$TOOLS/apksigner" verify --verbose --print-certs "$TEST_APK" > ci-results/test-apk-signature.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,hashlib,json
+          b=Path('ci-results/test-apk-badging.txt').read_text(); s=Path('ci-results/test-apk-signature.txt').read_text()
+          pkg=re.search(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'",b)
+          assert pkg and pkg[1]=='org.nexlibre.totalmusic.plus.test', 'Test APK must use the isolated package'
+          assert 'application-debuggable' not in b
+          cert=re.findall(r'certificate SHA-256 digest: ([0-9a-fA-F]+)',s)
+          assert cert and cert[0].lower()!='9ae145a703a85902fe6d6ab3d886f6801873d717929deaa3e3d0b0a81de829fa', 'Never present a throwaway key as the original'
+          apk=next(p for p in Path('delivery').glob('Total-Music-*.apk'))
+          result={'file':apk.name,'package':pkg[1],'versionCode':int(pkg[2]),'versionName':pkg[3],'debuggable':False,'sha256':hashlib.sha256(apk.read_bytes()).hexdigest(),'size_bytes':apk.stat().st_size,'certificate_sha256':cert[0].lower(),'installable_over_permanent_total_music':False,'reason':'Isolated test package and ephemeral Android debug certificate; the permanent private key was not available and no replacement key was generated.'}
+          Path('ci-results/apk-verification.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result,indent=2))
+          PY
+          (cd delivery && sha256sum *.apk > SHA256SUMS)
+          ls -lh delivery
+      - name: Publish build evidence
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p ci-results evidence
+          python3 scripts/plus/summarize_log.py ci-results/tests.log evidence/tests-summary.txt
+          python3 scripts/plus/summarize_log.py ci-results/assemble.log evidence/assemble-summary.txt
+          cp ci-results/*.txt ci-results/*.json evidence/ 2>/dev/null || true
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          from pathlib import Path
+          rows=[]; total=fail=skip=0
+          for path in sorted(glob.glob('**/build/test-results/**/TEST-*.xml',recursive=True)):
+              try: root=ET.parse(path).getroot()
+              except Exception: continue
+              t=int(root.get('tests',0)); f=int(root.get('failures',0))+int(root.get('errors',0)); s=int(root.get('skipped',0))
+              total+=t; fail+=f; skip+=s
+              if f:
+                  for case in root.iter('testcase'):
+                      for bad in list(case.findall('failure'))+list(case.findall('error')):
+                          rows.append(f"FAIL {case.get('classname')}.{case.get('name')}\n{(bad.get('message') or '')[:600]}\n{(bad.text or '')[:1500]}")
+          Path('evidence/junit-summary.txt').write_text(f"JUnit XML: {total} tests, {fail} failures/errors, {skip} skipped\n\n"+"\n\n".join(rows)+"\n")
+          PY
+          echo "identity=${{ steps.identity.outcome }} assemble=${{ steps.assemble.outcome }} tests=${{ steps.tests.outcome }}" > evidence/outcome.txt
+          cat evidence/outcome.txt evidence/junit-summary.txt | head -80
+          scripts/plus/publish_evidence.sh build evidence
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: google-plus-2-test-reports-${{ github.sha }}
-          path: |
-            app/build/reports/
-            app/build/test-results/
-            app/build/outputs/androidTest-results/
-            shared/build/test-results/
-            sharedUi/build/test-results/
-            plus-device-results/
+          name: google-plus-2-test-apk-${{ github.sha }}
+          path: delivery/
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 30
+      - name: Fail if assembly or tests failed
+        if: always()
+        run: |
+          test "${{ steps.assemble.outcome }}" = success
+          test "${{ steps.tests.outcome }}" = success
+  android13:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: google-plus-2-test-apk-${{ github.sha }}
+          path: delivery
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools emulator system-images;android-33;google_apis;x86_64
+      - name: Generate tagged audio fixtures
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          python3 scripts/plus/make_fixtures.py fixtures
+          ls -lh fixtures
+      - name: Boot Android 13 and install the isolated test APK
+        run: |
+          set -euo pipefail
+          mkdir -p device-results
+          sudo chmod a+rw /dev/kvm
+          adb start-server
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/plus-avd"; mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd -n plus -k 'system-images;android-33;google_apis;x86_64' -d pixel_5 --force
+          echo 'disk.dataPartition.size=6G' >> "$ANDROID_AVD_HOME/plus.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -avd plus -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics \
+            -gpu swiftshader_indirect -feature -Vulkan -cores 2 -memory 3072 > device-results/emulator.log 2>&1 &
+          timeout 180 adb wait-for-device
+          timeout 600 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
+          timeout 30 adb shell input keyevent 82
+          timeout 30 adb shell settings put system screen_off_timeout 1800000 || true
+          timeout 30 adb shell svc power stayon true || true
+          APK=$(ls delivery/Total-Music-*.apk | head -1)
+          timeout 300 adb install -r "$APK" | tee device-results/install.txt
+          timeout 300 adb install -r delivery/android-test.apk | tee device-results/install-test.txt
+          for perm in READ_MEDIA_AUDIO POST_NOTIFICATIONS READ_MEDIA_IMAGES; do
+            timeout 30 adb shell pm grant "$TEST_PACKAGE" android.permission.$perm || true
+          done
+          timeout 30 adb shell pm list instrumentation | tee device-results/instrumentation.txt
+          timeout 30 adb shell dumpsys package "$TEST_PACKAGE" | grep -E 'versionName|versionCode|signatures' | tee device-results/installed-package.txt || true
+      - name: Instrumented Google Plus and preservation regressions
+        id: instrumentation
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          INSTR=$(timeout 30 adb shell pm list instrumentation | tr -d '\r' | sed -n 's/^instrumentation:\([^ ]*\).*/\1/p' | head -1)
+          test -n "$INSTR"
+          timeout 1500 adb shell am instrument -w -r \
+            -e class com.music.bitchord.GooglePlusUiTest,com.music.bitchord.AppearanceThemeUiTest,com.music.bitchord.RebirthGlassShellUiTest,com.music.bitchord.ObsidianFidelityUiTest,com.music.bitchord.DevicePlaylistStoreTest,com.music.bitchord.DeviceFavoriteStoreTest,com.music.bitchord.PlaylistReorderUiTest,com.music.bitchord.LocalLyricsStoreTest \
+            "$INSTR" 2>&1 | tee device-results/instrumentation.log
+          timeout 60 adb pull "/sdcard/Android/data/$TEST_PACKAGE/files/plus-captures" device-results/compose-captures || true
+          if grep -q 'FAILURES!!!\|Process crashed\|INSTRUMENTATION_FAILED' device-results/instrumentation.log; then exit 1; fi
+          grep -q 'OK (' device-results/instrumentation.log
+      - name: Real-app tour with media, playback, lyrics, queue, themes and restart
+        id: tour
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          timeout 60 adb shell mkdir -p /sdcard/Music/PlusFixtures
+          timeout 300 adb push fixtures/. /sdcard/Music/PlusFixtures/
+          timeout 60 adb shell 'for f in /sdcard/Music/PlusFixtures/*; do am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file://$f" > /dev/null; done' || true
+          timeout 60 adb shell content call --uri content://media --method scan_volume --arg external_primary || true
+          sleep 8
+          timeout 30 adb shell content query --uri content://media/external/audio/media --projection title:artist:album | tee device-results/mediastore.txt || true
+          timeout 1500 python3 scripts/plus/device_tour.py device-results 2>&1 | tee device-results/tour.log
+      - name: Collect logs
+        if: always()
+        run: |
+          set +e
+          timeout 60 adb logcat -d -v threadtime | grep -E "FATAL|AndroidRuntime|$TEST_PACKAGE|ANR in" | tail -400 > device-results/logcat-relevant.txt
+          timeout 30 adb logcat -d -b crash -v threadtime > device-results/crash.txt
+          echo "instrumentation=${{ steps.instrumentation.outcome }} tour=${{ steps.tour.outcome }}" > device-results/outcome.txt
+          tail -c 20000 device-results/emulator.log > device-results/emulator-tail.txt; rm -f device-results/emulator.log
+          exit 0
+      - name: Publish device evidence
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/plus/publish_evidence.sh device device-results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: google-plus-2-android13-${{ github.sha }}
+          path: device-results/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Fail if device verification failed
+        if: always()
+        run: |
+          set -euo pipefail
+          grep -q 'Success' device-results/install.txt
+          grep -q 'Success' device-results/install-test.txt
+          test "${{ steps.instrumentation.outcome }}" = success
+          test "${{ steps.tour.outcome }}" = success
+          if grep -q 'FATAL EXCEPTION' device-results/crash.txt; then exit 1; fi
