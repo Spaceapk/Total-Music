@@ -1,0 +1,12 @@
+{
+  "file": "Total-Music-Google-Plus-2-1.10.1-code30-TEST-NOT-AN-UPDATE.apk",
+  "package": "org.nexlibre.totalmusic.plus.test",
+  "versionCode": 30,
+  "versionName": "1.10.1-plus-test",
+  "debuggable": false,
+  "sha256": "8cae82f3184c97a25c0396ffd8199910a40868019bb2d3727160f2f83e08db88",
+  "size_bytes": 242722363,
+  "certificate_sha256": "46d62abb7b361e56448be04e5fcf042e4ed399d58db724af709f0330d778deee",
+  "installable_over_permanent_total_music": false,
+  "reason": "Isolated test package and ephemeral Android debug certificate; the permanent private key was not available and no replacement key was generated."
+}

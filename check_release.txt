@@ -1,0 +1,2 @@
+Public identity and repository signing isolation verified
+Bundled release notes match release version
